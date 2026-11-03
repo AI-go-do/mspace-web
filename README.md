@@ -10,6 +10,8 @@ M-space 창작실 예약 화면(PWA). 폰 브라우저에서 열고 홈 화면�
 ```bash
 npm install
 npm run dev          # http://localhost:5173, /api는 localhost:8080(core)로 넘어감
+# infra compose로 core를 띄웠으면(core 포트가 안 열림) 입구 포트로 보낸다
+VITE_API_TARGET=http://localhost:8411 npm run dev
 ```
 
 로그인 코드는 core가 메일 대신 로그에 찍는다(`MAIL_ENABLED=false`일 때): `docker compose logs core | grep 인증번호`.
