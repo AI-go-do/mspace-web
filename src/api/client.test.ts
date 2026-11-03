@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, readTokens, saveTokens } from '../auth/tokens'
-import { api, login, logout, onSessionEnd, refreshTokens } from './client'
+import { REFRESH_TIMEOUT_MS, api, login, logout, onSessionEnd, refreshTokens } from './client'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -174,6 +174,30 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     expect(ended).not.toHaveBeenCalled()
     expect(readTokens()?.accessToken).toBe('new-user')
     off()
+  })
+
+  it('refresh가 응답 없이 멈추면 시간 제한 뒤 요청을 끊고, 기다리던 로그인이 진행된다', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation((path: string, init: RequestInit) => {
+        if (path === '/api/auth/refresh')
+          return new Promise<Response>((_, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          })
+        return Promise.resolve(json(200, { accessToken: 'login', expiresAt: later(60), memberId: 1, newMember: false }))
+      })
+      const pending = refreshTokens()
+      const pendingErr = pending.catch((e) => e)
+      const loggingIn = login('a@chosun.ac.kr', '123456', true)
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+      expect(await pendingErr).toMatchObject({ code: 'REFRESH_TIMEOUT' })
+      await loggingIn
+      const refreshInit = fetchMock.mock.calls[0][1] as RequestInit
+      expect(refreshInit.signal?.aborted).toBe(true)
+      expect(readTokens()?.accessToken).toBe('login')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('오류는 서버의 code·message를 그대로 던진다', async () => {

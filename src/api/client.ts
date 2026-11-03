@@ -98,9 +98,26 @@ export function refreshTokens(): Promise<Tokens> {
   return inFlight
 }
 
+/** refresh를 기다리는 최대 시간. 넘으면 요청을 실제로 끊는다(로그인이 이걸 기다리므로 영원히 멈추지 않게) */
+export const REFRESH_TIMEOUT_MS = 10_000
+
 async function doRefresh(): Promise<Tokens> {
   const started = generation
-  const res = await send('/api/auth/refresh', { method: 'POST' }, null)
+  // 시간 제한: 단순히 기다림만 끝내면 살아 있는 요청이 나중에 로그인 쿠키를 덮을 수 있어서, 요청 자체를 끊는다
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), REFRESH_TIMEOUT_MS)
+  try {
+    return await refreshOnce(started, abort.signal)
+  } catch (e) {
+    if (abort.signal.aborted) throw new ApiError(0, 'REFRESH_TIMEOUT', '연결이 늦어요. 잠시 후 다시 시도해 주세요')
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function refreshOnce(started: number, signal: AbortSignal): Promise<Tokens> {
+  const res = await send('/api/auth/refresh', { method: 'POST', signal }, null)
   if (started !== generation) {
     // 기다리는 사이 새로 로그인(또는 로그아웃)했다: 이 결과는 버리고 지금 토큰을 쓴다
     const now = readTokens()
