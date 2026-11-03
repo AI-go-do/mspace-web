@@ -38,3 +38,36 @@ button { font-family: inherit; color: inherit; }
 
 .muted { color: var(--navy-70); }
 
+
+/* ---- 화면 공통 ---- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+.btn-primary {
+  height: 56px; width: 100%; border: 0; border-radius: var(--radius);
+  background: var(--blue); color: var(--white);
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-primary:disabled { background: var(--gray); color: var(--navy-70); cursor: default; }
+.btn-line {
+  height: 56px; border: 1.5px solid var(--gray); border-radius: var(--radius);
+  background: var(--white); color: var(--navy); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.back {
+  width: var(--touch); height: var(--touch); border: 0; border-radius: 12px;
+  background: transparent; color: var(--navy); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+/* 로그인 확인 중 */
+.splash {
+  min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: var(--blue); color: var(--white);
+}
+.splash-name { font-size: 28px; font-weight: 700; }
+.splash-sub { font-size: 14px; opacity: 0.8; }
+.app-full { padding-bottom: 0; }

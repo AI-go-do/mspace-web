@@ -1,0 +1,76 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearTokens, readTokens, saveTokens } from '../auth/tokens'
+import { api, onSessionEnd } from './client'
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+const later = (min: number) => new Date(Date.now() + min * 60_000).toISOString()
+
+describe('api 자동 로그인 (FR-AUTH-002)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearTokens()
+  })
+
+  it('액세스 토큰이 끝났으면 동시에 여러 요청이 와도 refresh는 한 번만 부른다', async () => {
+    saveTokens({ accessToken: 'old', expiresAt: later(-1), refreshToken: 'r1' })
+    fetchMock.mockImplementation(async (path: string, init: RequestInit) => {
+      if (path === '/api/auth/refresh') {
+        return json(200, { accessToken: 'new', expiresAt: later(60), refreshToken: 'r2' })
+      }
+      expect(new Headers(init.headers).get('Authorization')).toBe('Bearer new')
+      return json(200, { ok: true })
+    })
+
+    await Promise.all([api('/api/a'), api('/api/b'), api('/api/c')])
+
+    const refreshCalls = fetchMock.mock.calls.filter(([p]) => p === '/api/auth/refresh')
+    expect(refreshCalls).toHaveLength(1)
+    expect(readTokens()?.refreshToken).toBe('r2')
+  })
+
+  it('서버가 401을 주면 새 토큰을 받아 한 번 다시 보낸다', async () => {
+    saveTokens({ accessToken: 'a1', expiresAt: later(30), refreshToken: 'r1' })
+    let first = true
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/auth/refresh') return json(200, { accessToken: 'a2', expiresAt: later(60), refreshToken: 'r2' })
+      if (first) {
+        first = false
+        return json(401, { code: 'UNAUTHORIZED', message: '로그인이 필요합니다' })
+      }
+      return json(200, [1])
+    })
+    await expect(api('/api/reservations/me')).resolves.toEqual([1])
+  })
+
+  it('refresh가 401이면 토큰을 지우고 로그인 끝을 알린다', async () => {
+    saveTokens({ accessToken: 'a1', expiresAt: later(-1), refreshToken: 'r1' })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/auth/refresh'
+        ? json(401, { code: 'REFRESH_TOKEN_INVALID', message: '로그인이 만료되었습니다' })
+        : json(401, { code: 'UNAUTHORIZED', message: '로그인이 필요합니다' }),
+    )
+    await expect(api('/api/reservations/me')).rejects.toMatchObject({ status: 401 })
+    expect(readTokens()).toBeNull()
+    expect(ended).toHaveBeenCalled()
+    off()
+  })
+
+  it('오류는 서버의 code·message를 그대로 던진다', async () => {
+    fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
+    await expect(api('/api/reservations', { method: 'POST', body: '{}' })).rejects.toMatchObject({
+      status: 409,
+      code: 'RESERVATION_TIME_TAKEN',
+      message: '이미 예약된 시간입니다',
+    })
+  })
+})
