@@ -37,40 +37,51 @@ export default function Home() {
   return (
     <main>
       <header className="home-head">
+        {/* 캠퍼스 선 그림(시안과 같음) */}
+        <svg className="campus" viewBox="0 0 390 120" width="390" height="120" aria-hidden="true">
+          <g fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinejoin="round">
+            <path d="M60 110 V70 L77 52 L94 70 L111 52 L128 70 L145 52 L162 70 V40 L190 6 L218 40 V70 L235 52 L252 70 L269 52 L286 70 L303 52 L320 70 V110 Z" />
+            <path d="M60 70 H320" /><circle cx="190" cy="52" r="6" /><path d="M182 110 V96 a8 8 0 0 1 16 0 V110" />
+          </g>
+        </svg>
         <div className="home-top">
           <span className="home-brand">M-space</span>
           <Link to="/alerts" className="icon-btn" aria-label="알림">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0" />
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
           </Link>
         </div>
-        <p className="home-sub">지금 {seoulClock(now)} · 비어 있는 방</p>
-        <p className="home-count">
-          <span className="dot-sky" aria-hidden="true" />
-          {day ? `${rooms.length}개 중 ${freeCount}개` : '불러오는 중'}
-          {sample && <span className="sample">예시</span>}
-        </p>
-        <div className="chips">
-          <Link to="/now" className="chip">지금 바로 쓰기</Link>
-          <Link to="/rules" className="chip">이용 규칙</Link>
+        <div className="home-now">
+          <span className="home-sub">지금 {seoulClock(now)} · 비어 있는 방</span>
+          <span className="home-count">
+            <span className="dot-sky" aria-hidden="true" />
+            {day ? `${rooms.length}개 중 ${freeCount}개` : '불러오는 중'}
+            {sample && <span className="sample">예시</span>}
+          </span>
+          <div className="chips">
+            <Link to="/now" className="chip chip-solid">지금 바로 쓰기</Link>
+            <Link to="/rules" className="chip chip-line">이용 규칙</Link>
+          </div>
         </div>
       </header>
 
       <section className="card today" aria-labelledby="today-title">
         <div className="today-head">
           <h2 id="today-title">오늘 방 현황</h2>
-          <span className="muted legend">
-            <i className="lg lg-taken" />예약 <i className="lg lg-mine" />내 예약
+          <span className="legend">
+            <span><i className="lg lg-taken" />예약</span>
+            <span><i className="lg lg-mine" />내 예약</span>
           </span>
         </div>
+        <span className="guide">실제 배치 순서예요. 방을 누르면 바로 시간을 골라요.</span>
 
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
 
+        <div className="workshop">3D프린터 공작실</div>
         <div className="floor">
           <div className="rooms">
-            <div className="workshop">3D프린터 공작실</div>
             {rooms.map((r) => {
               const free = isFreeNow(r.slots, now)
               const pct = nowPercent(r.slots, now)
@@ -85,21 +96,20 @@ export default function Home() {
                       ))}
                       {pct !== null && <i className="now" style={{ left: `${pct}%` }} />}
                     </span>
-                    <span className="room-meta">
-                      <b>{free ? '지금 비어 있음' : '사용 중'}</b>
-                      <span className="muted">{r.minPeople}–{r.maxPeople}명</span>
-                    </span>
+                    <span className="room-meta"><b>{free ? '지금 비어 있음' : '사용 중'}</b> · {r.minPeople}–{r.maxPeople}명</span>
                   </span>
                 </Link>
               )
             })}
-            <div className="hours muted" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
           </div>
           <div className="corridor" aria-hidden="true">
-            <span>복도</span>
-            <span className="entrance">▲ 입구</span>
+            <span className="corridor-label">복도</span>
+            <span className="entrance">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#15233D"><path d="M12 5 21 19H3z" /></svg>입구
+            </span>
           </div>
         </div>
+        <div className="hours" aria-hidden="true"><span>0시</span><span>12시</span><span>24시</span></div>
       </section>
     </main>
   )

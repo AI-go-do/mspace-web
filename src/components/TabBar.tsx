@@ -1,11 +1,19 @@
+import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import './TabBar.css'
 
-const TABS = [
-  { to: '/', label: '홈', d: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' },
-  { to: '/map', label: '배치도', d: 'M3 3h18v18H3zM3 12h9V3M12 21v-5h9' },
-  { to: '/me', label: '내 예약', d: 'M4 4h16v17H4zM8 2v4M16 2v4M4 10h16' },
-  { to: '/assistant', label: '비서', d: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z' },
+// 아이콘은 PWA 화면 시안(Main.dc.html 아래 탭)과 똑같은 SVG
+const TABS: { to: string; label: string; icon: ReactNode }[] = [
+  { to: '/', label: '홈', icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /> },
+  {
+    to: '/map', label: '배치도',
+    icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3" /><path d="M12 21v-5h9" /></>,
+  },
+  {
+    to: '/me', label: '내 예약',
+    icon: <><rect x="4" y="4" width="16" height="17" rx="3" /><path d="M8 2v4M16 2v4M4 10h16" /></>,
+  },
+  { to: '/assistant', label: '비서', icon: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /> },
 ]
 
 export default function TabBar() {
@@ -15,7 +23,7 @@ export default function TabBar() {
         <NavLink key={t.to} to={t.to} end className="tab">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d={t.d} />
+            {t.icon}
           </svg>
           {t.label}
         </NavLink>
