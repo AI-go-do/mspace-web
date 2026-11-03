@@ -1,0 +1,39 @@
+/* 화면 디자인 기준(docs 요구사항 7.6). 색은 기본 4개 + 보조 2개만 쓴다. */
+:root {
+  --blue: #0a4da2;      /* 버튼·선택 (조선대 파랑) */
+  --navy: #15233d;      /* 글씨 */
+  --navy-70: rgba(21, 35, 61, 0.7); /* 보조 글씨 */
+  --gray: #eef1f5;      /* 바탕 */
+  --white: #ffffff;
+  --sky: #7dbbff;       /* 빈 방 · 조건 맞음 */
+  --yellow: #ffc53d;    /* 내 예약 · 마감 안내 · 안 읽은 알림 */
+  --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
+  --radius: 16px;
+  --touch: 44px;        /* 누르는 곳 최소 크기 */
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  color: var(--navy);
+  background: var(--gray);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body { -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; color: inherit; }
+
+.app {
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  position: relative;
+  padding-bottom: 84px; /* 아래 탭 높이 */
+  background: var(--gray);
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.muted { color: var(--navy-70); }
