@@ -32,7 +32,9 @@ function stores(): Storage[] {
 }
 
 export function readTokens(): Tokens | null {
-  for (const s of stores()) {
+  // 이 탭만의 sessionStorage를 먼저 본다. 다른 탭이 자동 로그인으로 localStorage에
+  // 다른 계정 토큰을 써도, 이 탭은 자기 토큰을 계속 쓴다
+  for (const s of stores().reverse()) {
     try {
       const raw = s.getItem(KEY)
       if (raw) return JSON.parse(raw) as Tokens
@@ -48,10 +50,21 @@ export function saveTokens(t: Tokens, remember = isRemembered()): void {
   memory = t
   const [local, session] = stores()
   const target = remember ? local : session
+  // 이 탭이 이미 임시 로그인(sessionStorage)이면 refresh로 바꿔 쓰는 것뿐이다.
+  // 이때 다른 탭이 자동 로그인으로 둔 localStorage 토큰은 지우지 않는다.
+  // (자동 로그인 → 임시 로그인으로 처음 바꿀 때만 localStorage를 지운다)
+  let keepLocal = false
+  if (!remember) {
+    try {
+      keepLocal = !!session && session.getItem(KEY) !== null
+    } catch {
+      /* 저장소 없음 */
+    }
+  }
   for (const s of stores()) {
     try {
       if (s === target) s.setItem(KEY, JSON.stringify(t))
-      else s.removeItem(KEY)
+      else if (!(keepLocal && s === local)) s.removeItem(KEY)
     } catch {
       /* 메모리 값으로 계속 쓴다 */
     }
