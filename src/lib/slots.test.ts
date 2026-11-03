@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayLabel, lengthLabel, tapSlot, weekChips } from './slots'
+import { addDays, dayLabel, instantEnds, lengthLabel, tapSlot, weekChips } from './slots'
 
 const allFree = Array(48).fill(true)
 
@@ -45,5 +45,24 @@ describe('날짜', () => {
     expect(lengthLabel(3)).toBe('1시간 30분')
     expect(lengthLabel(4)).toBe('2시간')
     expect(lengthLabel(1)).toBe('30분')
+  })
+})
+
+describe('instantEnds 지금 바로 쓰기 끝 시각', () => {
+  const day = (taken: number[] = []) =>
+    Array.from({ length: 48 }, (_, i) => {
+      const s = new Date(Date.UTC(2026, 10, 2, 15, 0) + i * 30 * 60_000) // 서울 11/3 00:00부터
+      return { startAt: s.toISOString(), endAt: new Date(s.getTime() + 30 * 60_000).toISOString(), available: !taken.includes(i) }
+    })
+  const seoul = (h: number, m: number) => new Date(Date.UTC(2026, 10, 2, 15 + h, m))
+
+  it('15:32면 16:00부터 18:00(15:32+2h를 30분으로 올림)까지 5개', () => {
+    const ends = instantEnds(day(), seoul(15, 32)).map((e) => new Date(e.endAt).toISOString().slice(11, 16))
+    expect(ends).toEqual(['07:00', '07:30', '08:00', '08:30', '09:00']) // UTC = 서울 16:00…18:00
+  })
+  it('다음 예약 칸부터는 고를 수 없다', () => {
+    // 17:00 칸(34) 예약됨
+    const ends = instantEnds(day([34]), seoul(15, 32))
+    expect(ends.map((e) => e.ok)).toEqual([true, true, true, false, false])
   })
 })

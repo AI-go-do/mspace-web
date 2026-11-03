@@ -36,6 +36,18 @@ export function createReservation(body: NewReservation, idempotencyKey: string):
   })
 }
 
+/** 지금 바로 쓰기 = 즉시 시작 (FR-RSV-103). 시작은 서버 시계, 끝은 30분 칸. 10분 안에 입실해야 한다 */
+export function startNow(
+  body: { roomId: number; endAt: string; participantStudentIds: string[] },
+  idempotencyKey: string,
+): Promise<CreatedReservation> {
+  return api('/api/reservations/instant', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(body),
+  })
+}
+
 /** GET /api/reservations/me 한 건 (core MyReservationResponse) */
 export interface MyReservation {
   id: number
