@@ -121,21 +121,34 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     off()
   })
 
-  it('앱을 열 때 시작한 refresh가 늦게 끝나도 그사이 로그인한 토큰을 덮거나 지우지 않는다', async () => {
+  it('앱을 열 때 시작한 refresh가 끝나기 전에는 로그인 요청을 보내지 않는다(쿠키 덮어쓰기 방지)', async () => {
     let answer: (r: Response) => void = () => {}
     fetchMock.mockImplementation(async (path: string) => {
       if (path === '/api/auth/refresh') return new Promise<Response>((r) => { answer = r })
       return json(200, { accessToken: 'login', expiresAt: later(60), memberId: 1, newMember: false })
     })
-    const ended = vi.fn()
-    const off = onSessionEnd(ended)
     const pending = refreshTokens()
-    await login('a@chosun.ac.kr', '123456', true)
+    const loggingIn = login('a@chosun.ac.kr', '123456', true)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/api/auth/refresh'])
     answer(json(401, { code: 'REFRESH_TOKEN_INVALID', message: '만료' }))
-    await expect(pending).resolves.toMatchObject({ accessToken: 'login' })
+    await expect(pending).rejects.toMatchObject({ status: 401 })
+    await loggingIn
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/api/auth/refresh', '/api/auth/login'])
     expect(readTokens()?.accessToken).toBe('login')
-    expect(ended).not.toHaveBeenCalled()
-    off()
+  })
+
+  it('refresh가 기다리는 사이 로그아웃하면 늦게 온 결과로 다시 로그인되지 않는다', async () => {
+    let answer: (r: Response) => void = () => {}
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/auth/refresh') return new Promise<Response>((r) => { answer = r })
+      return new Response(null, { status: 204 })
+    })
+    const pending = refreshTokens()
+    await logout()
+    answer(json(200, { accessToken: 'stale', expiresAt: later(60) }))
+    await expect(pending).rejects.toMatchObject({ status: 401 })
+    expect(readTokens()).toBeNull()
   })
 
   it('오류는 서버의 code·message를 그대로 던진다', async () => {

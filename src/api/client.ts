@@ -133,13 +133,18 @@ export interface Signup {
  * remember=false면 서버가 refresh 쿠키를 "브라우저를 닫으면 사라지는 쿠키"로 준다
  */
 export async function login(email: string, code: string, remember: boolean, signup?: Signup): Promise<TokenResponse> {
-  const body = await api<TokenResponse>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, code, remember, ...signup }),
+  // 진행 중인 refresh가 끝난 뒤에 로그인한다. 늦게 온 refresh 응답의 쿠키가 새 로그인 쿠키를 덮지 않게 하려고
+  // (같은 탭은 inFlight를 기다리고, 다른 탭은 refresh와 같은 잠금으로 줄을 세운다)
+  await inFlight?.catch(() => undefined)
+  return withLock(async () => {
+    const body = await api<TokenResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, remember, ...signup }),
+    })
+    generation++
+    saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt })
+    return body
   })
-  generation++
-  saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt })
-  return body
 }
 
 /**
