@@ -65,6 +65,35 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     off()
   })
 
+  it('refresh가 500이면(배포 중 등) 토큰을 지우지 않고 오류만 던진다', async () => {
+    saveTokens({ accessToken: 'a1', expiresAt: later(-1), refreshToken: 'r1' })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/auth/refresh' ? new Response('Bad Gateway', { status: 502 }) : json(200, {}),
+    )
+    await expect(api('/api/reservations/me')).rejects.toMatchObject({ status: 502 })
+    expect(readTokens()?.refreshToken).toBe('r1')
+    expect(ended).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls.filter(([p]) => p === '/api/reservations/me')).toHaveLength(0)
+    off()
+  })
+
+  it('401 뒤 다시 받기에서 500이 나도 로그아웃하지 않는다', async () => {
+    saveTokens({ accessToken: 'a1', expiresAt: later(30), refreshToken: 'r1' })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/auth/refresh'
+        ? json(500, { code: 'UNKNOWN', message: '서버 오류' })
+        : json(401, { code: 'UNAUTHORIZED', message: '로그인이 필요합니다' }),
+    )
+    await expect(api('/api/reservations/me')).rejects.toMatchObject({ status: 500 })
+    expect(readTokens()).not.toBeNull()
+    expect(ended).not.toHaveBeenCalled()
+    off()
+  })
+
   it('오류는 서버의 code·message를 그대로 던진다', async () => {
     fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
     await expect(api('/api/reservations', { method: 'POST', body: '{}' })).rejects.toMatchObject({

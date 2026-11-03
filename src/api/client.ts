@@ -40,13 +40,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isAuth = path.startsWith('/api/auth/')
   let tokens = isAuth ? null : readTokens()
   // 액세스 토큰이 끝났으면 먼저 새로 받는다(서버에 401을 한 번 덜 맞는다)
-  if (tokens && !accessAlive(tokens)) tokens = await refreshTokens(tokens).catch(() => null)
+  // refresh가 401이면 refreshTokens 안에서 로그인을 끝낸다. 그 밖의 오류(서버 5xx·네트워크)는
+  // 토큰을 그대로 둔 채 던진다(배포 중 잠깐 502가 났다고 로그아웃시키지 않으려고)
+  if (tokens && !accessAlive(tokens)) tokens = await refreshTokens(tokens)
 
   let res = await send(path, init, tokens?.accessToken ?? null)
   if (res.status === 401 && tokens) {
     // 시계가 틀렸거나 서버가 토큰을 버린 경우: 한 번만 새로 받아 다시 보낸다
-    const fresh = await refreshTokens(tokens).catch(() => null)
-    if (fresh) res = await send(path, init, fresh.accessToken)
+    const fresh = await refreshTokens(tokens)
+    res = await send(path, init, fresh.accessToken)
   }
   if (res.status === 401 && !isAuth) endSession()
   if (!res.ok) throw await toError(res)
