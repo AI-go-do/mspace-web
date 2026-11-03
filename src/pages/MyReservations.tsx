@@ -34,6 +34,13 @@ export default function MyReservations() {
   const { logout } = useAuth()
   const now = useNow()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+
+  // 서버가 로그아웃에 실패하면 쿠키가 남아 새로고침하면 다시 로그인되므로, 알리고 다시 누르게 한다
+  const tryLogout = () => {
+    setLogoutError(null)
+    logout().catch(() => setLogoutError('로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요.'))
+  }
 
   const active = (list ?? []).filter((r) => isActive(r.status))
   const past = (list ?? []).filter((r) => !isActive(r.status))
@@ -94,8 +101,9 @@ export default function MyReservations() {
 
       <div className="mine-foot">
         <Link to="/rules" className="link">이용 규칙</Link>
-        <button type="button" className="link-btn" onClick={() => logout()}>로그아웃</button>
+        <button type="button" className="link-btn" onClick={tryLogout}>로그아웃</button>
       </div>
+      {logoutError && <p role="alert" className="muted mine-msg">{logoutError}</p>}
     </main>
   )
 }
