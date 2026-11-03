@@ -70,3 +70,13 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   CANCELED: '취소됨',
   NO_SHOW: '노쇼로 풀림',
 }
+
+/** 시작 전 취소 (FR-RSV-007). 대표자만, 시작 전 BOOKED만 */
+export function cancelReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
+  return api(`/api/reservations/${id}/cancel`, { method: 'POST' })
+}
+
+/** 퇴실 (FR-RSV-008). 대표자만, 입실한(IN_USE) 예약만. 방이 바로 빈다 */
+export function checkoutReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
+  return api(`/api/reservations/${id}/checkout`, { method: 'POST' })
+}
