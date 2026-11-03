@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, readTokens, saveTokens } from '../auth/tokens'
-import { api, onSessionEnd } from './client'
+import { api, login, logout, onSessionEnd, refreshTokens } from './client'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -103,6 +103,39 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
       return json(200, { ok: true })
     })
     await expect(api('/api/rooms')).resolves.toEqual({ ok: true })
+  })
+
+  it('로그아웃이 서버에서 실패하면(쿠키가 남음) 로그인을 끝내지 않고 오류를 던진다', async () => {
+    saveTokens({ accessToken: 'a1', expiresAt: later(30) })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    fetchMock.mockResolvedValueOnce(json(500, { code: 'UNKNOWN', message: '서버 오류' }))
+    await expect(logout()).rejects.toMatchObject({ status: 500 })
+    expect(readTokens()?.accessToken).toBe('a1')
+    expect(ended).not.toHaveBeenCalled()
+
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    await logout()
+    expect(readTokens()).toBeNull()
+    expect(ended).toHaveBeenCalled()
+    off()
+  })
+
+  it('앱을 열 때 시작한 refresh가 늦게 끝나도 그사이 로그인한 토큰을 덮거나 지우지 않는다', async () => {
+    let answer: (r: Response) => void = () => {}
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/auth/refresh') return new Promise<Response>((r) => { answer = r })
+      return json(200, { accessToken: 'login', expiresAt: later(60), memberId: 1, newMember: false })
+    })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    const pending = refreshTokens()
+    await login('a@chosun.ac.kr', '123456', true)
+    answer(json(401, { code: 'REFRESH_TOKEN_INVALID', message: '만료' }))
+    await expect(pending).resolves.toMatchObject({ accessToken: 'login' })
+    expect(readTokens()?.accessToken).toBe('login')
+    expect(ended).not.toHaveBeenCalled()
+    off()
   })
 
   it('오류는 서버의 code·message를 그대로 던진다', async () => {

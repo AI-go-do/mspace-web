@@ -30,9 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status !== 'checking') return
     refreshTokens()
-      .then(() => setStatus('in'))
+      // 그사이 로그인 화면에서 로그인했으면(이미 'in') 늦게 온 결과로 바꾸지 않는다
+      .then(() => setStatus((s) => (s === 'checking' ? 'in' : s)))
       // refresh가 401이면 로그인 끝. 서버에 못 닿았으면(와이파이 등) 일단 들여보내고 화면이 오류를 보여 준다
-      .catch((e) => setStatus(e instanceof ApiError && e.status === 401 ? 'out' : 'in'))
+      .catch((e) => setStatus((s) => (s === 'checking' ? (e instanceof ApiError && e.status === 401 ? 'out' : 'in') : s)))
   }, [status])
 
   useEffect(() => onSessionEnd(() => setStatus('out')), [])

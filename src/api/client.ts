@@ -17,7 +17,14 @@ export function onSessionEnd(fn: () => void): () => void {
   sessionEndListeners.add(fn)
   return () => sessionEndListeners.delete(fn)
 }
+/**
+ * 로그인 세대. 로그인하거나 로그인이 끝날 때마다 1 오른다.
+ * 앱을 열 때 시작한 refresh가 늦게 끝나면, 그사이 새로 로그인한 토큰을 덮거나 지우지 않도록 결과를 버린다
+ */
+let generation = 0
+
 function endSession() {
+  generation++
   clearTokens()
   sessionEndListeners.forEach((fn) => fn())
 }
@@ -86,7 +93,14 @@ export function refreshTokens(): Promise<Tokens> {
 }
 
 async function doRefresh(): Promise<Tokens> {
+  const started = generation
   const res = await send('/api/auth/refresh', { method: 'POST' }, null)
+  if (started !== generation) {
+    // 기다리는 사이 새로 로그인(또는 로그아웃)했다: 이 결과는 버리고 지금 토큰을 쓴다
+    const now = readTokens()
+    if (now) return now
+    throw new ApiError(401, 'REFRESH_TOKEN_INVALID', '다시 로그인해 주세요')
+  }
   if (res.status === 401) {
     endSession()
     throw await toError(res)
@@ -123,15 +137,18 @@ export async function login(email: string, code: string, remember: boolean, sign
     method: 'POST',
     body: JSON.stringify({ email, code, remember, ...signup }),
   })
+  generation++
   saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt })
   return body
 }
 
-/** 로그아웃: 서버가 refresh 토큰을 끊고 쿠키를 지운다. 메모리의 액세스 토큰도 버린다 */
+/**
+ * 로그아웃: 서버가 refresh 토큰을 끊고 쿠키를 지운다. 그다음에 메모리의 액세스 토큰을 버린다.
+ * 서버가 실패하면(5xx·네트워크) 쿠키가 남아 새로고침하면 다시 로그인되므로, 로그인을 끝내지 않고 오류를 던진다.
+ * 화면은 "로그아웃하지 못했어요"를 보여 주고 다시 누르게 한다
+ */
 export async function logout(): Promise<void> {
-  try {
-    await send('/api/auth/logout', { method: 'POST' }, null)
-  } finally {
-    endSession()
-  }
+  const res = await send('/api/auth/logout', { method: 'POST' }, null)
+  if (!res.ok) throw await toError(res)
+  endSession()
 }
