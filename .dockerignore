@@ -2,3 +2,5 @@ node_modules
 dist
 dev-dist
 .git
+.env.local
+.env.*.local

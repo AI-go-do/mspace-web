@@ -4,6 +4,9 @@ import { getAvailability, type DayAvailability } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import './Home.css'
 
+/** 하루 중 몇 시간째(14.5) → "14:30" */
+const hm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`
+
 /** FR-WEB-004 홈: 현장 배치도 순서(창작실 5 → 1)로 오늘 하루를 한 화면에 */
 export default function Home() {
   const [day, setDay] = useState<DayAvailability | null>(null)
@@ -20,11 +23,14 @@ export default function Home() {
           setDay(r.data)
           setSample(r.sample)
           setError(null)
-          setNow(new Date())
         })
         .catch((e: Error) => alive && setError(e.message))
     load()
-    const t = setInterval(load, 60_000) // 1분마다 새로고침
+    // 1분마다 시계를 넘기고 현황을 새로 받는다. 요청이 실패해도 시계는 계속 간다
+    const t = setInterval(() => {
+      setNow(new Date())
+      load()
+    }, 60_000)
     return () => {
       alive = false
       clearInterval(t)
@@ -85,13 +91,16 @@ export default function Home() {
             {rooms.map((r) => {
               const free = isFreeNow(r.slots, now)
               const pct = nowPercent(r.slots, now)
+              const segs = takenSegments(r.slots, now)
+              // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
+              const schedule = segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음'
               return (
                 <Link key={r.roomId} to={`/rooms/${r.roomId}`} className="room-row"
-                  aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명`}>
+                  aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
                     <span className="bar" aria-hidden="true">
-                      {takenSegments(r.slots, now).map((s) => (
+                      {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}
                       {pct !== null && <i className="now" style={{ left: `${pct}%` }} />}
