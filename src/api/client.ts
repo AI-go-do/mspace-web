@@ -27,7 +27,8 @@ async function send(path: string, init: RequestInit, token: string | null): Prom
   headers.set('Accept', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  return fetch(path, { ...init, headers })
+  // 같은 출처라 refresh 쿠키(HttpOnly, /api/auth 전용)는 브라우저가 알아서 붙인다
+  return fetch(path, { credentials: 'same-origin', ...init, headers })
 }
 
 async function toError(res: Response): Promise<ApiError> {
@@ -39,15 +40,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   // 로그인 API(/api/auth/)는 토큰 없이 부른다
   const isAuth = path.startsWith('/api/auth/')
   let tokens = isAuth ? null : readTokens()
-  // 액세스 토큰이 끝났으면 먼저 새로 받는다(서버에 401을 한 번 덜 맞는다)
+  // 액세스 토큰이 없거나(새로고침) 끝났으면 먼저 쿠키로 새로 받는다
   // refresh가 401이면 refreshTokens 안에서 로그인을 끝낸다. 그 밖의 오류(서버 5xx·네트워크)는
-  // 토큰을 그대로 둔 채 던진다(배포 중 잠깐 502가 났다고 로그아웃시키지 않으려고)
-  if (tokens && !accessAlive(tokens)) tokens = await refreshTokens(tokens)
+  // 그대로 던진다(배포 중 잠깐 502가 났다고 로그아웃시키지 않으려고)
+  if (!isAuth && !accessAlive(tokens)) tokens = await refreshTokens()
 
   let res = await send(path, init, tokens?.accessToken ?? null)
   if (res.status === 401 && tokens) {
     // 시계가 틀렸거나 서버가 토큰을 버린 경우: 한 번만 새로 받아 다시 보낸다
-    const fresh = await refreshTokens(tokens)
+    const fresh = await refreshTokens()
     res = await send(path, init, fresh.accessToken)
   }
   if (res.status === 401 && !isAuth) endSession()
@@ -57,47 +58,42 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ---- 자동 로그인 (FR-AUTH-002) ----
 
+/** refresh 토큰은 HttpOnly 쿠키로만 오고 본문에는 없다 */
 interface TokenResponse {
   accessToken: string
   expiresAt: string
   memberId: number
   newMember: boolean
-  refreshToken: string
   refreshExpiresAt: string
 }
 
 let inFlight: Promise<Tokens> | null = null
 
 /**
- * refresh 토큰으로 새 한 쌍을 받는다. **동시에 한 번만** 부른다.
- * 같은 refresh 토큰을 두 번 보내면 서버가 도난으로 보고 모두 끊기 때문이다.
+ * 쿠키의 refresh 토큰으로 새 액세스 토큰을 받는다. **동시에 한 번만** 부른다.
+ * 서버는 refresh할 때마다 쿠키를 새 것으로 바꾸고, 이미 쓴 것이 다시 오면 도난으로 보고 모두 끊는다.
  * - 같은 탭: 진행 중인 요청을 함께 기다린다.
- * - 다른 탭: 브라우저 잠금(Web Locks)으로 줄을 세우고, 앞 탭이 이미 바꿨으면 그 값을 쓴다.
- * refresh가 401이면 로그인을 끝낸다. 네트워크 오류면 토큰은 그대로 두고 오류만 던진다.
+ * - 다른 탭: 브라우저 잠금(Web Locks)으로 줄을 세운다. 앞 탭이 받은 새 쿠키를 뒤 탭 요청이 그대로 쓴다.
+ * refresh가 401이면 로그인을 끝낸다. 서버 5xx·네트워크 오류는 오류만 던진다.
  */
-export function refreshTokens(stale: Tokens): Promise<Tokens> {
+export function refreshTokens(): Promise<Tokens> {
   if (!inFlight) {
-    inFlight = withLock(() => doRefresh(stale)).finally(() => {
+    inFlight = withLock(doRefresh).finally(() => {
       inFlight = null
     })
   }
   return inFlight
 }
 
-async function doRefresh(stale: Tokens): Promise<Tokens> {
-  const current = readTokens()
-  if (!current) throw new ApiError(401, 'REFRESH_TOKEN_INVALID', '다시 로그인해 주세요')
-  // 다른 탭이 먼저 바꿔 놓았으면 그것을 쓴다
-  if (current.refreshToken !== stale.refreshToken) return current
-
-  const res = await send('/api/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken: current.refreshToken }) }, null)
+async function doRefresh(): Promise<Tokens> {
+  const res = await send('/api/auth/refresh', { method: 'POST' }, null)
   if (res.status === 401) {
     endSession()
     throw await toError(res)
   }
   if (!res.ok) throw await toError(res)
   const body = (await res.json()) as TokenResponse
-  const next = { accessToken: body.accessToken, expiresAt: body.expiresAt, refreshToken: body.refreshToken }
+  const next = { accessToken: body.accessToken, expiresAt: body.expiresAt }
   saveTokens(next)
   return next
 }
@@ -118,21 +114,23 @@ export interface Signup {
   studentId: string
 }
 
-/** 번호 확인 + 토큰 받기. 처음 가입이면 서버가 SIGNUP_INFO_REQUIRED를 주고, 이름·학번을 붙여 다시 보낸다 */
+/**
+ * 번호 확인 + 토큰 받기. 처음 가입이면 서버가 SIGNUP_INFO_REQUIRED를 주고, 이름·학번을 붙여 다시 보낸다.
+ * remember=false면 서버가 refresh 쿠키를 "브라우저를 닫으면 사라지는 쿠키"로 준다
+ */
 export async function login(email: string, code: string, remember: boolean, signup?: Signup): Promise<TokenResponse> {
   const body = await api<TokenResponse>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, code, ...signup }),
+    body: JSON.stringify({ email, code, remember, ...signup }),
   })
-  saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt, refreshToken: body.refreshToken }, remember)
+  saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt })
   return body
 }
 
-/** 로그아웃: 서버에서 refresh 토큰을 끊고, 들고 있던 두 토큰을 지운다 */
+/** 로그아웃: 서버가 refresh 토큰을 끊고 쿠키를 지운다. 메모리의 액세스 토큰도 버린다 */
 export async function logout(): Promise<void> {
-  const t = readTokens()
   try {
-    if (t) await send('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: t.refreshToken }) }, null)
+    await send('/api/auth/logout', { method: 'POST' }, null)
   } finally {
     endSession()
   }
