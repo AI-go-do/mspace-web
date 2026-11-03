@@ -7,6 +7,7 @@ import Checkout from './pages/Checkout'
 import Home from './pages/Home'
 import Instant from './pages/Instant'
 import Login from './pages/Login'
+import MapPage from './pages/MapPage'
 import MyReservations from './pages/MyReservations'
 import Placeholder from './pages/Placeholder'
 import ReservationDetail from './pages/ReservationDetail'
@@ -30,7 +31,7 @@ export default function App() {
           <Route path="/" element={auth(<Home />)} />
           <Route path="/rooms/:roomId" element={auth(<Reserve />)} />
           <Route path="/reservations/:id" element={auth(<AccessCode />)} />
-          <Route path="/map" element={auth(<Placeholder title="배치도" fr="FR-WEB-004" />)} />
+          <Route path="/map" element={auth(<MapPage />)} />
           <Route path="/me" element={auth(<MyReservations />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
