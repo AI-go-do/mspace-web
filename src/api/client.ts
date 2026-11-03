@@ -50,15 +50,21 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   // 액세스 토큰이 없거나(새로고침) 끝났으면 먼저 쿠키로 새로 받는다
   // refresh가 401이면 refreshTokens 안에서 로그인을 끝낸다. 그 밖의 오류(서버 5xx·네트워크)는
   // 그대로 던진다(배포 중 잠깐 502가 났다고 로그아웃시키지 않으려고)
+  // 이 요청을 시작한 로그인 세대. 기다리는 사이 로그아웃·다른 계정 로그인이 있었으면
+  // 예전 요청을 새 계정 토큰으로 보내지 않는다(예: 예전 사람의 예약 취소가 새 사람 계정에 적용되는 일)
+  const started = generation
   if (!isAuth && !accessAlive(tokens)) tokens = await refreshTokens()
+  if (started !== generation) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
 
   let res = await send(path, init, tokens?.accessToken ?? null)
   if (res.status === 401 && tokens) {
-    // 시계가 틀렸거나 서버가 토큰을 버린 경우: 한 번만 새로 받아 다시 보낸다
+    // 시계가 틀렸거나 서버가 토큰을 버린 경우: 같은 세대일 때만 한 번 새로 받아 다시 보낸다
+    if (started !== generation) throw await toError(res)
     const fresh = await refreshTokens()
+    if (started !== generation) throw await toError(res)
     res = await send(path, init, fresh.accessToken)
   }
-  if (res.status === 401 && !isAuth) endSession()
+  if (res.status === 401 && !isAuth && started === generation) endSession()
   if (!res.ok) throw await toError(res)
   return res.status === 204 ? (undefined as T) : res.json()
 }

@@ -151,6 +151,31 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     expect(readTokens()).toBeNull()
   })
 
+  it('요청이 기다리는 사이 다른 계정으로 로그인했으면 401을 새 토큰으로 다시 보내지 않는다', async () => {
+    saveTokens({ accessToken: 'old-user', expiresAt: later(30) })
+    let answer: (r: Response) => void = () => {}
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/reservations/1') return new Promise<Response>((r) => { answer = r })
+      if (path === '/api/auth/logout') return new Response(null, { status: 204 })
+      return json(200, { accessToken: 'new-user', expiresAt: later(60), memberId: 2, newMember: false })
+    })
+    const ended = vi.fn()
+    const off = onSessionEnd(ended)
+    const cancel = api('/api/reservations/1', { method: 'DELETE' })
+    await new Promise((r) => setTimeout(r, 0))
+    await logout()
+    ended.mockClear()
+    await login('b@chosun.ac.kr', '123456', true)
+    answer(json(401, { code: 'UNAUTHORIZED', message: '만료' }))
+    await expect(cancel).rejects.toMatchObject({ status: 401 })
+    const paths = fetchMock.mock.calls.map((c) => c[0])
+    expect(paths.filter((p) => p === '/api/reservations/1')).toHaveLength(1)
+    expect(paths).not.toContain('/api/auth/refresh')
+    expect(ended).not.toHaveBeenCalled()
+    expect(readTokens()?.accessToken).toBe('new-user')
+    off()
+  })
+
   it('오류는 서버의 code·message를 그대로 던진다', async () => {
     saveTokens({ accessToken: 'a1', expiresAt: later(30) })
     fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
