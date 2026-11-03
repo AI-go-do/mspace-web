@@ -1,5 +1,6 @@
 # 1단계: 화면을 빌드한다
-FROM node:22-alpine AS build
+# 빌드 결과(jar·정적 파일)는 CPU와 상관없어서, 빌드는 러너 CPU에서 한 번만 한다 (arm64 이미지도 빠르게)
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
