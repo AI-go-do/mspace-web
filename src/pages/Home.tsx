@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import './Home.css'
@@ -13,6 +14,7 @@ export default function Home() {
   const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [mine, setMine] = useState<MyReservation[]>([])
 
   useEffect(() => {
     let alive = true
@@ -25,11 +27,17 @@ export default function Home() {
           setError(null)
         })
         .catch((e: Error) => alive && setError(e.message))
+    const loadMine = () =>
+      getMyReservations()
+        .then((list) => alive && setMine(list))
+        .catch(() => { /* 내 예약을 못 받아도 홈 현황은 보여 준다 */ })
     load()
+    loadMine()
     // 1분마다 시계를 넘기고 현황을 새로 받는다. 요청이 실패해도 시계는 계속 간다
     const t = setInterval(() => {
       setNow(new Date())
       load()
+      loadMine()
     }, 60_000)
     return () => {
       alive = false
@@ -39,6 +47,10 @@ export default function Home() {
 
   const rooms = [...(day?.rooms ?? [])].sort((a, b) => b.roomId - a.roomId)
   const freeCount = rooms.filter((r) => isFreeNow(r.slots, now)).length
+  // 오늘 끝나지 않은 내 예약 → 막대를 노랑으로, 아래 카드로
+  const today = seoulDate(now)
+  const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
+  const card = mineToday[0]
 
   return (
     <main>
@@ -92,8 +104,11 @@ export default function Home() {
               const free = isFreeNow(r.slots, now)
               const pct = nowPercent(r.slots, now)
               const segs = takenSegments(r.slots, now)
+              const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
+              const mySegs = mineToday.filter((m) => m.room.id === r.roomId)
+                .map((m) => ({ from: (Date.parse(m.startAt) - day0) / 3_600_000, to: (Date.parse(m.endAt) - day0) / 3_600_000 }))
               // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
-              const schedule = segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음'
+              const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
               return (
                 <Link key={r.roomId} to={`/rooms/${r.roomId}`} className="room-row"
                   aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
@@ -102,6 +117,9 @@ export default function Home() {
                     <span className="bar" aria-hidden="true">
                       {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
+                      ))}
+                      {mySegs.map((s) => (
+                        <i key={`m${s.from}`} className="seg mine" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}
                       {pct !== null && <i className="now" style={{ left: `${pct}%` }} />}
                     </span>
@@ -120,6 +138,16 @@ export default function Home() {
         </div>
         <div className="hours" aria-hidden="true"><span>0시</span><span>12시</span><span>24시</span></div>
       </section>
+
+      {card && (
+        <Link to={`/reservations/${card.id}`} className="mine-card">
+          <span className="mine-card-text">
+            <span>내 예약 · 오늘 {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
+            <b>{card.owner ? '입실 번호 보기' : '예약 보기'}</b>
+          </span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        </Link>
+      )}
     </main>
   )
 }

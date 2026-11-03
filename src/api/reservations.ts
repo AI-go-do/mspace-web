@@ -35,3 +35,38 @@ export function createReservation(body: NewReservation, idempotencyKey: string):
     body: JSON.stringify(body),
   })
 }
+
+/** GET /api/reservations/me 한 건 (core MyReservationResponse) */
+export interface MyReservation {
+  id: number
+  room: { id: number; name: string }
+  startAt: string
+  endAt: string
+  status: ReservationStatus
+  /** 내가 대표자인지 */
+  owner: boolean
+  /** 키패드 번호. 대표자일 때만 값이 있다 */
+  accessCode: string | null
+  /** 이름은 가려서 온다(김*영) */
+  participants: { name: string; owner: boolean }[]
+}
+
+/** 내 예약 (FR-RSV-006). 끝나지 않은 것이 위(시작 빠른 순), 끝난 것은 최근 순 */
+export function getMyReservations(): Promise<MyReservation[]> {
+  return api('/api/reservations/me')
+}
+
+/** 끝나지 않은 예약(예약됨·사용 중)인지 */
+export function isActive(status: ReservationStatus): boolean {
+  return status === 'BOOKED' || status === 'IN_USE'
+}
+
+export const STATUS_LABEL: Record<ReservationStatus, string> = {
+  BOOKED: '예약됨',
+  IN_USE: '사용 중',
+  CHECKED_OUT: '퇴실',
+  AUTO_CHECKED_OUT: '시간 끝나 퇴실',
+  AWAY_RELEASED: '자리 비움으로 퇴실',
+  CANCELED: '취소됨',
+  NO_SHOW: '노쇼로 풀림',
+}
