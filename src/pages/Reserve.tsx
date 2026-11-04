@@ -48,6 +48,9 @@ export default function Reserve() {
   const loadSeq = useRef(0)
   const load = useCallback(() => {
     const seq = ++loadSeq.current
+    // 다시 불러오는 동안·실패한 뒤에 옛 시간표를 고를 수 없게 비운다
+    setRoom(null)
+    setPick(null)
     setLoadError(null)
     return getAvailability(date)
       .then((r) => {
@@ -62,8 +65,6 @@ export default function Reserve() {
   }, [date, roomId])
 
   useEffect(() => {
-    setPick(null)
-    setRoom(null) // 다른 날짜 시간표가 남아 보이지 않게
     setNow(new Date())
     load()
   }, [load])
