@@ -12,8 +12,17 @@ interface NavState {
   instant?: boolean
 }
 
+/**
+ * 즉시 시작 예약인지 시작 시각으로 가린다. 미리 예약은 늘 30분 칸 경계(정각·30분)에서 시작하고,
+ * 즉시 시작은 서버가 누른 시각(초 단위)을 시작으로 쓰므로 경계에서 벗어난다(core ReservationTime.instant).
+ * core 응답에 입실 마감이 없어서 쓰는 방법이다. 정확히 정각·30분 0초에 누른 즉시 시작만 미리 예약으로 보인다.
+ */
+export function isInstantStart(startAt: string): boolean {
+  return Date.parse(startAt) % (30 * 60_000) !== 0
+}
+
 /** 미리 예약은 시작 + 15분, 즉시 시작은 누른 뒤(=시작) + 10분까지 입실 (FR-ACC-001) */
-export function checkInDeadline(startAt: string, instant = false): Date {
+export function checkInDeadline(startAt: string, instant = isInstantStart(startAt)): Date {
   return new Date(Date.parse(startAt) + (instant ? 10 : 15) * 60_000)
 }
 
@@ -95,7 +104,7 @@ export default function AccessCode() {
   const roomName = `창작실 ${r.room.id}`
   const active = isActive(r.status)
   const showCode = r.owner && active && !!r.accessCode
-  const deadline = seoulClock(checkInDeadline(r.startAt, state.instant))
+  const deadline = seoulClock(checkInDeadline(r.startAt, state.instant || isInstantStart(r.startAt)))
 
   async function share() {
     const text = `M-space ${roomName} · ${when} ${time}\n입실 번호 ${r!.accessCode} (방 앞 키패드에 누르고 #)`

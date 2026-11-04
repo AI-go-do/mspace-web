@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayLabel, instantEnds, lengthLabel, tapSlot, weekChips } from './slots'
+import { addDays, dayLabel, instantEnds, lengthLabel, nextTakenAt, tapSlot, weekChips } from './slots'
 
 const allFree = Array(48).fill(true)
 
@@ -64,5 +64,11 @@ describe('instantEnds 지금 바로 쓰기 끝 시각', () => {
     // 17:00 칸(34) 예약됨
     const ends = instantEnds(day([34]), seoul(15, 32))
     expect(ends.map((e) => e.ok)).toEqual([true, true, true, false, false])
+  })
+  it('비어 있는 끝은 2시간 제한과 따로, 다음 예약 시작이다', () => {
+    // 21:00 칸(42) 예약됨: 2시간 제한(18:00)보다 늦어도 그대로 21:00
+    expect(new Date(nextTakenAt(day([42]), seoul(15, 32))!).toISOString().slice(11, 16)).toBe('12:00')
+    // 지난 칸(15:00, 30)은 세지 않는다
+    expect(nextTakenAt(day([30]), seoul(15, 32))).toBeNull()
   })
 })

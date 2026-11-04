@@ -7,7 +7,7 @@ import { getAvailability, type RoomSlots } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
-import { instantEnds } from '../lib/slots'
+import { instantEnds, nextTakenAt } from '../lib/slots'
 import { isFreeNow, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Instant.css'
@@ -23,6 +23,8 @@ export default function Instant() {
   const navigate = useNavigate()
   const now = useNow(15_000)
   const [rooms, setRooms] = useState<RoomSlots[] | null>(null)
+  // 서버에 닿지 못해 예시를 보여 주는 중이면 실제로 시작하지 않는다
+  const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [roomId, setRoomId] = useState<number | null>(null)
   const [endAt, setEndAt] = useState<string | null>(null)
@@ -33,7 +35,7 @@ export default function Instant() {
 
   const load = () =>
     getAvailability(seoulDate())
-      .then((r) => { setRooms(r.data.rooms); setError(null) })
+      .then((r) => { setRooms(r.data.rooms); setSample(r.sample); setError(null) })
       .catch((e: Error) => setError(e.message))
   useEffect(() => {
     load()
@@ -54,14 +56,16 @@ export default function Instant() {
   const max = room?.maxPeople ?? 99
   const deadline = seoulClock(new Date(now.getTime() + 10 * 60_000))
 
-  /** 이 방이 몇 시까지 비어 있는지(고를 수 있는 마지막 끝 시각) */
+  /** 지금 시작해서 고를 수 있는 끝 시각이 하나라도 있는지 */
+  const canStart = (r: RoomSlots) => instantEnds(r.slots, now).some((e) => e.ok)
+  /** 이 방이 몇 시까지 비어 있는지(다음 예약 시작). 오늘 남은 예약이 없으면 null */
   const freeUntil = (r: RoomSlots) => {
-    const ok = instantEnds(r.slots, now).filter((e) => e.ok)
-    return ok.length ? seoulClock(new Date(ok[ok.length - 1].endAt)) : null
+    const at = nextTakenAt(r.slots, now)
+    return at ? seoulClock(new Date(at)) : null
   }
 
   async function submit() {
-    if (!room || !end || busy) return
+    if (!room || !end || busy || sample) return
     setBusy(true)
     try {
       const created = await startNow({ roomId: room.roomId, endAt: end, participantStudentIds: people.map((p) => p.studentId) }, idemKey.current)
@@ -120,18 +124,20 @@ export default function Instant() {
       </header>
 
       <section className="card in-rooms" aria-labelledby="free-title">
-        <h2 id="free-title">지금 비어 있는 방</h2>
+        <h2 id="free-title">지금 비어 있는 방{sample && <span className="sample">예시</span>}</h2>
+        {sample && <p role="status" className="muted">서버에 닿지 않아 예시를 보여 주고 있어요. 지금은 시작할 수 없어요.</p>}
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
         {free.map((r) => {
+          const ok = canStart(r)
           const until = freeUntil(r)
           return (
-            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={!until}
+            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={!ok}
               onClick={() => { setRoomId(r.roomId); setEndAt(null) }}>
               <span className="in-no">{r.roomId}</span>
               <span className="in-text">
                 <b>창작실 {r.roomId}</b>
-                <span className="muted">{r.minPeople}–{r.maxPeople}명 · {until ? `${until}까지 비어 있어요` : '곧 다음 예약이 있어요'}</span>
+                <span className="muted">{r.minPeople}–{r.maxPeople}명 · {!ok ? '곧 다음 예약이 있어요' : until ? `${until}까지 비어 있어요` : '오늘 남은 예약이 없어요'}</span>
               </span>
             </button>
           )
@@ -167,7 +173,7 @@ export default function Instant() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
           </button>
         </div>
-        <button type="button" className="btn-primary" disabled={!room || !end || busy} onClick={start}>
+        <button type="button" className="btn-primary" disabled={!room || !end || busy || sample} onClick={start}>
           {busy ? '시작하는 중…' : '지금 시작하기'}
         </button>
       </div>

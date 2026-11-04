@@ -65,6 +65,15 @@ export function slotClock(i: number): string {
   return `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`
 }
 
+/**
+ * 지금부터 비어 있는 동안의 끝: 지금 뒤로 처음 나오는 예약된 칸의 시작(ISO). 오늘 안에 없으면 null.
+ * 2시간 제한은 고르는 끝 시각에만 쓰고 여기서는 쓰지 않는다
+ */
+export function nextTakenAt(slots: { startAt: string; available: boolean }[], now: Date): string | null {
+  const t = now.getTime()
+  return slots.find((s) => Date.parse(s.startAt) >= t && !s.available)?.startAt ?? null
+}
+
 /** 지금 바로 쓰기의 끝 시각 후보 (FR-WEB-102) */
 export interface EndChoice {
   /** ISO 시각 */
