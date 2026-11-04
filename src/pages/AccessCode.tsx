@@ -35,12 +35,19 @@ export default function AccessCode() {
   useEffect(() => {
     let alive = true
     let loaded = false
-    let latest = 0 // 30초 주기와 화면 복귀가 겹쳐도 가장 나중에 보낸 요청의 답만 반영한다
+    // 요청은 한 번에 하나만 보낸다. 진행 중에 새로고침이 또 오면 끝난 뒤 한 번만 다시 받는다.
+    // 그래서 답이 순서대로 오고, 느린 연결에서도 받은 답이 화면에 반영된다
+    let inFlight = false
+    let again = false
     const refresh = () => {
-      const seq = ++latest
-      return getMyReservations()
+      if (inFlight) {
+        again = true
+        return
+      }
+      inFlight = true
+      getMyReservations()
         .then((list) => {
-          if (!alive || seq !== latest) return
+          if (!alive) return
           const found = list.find((x) => x.id === id) ?? null
           setR(found)
           setError(found ? null : '찾을 수 없는 예약이에요')
@@ -48,7 +55,14 @@ export default function AccessCode() {
         })
         .catch((e: Error) => {
           // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-          if (alive && seq === latest && !loaded) setError(e.message)
+          if (alive && !loaded) setError(e.message)
+        })
+        .finally(() => {
+          inFlight = false
+          if (alive && again) {
+            again = false
+            refresh()
+          }
         })
     }
     const onVisible = () => {
