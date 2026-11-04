@@ -23,16 +23,22 @@ export default function MapPage() {
     let alive = true
     let seq = 0
     let timer: ReturnType<typeof setTimeout> | undefined
+    let active: AbortController | undefined
     // 날짜는 부를 때마다 다시 구한다: 자정이 지나면 새 날의 칸을 받는다.
     // 다음 요청은 앞 요청이 끝난 뒤(또는 시간 초과 뒤) 1분 있다가 보낸다. 요청이 겹치지 않는다.
     // 시간 초과로 버린 요청이 늦게 와도 마지막 요청의 결과만 쓴다.
     const load = () => {
       const mine = ++seq
+      const abort = new AbortController()
+      active = abort
       let limit: ReturnType<typeof setTimeout> | undefined
       const timeout = new Promise<never>((_, reject) => {
-        limit = setTimeout(() => reject(new Error('응답이 늦어요.')), REQUEST_TIMEOUT_MS)
+        limit = setTimeout(() => {
+          abort.abort()
+          reject(new Error('응답이 늦어요.'))
+        }, REQUEST_TIMEOUT_MS)
       })
-      Promise.race([getAvailability(seoulDate()), timeout])
+      Promise.race([getAvailability(seoulDate(), abort.signal), timeout])
         .then((r) => {
           if (!alive || mine !== seq) return
           setRooms(r.data.rooms)
@@ -52,6 +58,7 @@ export default function MapPage() {
     return () => {
       alive = false
       clearTimeout(timer)
+      active?.abort()
     }
   }, [])
 
