@@ -25,6 +25,8 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [fail, setFail] = useState<string | null>(null)
+  // 409 뒤 서버에서 다시 보니 다른 상태(자동 반납 등)면 폼을 닫는다
+  const [blocked, setBlocked] = useState(false)
 
   const r = list?.find((x) => x.id === id)
 
@@ -42,7 +44,10 @@ export default function Checkout() {
           .then((rs) => rs.find((x) => x.id === id))
           .catch(() => undefined)
         if (latest?.status === 'CHECKED_OUT') setDone(true)
-        else setFail('이미 끝난 예약이에요. 내 예약에서 상태를 확인해 주세요')
+        else {
+          setFail('이미 끝난 예약이에요. 내 예약에서 상태를 확인해 주세요')
+          if (latest) setBlocked(true)
+        }
       } else {
         setFail(e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요')
       }
@@ -86,6 +91,17 @@ export default function Checkout() {
 
   if (error || (list && !r)) return <main className="mine">{head}<p role="alert" className="card mine-msg">{error ?? '찾을 수 없는 예약이에요'}</p></main>
   if (!r) return <main className="mine" aria-busy="true">{head}<p className="card mine-msg muted" role="status">불러오는 중…</p></main>
+  if (blocked) {
+    return (
+      <main className="mine">
+        {head}
+        <div className="card mine-msg" role="alert">
+          <p>{fail}</p>
+          <Link to="/me" className="link">내 예약으로</Link>
+        </div>
+      </main>
+    )
+  }
   if (!r.owner || r.status !== 'IN_USE') {
     return (
       <main className="mine">
