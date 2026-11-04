@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getAvailability, type RoomSlots } from '../api/rooms'
 import { nowState, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
+import { REQUEST_TIMEOUT_MS } from './MyReservations'
 import './MapPage.css'
 
 /**
@@ -21,11 +22,17 @@ export default function MapPage() {
   useEffect(() => {
     let alive = true
     let seq = 0
-    // 날짜는 부를 때마다 다시 구한다: 자정이 지나면 새 날의 칸을 받는다
-    // 늦게 온 옛 응답이 새 결과를 덮지 않도록 가장 마지막 요청의 결과만 쓴다
+    let timer: ReturnType<typeof setTimeout> | undefined
+    // 날짜는 부를 때마다 다시 구한다: 자정이 지나면 새 날의 칸을 받는다.
+    // 다음 요청은 앞 요청이 끝난 뒤(또는 시간 초과 뒤) 1분 있다가 보낸다. 요청이 겹치지 않는다.
+    // 시간 초과로 버린 요청이 늦게 와도 마지막 요청의 결과만 쓴다.
     const load = () => {
       const mine = ++seq
-      getAvailability(seoulDate())
+      let limit: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<never>((_, reject) => {
+        limit = setTimeout(() => reject(new Error('응답이 늦어요.')), REQUEST_TIMEOUT_MS)
+      })
+      Promise.race([getAvailability(seoulDate()), timeout])
         .then((r) => {
           if (!alive || mine !== seq) return
           setRooms(r.data.rooms)
@@ -36,13 +43,15 @@ export default function MapPage() {
         .catch((e: Error) => {
           if (alive && mine === seq) setError(e.message)
         })
+        .finally(() => {
+          clearTimeout(limit)
+          if (alive) timer = setTimeout(load, 60_000)
+        })
     }
     load()
-    // 화면을 켜 둔 동안 다른 사람의 예약·취소가 보이도록 1분마다 새로 받는다(홈과 같은 주기)
-    const t = setInterval(load, 60_000)
     return () => {
       alive = false
-      clearInterval(t)
+      clearTimeout(timer)
     }
   }, [])
 
