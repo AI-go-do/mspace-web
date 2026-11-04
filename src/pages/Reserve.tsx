@@ -274,22 +274,35 @@ function Members(props: {
   const [found, setFound] = useState<FoundMember | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  // 검색 중에 학번을 고치면 늦게 온 옛 결과가 새 학번 옆에 뜨지 않게 버린다
+  const searchSeq = useRef(0)
+
+  function changeQuery(v: string) {
+    searchSeq.current++
+    setQuery(v)
+    setFound(null)
+    setMsg(null)
+    setSearching(false)
+  }
 
   async function search(e: FormEvent) {
     e.preventDefault()
     const sid = query.trim()
     if (!sid || searching) return
+    const seq = ++searchSeq.current
     setSearching(true)
     setFound(null)
     setMsg(null)
     try {
-      setFound(await findMember(sid))
+      const member = await findMember(sid)
+      if (seq === searchSeq.current) setFound(member)
     } catch (err) {
+      if (seq !== searchSeq.current) return
       setMsg(err instanceof ApiError && err.code === 'MEMBER_NOT_FOUND'
         ? `${sid}는 찾을 수 없어요. 학교 메일로 가입한 사람만 넣을 수 있어요.`
         : err instanceof Error ? err.message : '잠시 후 다시 시도해 주세요')
     } finally {
-      setSearching(false)
+      if (seq === searchSeq.current) setSearching(false)
     }
   }
 
@@ -308,7 +321,7 @@ function Members(props: {
         </div>
         <form className="search" onSubmit={search}>
           <label htmlFor="sid" className="sr-only">학번으로 찾기</label>
-          <input id="sid" value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))}
+          <input id="sid" value={query} onChange={(e) => changeQuery(e.target.value.replace(/\D/g, ''))}
             inputMode="numeric" placeholder="학번으로 찾기" maxLength={20} />
           <button className="search-btn" disabled={!query || searching}>{searching ? '찾는 중' : '찾기'}</button>
         </form>

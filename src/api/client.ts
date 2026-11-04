@@ -13,6 +13,11 @@ export class ApiError extends Error {
 
 /** 로그인이 끝났을 때(refresh 실패·로그아웃) 부르는 함수들. 화면은 로그인 화면으로 보낸다 */
 const sessionEndListeners = new Set<() => void>()
+/** 지금 로그인한 회원 번호(모르면 null) */
+export function currentMemberId(): number | null {
+  return readTokens()?.memberId ?? null
+}
+
 export function onSessionEnd(fn: () => void): () => void {
   sessionEndListeners.add(fn)
   return () => sessionEndListeners.delete(fn)
@@ -130,7 +135,7 @@ async function refreshOnce(started: number, signal: AbortSignal): Promise<Tokens
   }
   if (!res.ok) throw await toError(res)
   const body = (await res.json()) as TokenResponse
-  const next = { accessToken: body.accessToken, expiresAt: body.expiresAt }
+  const next = { accessToken: body.accessToken, expiresAt: body.expiresAt, memberId: body.memberId }
   saveTokens(next)
   return next
 }
@@ -165,7 +170,7 @@ export async function login(email: string, code: string, remember: boolean, sign
       body: JSON.stringify({ email, code, remember, ...signup }),
     })
     generation++
-    saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt })
+    saveTokens({ accessToken: body.accessToken, expiresAt: body.expiresAt, memberId: body.memberId })
     return body
   })
 }

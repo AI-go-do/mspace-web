@@ -27,15 +27,22 @@ export function agreeRules(noShowAt: string): Rule[] {
 
 export const SANCTION = '어기면 경고 1회가 남아요. 30일 안에 경고 3번이면 14일 동안 예약·참여를 할 수 없어요.'
 
-const AGREED_KEY = 'mspace.rulesAgreed'
+import { currentMemberId } from '../api/client'
+
+/** 회원마다 따로 기억한다. 같은 폰에서 다른 사람이 로그인하면 그 사람에게 다시 묻는다 */
+function agreedKey(): string | null {
+  const id = currentMemberId()
+  return id == null ? null : `mspace.rulesAgreed.${id}`
+}
 
 /**
  * 동의한 수칙 버전. 요구사항은 회원(users.rules_agreed_version)에 저장하라고 하지만
- * core에 아직 API가 없어 이 브라우저에만 기억한다(다른 폰에서는 한 번 더 묻는다).
+ * core에 아직 API가 없어 이 브라우저에 회원별로 기억한다(다른 폰에서는 한 번 더 묻는다).
  */
 export function hasAgreed(): boolean {
   try {
-    return localStorage.getItem(AGREED_KEY) === RULES_VERSION
+    const key = agreedKey()
+    return key != null && localStorage.getItem(key) === RULES_VERSION
   } catch {
     return false
   }
@@ -43,7 +50,8 @@ export function hasAgreed(): boolean {
 
 export function saveAgreed(): void {
   try {
-    localStorage.setItem(AGREED_KEY, RULES_VERSION)
+    const key = agreedKey()
+    if (key) localStorage.setItem(key, RULES_VERSION)
   } catch {
     /* 저장 못 하면 다음에 한 번 더 묻는다 */
   }
