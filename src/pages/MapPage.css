@@ -41,3 +41,4 @@
 .map-bar-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .map-bar-row b { font-size: 22px; }
 .map-bar-row .muted { font-size: 14px; text-align: right; }
+.map-page h1 .sample { margin-left: 8px; vertical-align: middle; font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }
