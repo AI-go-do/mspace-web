@@ -44,19 +44,26 @@ export default function Reserve() {
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
   const [now, setNow] = useState(() => new Date())
 
+  // 날짜를 빨리 바꾸면 늦게 온 옛 응답이 새 날짜 위에 덮이지 않게 최근 요청만 반영한다
+  const loadSeq = useRef(0)
   const load = useCallback(() => {
+    const seq = ++loadSeq.current
     setLoadError(null)
     return getAvailability(date)
       .then((r) => {
+        if (seq !== loadSeq.current) return
         const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
         setRoom(found)
         if (!found) setLoadError('없는 방이에요')
       })
-      .catch((e: Error) => setLoadError(e.message))
+      .catch((e: Error) => {
+        if (seq === loadSeq.current) setLoadError(e.message)
+      })
   }, [date, roomId])
 
   useEffect(() => {
     setPick(null)
+    setRoom(null) // 다른 날짜 시간표가 남아 보이지 않게
     setNow(new Date())
     load()
   }, [load])
