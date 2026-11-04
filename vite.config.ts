@@ -1,10 +1,12 @@
+import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// 로컬 개발: /api 요청을 core(localhost:8080)로 넘긴다.
+// 로컬 개발: /api 요청을 core(기본 localhost:8080)로 넘긴다.
+// infra compose로 띄웠으면 core 포트가 안 열려 있으니 입구로 보낸다: VITE_API_TARGET=http://localhost:8411 npm run dev
 // 서버에서는 앞단 nginx가 /api → core, 나머지 → 이 앱으로 나눈다.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
@@ -28,9 +30,9 @@ export default defineConfig({
     }),
   ],
   server: {
-    proxy: { '/api': 'http://localhost:8080' },
+    proxy: { '/api': loadEnv(mode, '.', 'VITE_').VITE_API_TARGET || 'http://localhost:8080' },
   },
   test: {
     environment: 'node',
   },
-})
+}))
