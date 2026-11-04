@@ -1,0 +1,44 @@
+/* PWA 화면 시안 Map.dc.html과 같은 값 */
+.map-page { min-height: 100dvh; padding-bottom: 160px; }
+.map-page .sub-head { background: var(--white); padding: 56px 16px 12px; }
+.map-page .sub-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.map-page .small { font-size: 12px; }
+.map-card { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+.map-legend { display: flex; gap: 12px; font-size: 12px; color: var(--navy-70); }
+.map-legend span { display: flex; align-items: center; gap: 4px; }
+.map-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.lg-free { background: var(--sky); }
+.lg-busy { background: var(--gray); }
+.lg-on { background: var(--blue); }
+.map-workshop {
+  height: 44px; border-radius: 12px; border: 1.5px dashed var(--taken);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--navy-70);
+}
+.map-floor { display: flex; gap: 8px; }
+.map-rooms { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.map-room {
+  min-height: 72px; border-radius: 12px; border: 2px solid var(--sky); background: var(--white); color: var(--navy);
+  display: flex; align-items: center; gap: 12px; padding: 8px 14px; text-align: left; cursor: pointer;
+}
+.map-room.free { background: var(--sky); }
+.map-room.busy { border-color: var(--gray); background: var(--gray); }
+.map-room.on { border-color: var(--blue); background: var(--blue); color: var(--white); }
+.map-no { flex: none; width: 24px; font-size: 28px; font-weight: 700; }
+.map-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.map-text b { font-size: 14px; }
+.map-text span { font-size: 12px; }
+.map-corridor {
+  flex: none; width: 48px; border-radius: 12px; background: var(--gray);
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 16px 0 12px;
+}
+.map-corridor-label { writing-mode: vertical-rl; font-size: 14px; letter-spacing: 6px; color: var(--navy-70); }
+.map-entrance { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; }
+.map-bar {
+  position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); width: 100%; max-width: 480px;
+  background: var(--white); padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 -1px 0 var(--gray);
+}
+.map-bar-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.map-bar-row b { font-size: 22px; }
+.map-bar-row .muted { font-size: 14px; text-align: right; }
+.map-page h1 .sample { margin-left: 8px; vertical-align: middle; font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }

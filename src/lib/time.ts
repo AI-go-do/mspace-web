@@ -54,3 +54,14 @@ export function nowPercent(slots: Slot[], now = new Date()): number | null {
   const p = ((now.getTime() - day0) / (24 * HOUR)) * 100
   return p >= 0 && p <= 100 ? p : null
 }
+
+/** 지금 상태 한 줄: "21:30까지 비어 있어요" / "20:00에 비어요" (배치도 화면) */
+export function nowState(slots: Slot[], now = new Date()): { free: boolean; text: string } {
+  const t = now.getTime()
+  const ahead = slots.filter((s) => Date.parse(s.startAt) >= t)
+  const free = ahead[0]?.available ?? false
+  const change = ahead.find((s) => s.available !== free)
+  const at = change ? seoulClock(new Date(change.startAt)) : null
+  if (free) return { free, text: at ? `${at}까지 비어 있어요` : '오늘은 계속 비어 있어요' }
+  return { free, text: at ? `사용 중 · ${at}에 비어요` : '오늘은 남은 시간이 없어요' }
+}

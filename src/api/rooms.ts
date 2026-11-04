@@ -28,12 +28,14 @@ export interface Loaded<T> {
 
 const useMock = import.meta.env.VITE_API_MOCK === 'true'
 
-export async function getAvailability(date: string): Promise<Loaded<DayAvailability>> {
+export async function getAvailability(date: string, signal?: AbortSignal): Promise<Loaded<DayAvailability>> {
   if (useMock) return { data: mockAvailability(date), sample: true }
   try {
-    const data = await api<DayAvailability>(`/api/rooms/availability?date=${date}`)
+    const data = await api<DayAvailability>(`/api/rooms/availability?date=${date}`, { signal })
     return { data, sample: false }
   } catch (e) {
+    // 부른 쪽이 끊은 요청(시간 초과·화면 떠남)은 예시로 바꾸지 않고 그대로 던진다
+    if (signal?.aborted) throw e
     // 개발 중 core가 안 떠 있어도 화면을 볼 수 있게 예시로 대신한다(화면에 '예시' 표시).
     // core에 닿지 못한 경우만: 네트워크 오류, 또는 Vite 개발 프록시의 502. 401·403 등은 그대로 보여 준다.
     const coreUnreachable = !(e instanceof ApiError) || e.status === 502
