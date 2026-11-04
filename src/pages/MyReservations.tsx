@@ -11,6 +11,8 @@ const Chevron = () => (
 )
 
 const REFRESH_MS = 30_000
+/** 답이 오지 않는 요청을 끊는 시간. 끊어야 다음 새로고침이 돈다 */
+const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * 다른 화면에서도 쓰는 내 예약 목록 받기.
@@ -20,6 +22,8 @@ const REFRESH_MS = 30_000
 export function useMyReservations() {
   const [list, setList] = useState<MyReservation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 한 번 받은 뒤 새로 받기에 실패한 경우: 목록은 그대로 두고 따로 알린다
+  const [stale, setStale] = useState(false)
   const alive = useRef(true)
   const loaded = useRef(false)
   const inFlight = useRef(false)
@@ -31,16 +35,24 @@ export function useMyReservations() {
         return
       }
       inFlight.current = true
-      getMyReservations()
+      const abort = new AbortController()
+      const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
+      getMyReservations(abort.signal)
         .then((l) => {
           if (!alive.current) return
           setList(l)
           setError(null)
+          setStale(false)
           loaded.current = true
         })
-        // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-        .catch((e: Error) => { if (alive.current && !loaded.current) setError(e.message) })
+        // 처음부터 못 받으면 오류 화면, 한 번 받은 뒤 실패하면 목록은 두고 "최신 아님"만 알린다
+        .catch((e: Error) => {
+          if (!alive.current) return
+          if (loaded.current) setStale(true)
+          else setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e.message)
+        })
         .finally(() => {
+          clearTimeout(timer)
           inFlight.current = false
           if (alive.current && again.current) {
             again.current = false
@@ -64,7 +76,7 @@ export function useMyReservations() {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [reload])
-  return { list, error, reload }
+  return { list, error, stale, reload }
 }
 
 /**
@@ -73,7 +85,7 @@ export function useMyReservations() {
  * 입실·퇴실 사진과 "방에 문제가 있나요?"는 v0.3(FR-RPT-101)이라 아직 없다.
  */
 export default function MyReservations() {
-  const { list, error } = useMyReservations()
+  const { list, error, stale } = useMyReservations()
   const { logout } = useAuth()
   const now = useNow()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
@@ -101,6 +113,7 @@ export default function MyReservations() {
       </header>
 
       {error && <p role="alert" className="card mine-msg">내 예약을 못 불러왔어요. {error}</p>}
+      {stale && <p role="status" className="card mine-msg muted">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
       {!list && !error && <p className="card mine-msg muted" role="status">불러오는 중…</p>}
 
       {list && tab === 'upcoming' && (

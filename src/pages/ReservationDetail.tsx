@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { cancelReservation, isActive, STATUS_LABEL } from '../api/reservations'
+import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
@@ -13,21 +13,25 @@ import './Mine.css'
 export default function ReservationDetail() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
-  const { list, error, reload } = useMyReservations()
+  const { list, error, stale, reload } = useMyReservations()
   const now = useNow()
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [fail, setFail] = useState<string | null>(null)
+  // 취소 응답의 상태. 다시 받기에 실패해도 화면이 취소된 상태를 보여 주게 한다(목록이 바뀌면 서버 값을 따른다)
+  const [cancelled, setCancelled] = useState<{ status: ReservationStatus } | null>(null)
 
-  const r = list?.find((x) => x.id === id)
+  const found = list?.find((x) => x.id === id)
+  const r = found && cancelled && found.status === 'BOOKED' ? { ...found, status: cancelled.status } : found
 
   async function cancel() {
     if (busy) return
     setBusy(true)
     setFail(null)
     try {
-      await cancelReservation(id)
+      const res = await cancelReservation(id)
+      setCancelled({ status: res.status })
       setDone(true)
     } catch (e) {
       // 409: 그새 시작했거나 이미 취소됨 → 지금 상태를 다시 받아 보여 준다
@@ -86,6 +90,7 @@ export default function ReservationDetail() {
 
       {done && <p className="card mine-msg" role="status">예약을 취소했어요. 이 시간은 이제 다른 팀이 예약할 수 있어요.</p>}
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
+      {stale && <p className="card mine-msg muted" role="status">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
       {r.owner && active && (
         <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 번호 보기</Link>
