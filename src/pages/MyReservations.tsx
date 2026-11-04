@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
 import { useAuth } from '../auth/AuthProvider'
@@ -10,16 +10,59 @@ const Chevron = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
 )
 
-/** 다른 화면에서도 쓰는 내 예약 목록 받기 */
+const REFRESH_MS = 30_000
+
+/**
+ * 다른 화면에서도 쓰는 내 예약 목록 받기.
+ * 화면이 열려 있는 동안 30초마다, 그리고 화면으로 돌아올 때 다시 받는다(키패드로 입실하면 상태가 바뀌므로).
+ * 요청은 한 번에 하나만 보내고, 진행 중에 또 오면 끝난 뒤 한 번만 다시 받는다.
+ */
 export function useMyReservations() {
   const [list, setList] = useState<MyReservation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const reload = useCallback(
-    () => getMyReservations().then((l) => { setList(l); setError(null) }).catch((e: Error) => setError(e.message)),
-    [],
-  )
+  const alive = useRef(true)
+  const loaded = useRef(false)
+  const inFlight = useRef(false)
+  const again = useRef(false)
+  const reload = useCallback(() => {
+    const run = () => {
+      if (inFlight.current) {
+        again.current = true
+        return
+      }
+      inFlight.current = true
+      getMyReservations()
+        .then((l) => {
+          if (!alive.current) return
+          setList(l)
+          setError(null)
+          loaded.current = true
+        })
+        // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
+        .catch((e: Error) => { if (alive.current && !loaded.current) setError(e.message) })
+        .finally(() => {
+          inFlight.current = false
+          if (alive.current && again.current) {
+            again.current = false
+            run()
+          }
+        })
+    }
+    run()
+  }, [])
   useEffect(() => {
+    alive.current = true
     reload()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reload()
+    }
+    const timer = setInterval(reload, REFRESH_MS)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      alive.current = false
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [reload])
   return { list, error, reload }
 }
