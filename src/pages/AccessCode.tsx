@@ -17,13 +17,8 @@ export function checkInDeadline(startAt: string, instant = false): Date {
   return new Date(Date.parse(startAt) + (instant ? 10 : 15) * 60_000)
 }
 
-/** 예약 화면에서 막 만든 예약을 내 예약 모양으로 맞춘다(목록을 받기 전 바로 보여 주려고) */
-function fromCreated(c: CreatedReservation): MyReservation {
-  return {
-    id: c.id, room: { id: c.roomId, name: `${c.roomId}번 방` }, startAt: c.startAt, endAt: c.endAt,
-    status: c.status, owner: true, accessCode: c.accessCode, participants: [],
-  }
-}
+/** 열어 둔 동안 상태(입실·노쇼·취소)가 바뀌면 번호를 고치거나 끈다 */
+const REFRESH_MS = 30_000
 
 /** FR-WEB-005 예약 완료 · 입실 번호 화면 (시안 Key). 예약 직후와 내 예약에서 연다 */
 export default function AccessCode() {
@@ -31,24 +26,40 @@ export default function AccessCode() {
   const navigate = useNavigate()
   const state = (useLocation().state ?? {}) as NavState
   const justCreated = state.created?.id === id
-  const [r, setR] = useState<MyReservation | null>(justCreated && state.created ? fromCreated(state.created) : null)
+  // 번호는 지금 로그인한 회원의 예약 목록에서 확인한 것만 보여 준다.
+  // 화면 이동 기록(state)은 다른 계정이 남긴 것일 수 있어 번호 표시에 쓰지 않는다
+  const [r, setR] = useState<MyReservation | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    getMyReservations()
-      .then((list) => {
-        if (!alive) return
-        const found = list.find((x) => x.id === id)
-        if (found) setR(found)
-        else if (!justCreated) setError('찾을 수 없는 예약이에요')
-      })
-      .catch((e: Error) => alive && !justCreated && setError(e.message))
+    let loaded = false
+    const refresh = () =>
+      getMyReservations()
+        .then((list) => {
+          if (!alive) return
+          const found = list.find((x) => x.id === id) ?? null
+          setR(found)
+          setError(found ? null : '찾을 수 없는 예약이에요')
+          loaded = true
+        })
+        .catch((e: Error) => {
+          // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
+          if (alive && !loaded) setError(e.message)
+        })
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    refresh()
+    const timer = setInterval(refresh, REFRESH_MS)
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
       alive = false
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [id, justCreated])
+  }, [id])
 
   if (error) {
     return (
@@ -71,15 +82,20 @@ export default function AccessCode() {
 
   async function share() {
     const text = `M-space ${roomName} · ${when} ${time}\n입실 번호 ${r!.accessCode} (방 앞 키패드에 누르고 #)`
-    try {
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share({ title: 'M-space 예약', text })
         return
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return // 보내기 창을 닫음
+        // 그 밖의 실패는 복사로 대신한다
       }
+    }
+    try {
       await navigator.clipboard.writeText(text)
       setShared('복사했어요. 메신저에 붙여 넣어 보내 주세요.')
     } catch {
-      /* 보내기 창을 닫은 경우 */
+      setShared('보내지 못했어요. 번호를 직접 알려 주세요.')
     }
   }
 
@@ -87,7 +103,7 @@ export default function AccessCode() {
     <main className="key-page">
       <div className="key-top">
         <Spacey size={80} />
-        <span className="key-title">{justCreated ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
+        <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
           {showCode ? '방 앞 키패드에 이 번호를 눌러 주세요' : !r.owner ? '번호는 대표자에게만 보여요' : '끝난 예약이라 번호가 꺼졌어요'}
         </span>
