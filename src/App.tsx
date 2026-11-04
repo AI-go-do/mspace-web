@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import MyReservations from './pages/MyReservations'
 import Placeholder from './pages/Placeholder'
 import ReservationDetail from './pages/ReservationDetail'
+import Rules from './pages/Rules'
 import Reserve from './pages/Reserve'
 
 /** 로그인해야 쓰는 화면 */
@@ -33,7 +34,7 @@ export default function App() {
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Placeholder title="비서 스페이시" fr="FR-AGT-101" />)} />
-          <Route path="/rules" element={<Placeholder title="이용 규칙" fr="FR-WEB-003" />} />
+          <Route path="/rules" element={<Rules />} />
           <Route path="/now" element={auth(<Placeholder title="지금 바로 쓰기" fr="FR-WEB-102" />)} />
           <Route path="/alerts" element={auth(<Placeholder title="알림" fr="FR-NTF-103" />)} />
           <Route path="*" element={<Placeholder title="없는 화면" />} />
