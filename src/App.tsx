@@ -5,6 +5,7 @@ import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
 import Checkout from './pages/Checkout'
 import Home from './pages/Home'
+import Instant from './pages/Instant'
 import Login from './pages/Login'
 import MyReservations from './pages/MyReservations'
 import Placeholder from './pages/Placeholder'
@@ -20,7 +21,7 @@ const auth = (page: ReactNode) => <RequireAuth>{page}</RequireAuth>
 export default function App() {
   const { pathname } = useLocation()
   // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
-  const fullScreen = pathname === '/login' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  const fullScreen = pathname === '/login' || pathname === '/now' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''}`}>
@@ -35,7 +36,7 @@ export default function App() {
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Placeholder title="비서 스페이시" fr="FR-AGT-101" />)} />
           <Route path="/rules" element={<Rules />} />
-          <Route path="/now" element={auth(<Placeholder title="지금 바로 쓰기" fr="FR-WEB-102" />)} />
+          <Route path="/now" element={auth(<Instant />)} />
           <Route path="/alerts" element={auth(<Placeholder title="알림" fr="FR-NTF-103" />)} />
           <Route path="*" element={<Placeholder title="없는 화면" />} />
         </Routes>

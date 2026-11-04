@@ -15,9 +15,12 @@ export interface Rule {
 }
 
 /** 예약 전 동의 화면(시안 Rules)에 보이는 수칙. 노쇼 시각은 화면이 채운다 */
-export function agreeRules(noShowAt: string): Rule[] {
+export function agreeRules(noShowAt: string, instant = false): Rule[] {
+  const noShow = instant
+    ? { tag: '10분', title: '노쇼면 자동 취소', body: `지금부터 10분(${noShowAt}) 안에 키패드로 입실하지 않으면 예약이 취소되고 방이 풀려요.`, strong: true }
+    : { tag: '15분', title: '노쇼면 자동 취소', body: `시작 후 15분(${noShowAt}) 안에 키패드로 입실하지 않으면 예약이 취소되고 방이 풀려요.`, strong: true }
   return [
-    { tag: '15분', title: '노쇼면 자동 취소', body: `시작 후 15분(${noShowAt}) 안에 키패드로 입실하지 않으면 예약이 취소되고 방이 풀려요.`, strong: true },
+    noShow,
     { tag: '소음', title: '대화는 괜찮아요', body: '옆 방에 들릴 만큼 떠들거나 장난치지 않아요.' },
     { tag: '음식', title: '음식물 반입 금지', body: '먹을 것과 마실 것 모두 가져올 수 없어요. 어기면 경고가 남고, 기기가 고장 나면 배상해요.' },
     { tag: '정리', title: '나갈 때 깨끗하게', body: '퇴실 전에 쓰레기를 버리고 자리를 정리해요.' },

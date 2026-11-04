@@ -64,3 +64,42 @@ export function lengthLabel(len: number): string {
 export function slotClock(i: number): string {
   return `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`
 }
+
+/**
+ * 지금부터 비어 있는 동안의 끝: 지금 뒤로 처음 나오는 예약된 칸의 시작(ISO). 오늘 안에 없으면 null.
+ * 2시간 제한은 고르는 끝 시각에만 쓰고 여기서는 쓰지 않는다
+ */
+export function nextTakenAt(slots: { startAt: string; available: boolean }[], now: Date): string | null {
+  const t = now.getTime()
+  return slots.find((s) => Date.parse(s.startAt) >= t && !s.available)?.startAt ?? null
+}
+
+/** 지금 바로 쓰기의 끝 시각 후보 (FR-WEB-102) */
+export interface EndChoice {
+  /** ISO 시각 */
+  endAt: string
+  /** 다음 예약 전·2시간 안이라 고를 수 있는지 */
+  ok: boolean
+}
+
+/**
+ * 지금 바로 쓰기 끝 시각 칩: 지금 다음 30분 경계부터 (지금 + 2시간)을 30분으로 올린 시각까지.
+ * 중간에 예약된 칸이 나오면 그 뒤로는 고를 수 없다(core ReservationTime.instant와 같은 규칙).
+ * @param slots 오늘 30분 칸 48개(서버 availability)
+ */
+export function instantEnds(slots: { startAt: string; endAt: string; available: boolean }[], now: Date, maxMinutes = 120): EndChoice[] {
+  const half = 30 * 60_000
+  const t = now.getTime()
+  const latest = Math.ceil((t + maxMinutes * 60_000) / half) * half
+  const out: EndChoice[] = []
+  let blocked = false
+  for (const s of slots) {
+    const start = Date.parse(s.startAt)
+    const end = Date.parse(s.endAt)
+    if (end <= t || end > latest) continue
+    // 지금 들어 있는 칸은 서버가 '지남'으로 보내므로, 그 칸은 비어 있다고 보고 끝까지 쓸 수 있게 한다
+    if (start >= t && !s.available) blocked = true
+    out.push({ endAt: s.endAt, ok: !blocked })
+  }
+  return out
+}
