@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { checkoutReservation } from '../api/reservations'
+import { checkoutReservation, getMyReservations } from '../api/reservations'
 import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
@@ -36,9 +36,16 @@ export default function Checkout() {
       await checkoutReservation(id)
       setDone(true)
     } catch (e) {
-      // 두 번 눌러 이미 퇴실됐으면(409) 완료로 본다
-      if (e instanceof ApiError && e.code === 'RESERVATION_NOT_IN_USE' && r?.status === 'IN_USE') setDone(true)
-      else setFail(e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요')
+      if (e instanceof ApiError && e.code === 'RESERVATION_NOT_IN_USE') {
+        // 409는 이미 끝난 예약 전부(자동 반납 등)를 뜻하므로, 서버에서 다시 확인해 내가 퇴실한 경우만 완료로 본다
+        const latest = await getMyReservations()
+          .then((rs) => rs.find((x) => x.id === id))
+          .catch(() => undefined)
+        if (latest?.status === 'CHECKED_OUT') setDone(true)
+        else setFail('이미 끝난 예약이에요. 내 예약에서 상태를 확인해 주세요')
+      } else {
+        setFail(e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요')
+      }
     } finally {
       setBusy(false)
       setAsking(false)
