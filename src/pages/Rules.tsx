@@ -46,6 +46,7 @@ export default function Rules() {
           <li>30일 안 3회</li>
           <li className="last">14일 정지</li>
         </ol>
+        <span className="muted small">노쇼는 따로 세요. 30일 안에 노쇼 2번이면 바로 14일 정지예요.</span>
         <span className="muted small">정지되면 대표자·참여자 모두 예약할 수 없어요. 고장 배상은 관리자가 따로 연락해요.</span>
       </section>
     </main>
