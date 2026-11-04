@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
 import TabBar from './components/TabBar'
+import AccessCode from './pages/AccessCode'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Placeholder from './pages/Placeholder'
@@ -14,8 +15,8 @@ const auth = (page: ReactNode) => <RequireAuth>{page}</RequireAuth>
 // 이용 규칙(FR-WEB-003)은 로그인 전에도 볼 수 있다.
 export default function App() {
   const { pathname } = useLocation()
-  // 로그인·예약 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
-  const fullScreen = pathname === '/login' || pathname.startsWith('/rooms/')
+  // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
+  const fullScreen = pathname === '/login' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/')
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''}`}>
@@ -23,7 +24,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={auth(<Home />)} />
           <Route path="/rooms/:roomId" element={auth(<Reserve />)} />
-          <Route path="/reservations/:id" element={auth(<Placeholder title="입실 번호" fr="FR-WEB-005" />)} />
+          <Route path="/reservations/:id" element={auth(<AccessCode />)} />
           <Route path="/map" element={auth(<Placeholder title="배치도" fr="FR-WEB-004" />)} />
           <Route path="/me" element={auth(<Placeholder title="내 예약" fr="FR-WEB-002" />)} />
           <Route path="/assistant" element={auth(<Placeholder title="비서 스페이시" fr="FR-AGT-101" />)} />
