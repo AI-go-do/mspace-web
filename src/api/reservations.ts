@@ -52,8 +52,8 @@ export interface MyReservation {
 }
 
 /** 내 예약 (FR-RSV-006). 끝나지 않은 것이 위(시작 빠른 순), 끝난 것은 최근 순 */
-export function getMyReservations(): Promise<MyReservation[]> {
-  return api('/api/reservations/me')
+export function getMyReservations(signal?: AbortSignal): Promise<MyReservation[]> {
+  return api('/api/reservations/me', { signal })
 }
 
 /** 끝나지 않은 예약(예약됨·사용 중)인지 */
@@ -69,4 +69,14 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   AWAY_RELEASED: '자리 비움으로 퇴실',
   CANCELED: '취소됨',
   NO_SHOW: '노쇼로 풀림',
+}
+
+/** 시작 전 취소 (FR-RSV-007). 대표자만, 시작 전 BOOKED만 */
+export function cancelReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
+  return api(`/api/reservations/${id}/cancel`, { method: 'POST' })
+}
+
+/** 퇴실 (FR-RSV-008). 대표자만, 입실한(IN_USE) 예약만. 방이 바로 빈다 */
+export function checkoutReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
+  return api(`/api/reservations/${id}/checkout`, { method: 'POST' })
 }

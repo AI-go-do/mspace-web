@@ -20,7 +20,7 @@ export default function TabBar() {
   return (
     <nav className="tabbar" aria-label="아래 메뉴">
       {TABS.map((t) => (
-        <NavLink key={t.to} to={t.to} end className="tab">
+        <NavLink key={t.to} to={t.to} end={t.to === '/'} className="tab">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {t.icon}
