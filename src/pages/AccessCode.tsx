@@ -35,10 +35,12 @@ export default function AccessCode() {
   useEffect(() => {
     let alive = true
     let loaded = false
-    const refresh = () =>
-      getMyReservations()
+    let latest = 0 // 30초 주기와 화면 복귀가 겹쳐도 가장 나중에 보낸 요청의 답만 반영한다
+    const refresh = () => {
+      const seq = ++latest
+      return getMyReservations()
         .then((list) => {
-          if (!alive) return
+          if (!alive || seq !== latest) return
           const found = list.find((x) => x.id === id) ?? null
           setR(found)
           setError(found ? null : '찾을 수 없는 예약이에요')
@@ -46,8 +48,9 @@ export default function AccessCode() {
         })
         .catch((e: Error) => {
           // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-          if (alive && !loaded) setError(e.message)
+          if (alive && seq === latest && !loaded) setError(e.message)
         })
+    }
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh()
     }
