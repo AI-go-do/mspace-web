@@ -157,7 +157,12 @@ export default function Reserve() {
                 <span><i className="lg lg-pick" />선택</span>
               </span>
             </div>
-            {loadError && <p role="alert" className="muted">시간표를 못 불러왔어요. {loadError}</p>}
+            {loadError && (
+              <div role="alert">
+                <p className="muted">시간표를 못 불러왔어요. {loadError}</p>
+                <button type="button" className="btn-line" onClick={() => load()}>다시 불러오기</button>
+              </div>
+            )}
             <div className="slot-grid">
               {slots.map((s, i) => {
                 const past = Date.parse(s.startAt) < now.getTime()
