@@ -15,20 +15,28 @@ export default function MapPage() {
   const [rooms, setRooms] = useState<RoomSlots[] | null>(null)
   const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
+    let seq = 0
     // 날짜는 부를 때마다 다시 구한다: 자정이 지나면 새 날의 칸을 받는다
-    const load = () =>
+    // 늦게 온 옛 응답이 새 결과를 덮지 않도록 가장 마지막 요청의 결과만 쓴다
+    const load = () => {
+      const mine = ++seq
       getAvailability(seoulDate())
         .then((r) => {
-          if (!alive) return
+          if (!alive || mine !== seq) return
           setRooms(r.data.rooms)
           setSample(r.sample)
+          setUpdatedAt(new Date())
           setError(null)
         })
-        .catch((e: Error) => alive && setError(e.message))
+        .catch((e: Error) => {
+          if (alive && mine === seq) setError(e.message)
+        })
+    }
     load()
     // 화면을 켜 둔 동안 다른 사람의 예약·취소가 보이도록 1분마다 새로 받는다(홈과 같은 주기)
     const t = setInterval(load, 60_000)
@@ -57,7 +65,12 @@ export default function MapPage() {
           <span><i className="lg-on" />선택</span>
         </div>
         <div className="map-workshop">3D프린터 공작실 · 예약 대상 아님</div>
-        {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
+        {error && (
+          <p role="alert" className="muted">
+            방 현황을 못 불러왔어요. {error}
+            {updatedAt && ` 아래 현황은 ${seoulClock(updatedAt)} 기준이라 지금과 다를 수 있어요.`}
+          </p>
+        )}
         {sample && <p role="status" className="muted small">서버에 닿지 않아 예시 현황을 보여 주고 있어요.</p>}
         <div className="map-floor">
           <div className="map-rooms">
