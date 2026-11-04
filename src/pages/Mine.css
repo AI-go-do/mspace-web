@@ -1,5 +1,6 @@
 /* PWA 화면 시안 Mine · Detail · Checkout과 같은 값 */
 .mine { min-height: 100dvh; padding-bottom: 24px; display: flex; flex-direction: column; }
+.mine.checkout { padding-bottom: max(96px, calc(68px + env(safe-area-inset-bottom))); } /* 아래 고정 버튼 막대에 안내·오류 문구가 가리지 않게 */
 .mine-head { background: var(--white); padding: 56px 16px 12px; display: flex; align-items: center; justify-content: space-between; }
 .mine-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
 .seg-tabs { display: flex; background: var(--gray); border-radius: 12px; padding: 4px; }
