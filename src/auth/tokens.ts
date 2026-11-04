@@ -8,6 +8,8 @@ export interface Tokens {
   accessToken: string
   /** ISO 시각 */
   expiresAt: string
+  /** 로그인한 회원. 이 브라우저에만 두는 기록(수칙 동의 등)을 회원별로 나누는 데 쓴다 */
+  memberId?: number
 }
 
 /** 예전 버전이 localStorage·sessionStorage에 넣던 토큰 키. 남아 있으면 지운다 */
