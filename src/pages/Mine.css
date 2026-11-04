@@ -36,7 +36,8 @@
   display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
 }
 .inuse-note { font-size: 14px; opacity: 0.8; }
-.inuse-link { align-self: center; min-height: var(--touch); display: flex; align-items: center; font-size: 14px; text-decoration: underline; }
+.inuse-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+.inuse-link { min-height: var(--touch); display: flex; align-items: center; font-size: 14px; text-decoration: underline; }
 
 .sub-head { background: var(--white); padding: 52px 16px 12px; display: flex; align-items: center; gap: 8px; }
 .sub-head h1 { margin: 0; font-size: 22px; font-weight: 700; }

@@ -193,7 +193,10 @@ function InUseCard({ r, now }: { r: MyReservation; now: Date }) {
       ) : (
         <span className="inuse-note">퇴실은 대표자가 해요</span>
       )}
-      {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
+      <div className="inuse-links">
+        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
+        <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
+      </div>
     </section>
   )
 }
