@@ -5,7 +5,7 @@ import { checkoutReservation, getMyReservations } from '../api/reservations'
 import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
-import { useMyReservations } from './MyReservations'
+import { REQUEST_TIMEOUT_MS, useMyReservations } from './MyReservations'
 import './Mine.css'
 
 const CHECKS = ['쓰레기를 버렸어요', '책상·의자를 정리했어요', '창문을 닫고 불을 껐어요']
@@ -40,9 +40,13 @@ export default function Checkout() {
     } catch (e) {
       if (e instanceof ApiError && e.code === 'RESERVATION_NOT_IN_USE') {
         // 409는 이미 끝난 예약 전부(자동 반납 등)를 뜻하므로, 서버에서 다시 확인해 내가 퇴실한 경우만 완료로 본다
-        const latest = await getMyReservations()
+        // 다시 확인도 멈추면 버튼이 계속 잠기므로 목록과 같은 시간에 끊는다
+        const abort = new AbortController()
+        const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
+        const latest = await getMyReservations(abort.signal)
           .then((rs) => rs.find((x) => x.id === id))
           .catch(() => undefined)
+          .finally(() => clearTimeout(timer))
         if (latest?.status === 'CHECKED_OUT') setDone(true)
         else {
           setFail('이미 끝난 예약이에요. 내 예약에서 상태를 확인해 주세요')

@@ -12,7 +12,7 @@ const Chevron = () => (
 
 const REFRESH_MS = 30_000
 /** 답이 오지 않는 요청을 끊는 시간. 끊어야 다음 새로고침이 돈다 */
-const REQUEST_TIMEOUT_MS = 15_000
+export const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * 다른 화면에서도 쓰는 내 예약 목록 받기.
