@@ -115,17 +115,26 @@ export const REFRESH_TIMEOUT_MS = 10_000
 
 async function doRefresh(): Promise<Tokens> {
   const started = generation
-  // 시간 제한: 단순히 기다림만 끝내면 살아 있는 요청이 나중에 로그인 쿠키를 덮을 수 있어서, 요청 자체를 끊는다.
-  // 다른 탭이 잠금을 오래 쥐고 있어도 멈추지 않게, 잠금 기다림까지 같은 제한 시간에 넣는다
-  const abort = new AbortController()
-  const timer = setTimeout(() => abort.abort(), REFRESH_TIMEOUT_MS)
+  // 시간 제한은 둘로 나눈다. ① 잠금 기다림: 다른 탭이 잠금을 오래 쥐어도 멈추지 않게.
+  // ② refresh 요청: 잠금을 받은 뒤부터 새로 잰다. 기다림이 요청 시간을 깎아 먹으면, 서버가 쿠키를 바꾼 직후에
+  // 요청이 끊겨 다음 시도가 이미 쓴 쿠키를 다시 보낼 수 있어서다(그러면 서버가 모두 끊는다).
+  // 요청은 단순히 기다림만 끝내지 않고 실제로 끊는다. 살아 있는 요청이 나중에 로그인 쿠키를 덮을 수 있어서다
+  const lockAbort = new AbortController()
+  const lockTimer = setTimeout(() => lockAbort.abort(), REFRESH_TIMEOUT_MS)
+  const requestAbort = new AbortController()
+  let requestTimer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await withLock(() => refreshOnce(started, abort.signal), abort.signal)
+    return await withLock(() => {
+      clearTimeout(lockTimer)
+      requestTimer = setTimeout(() => requestAbort.abort(), REFRESH_TIMEOUT_MS)
+      return refreshOnce(started, requestAbort.signal)
+    }, lockAbort.signal)
   } catch (e) {
-    if (abort.signal.aborted) throw new ApiError(0, 'REFRESH_TIMEOUT', '연결이 늦어요. 잠시 후 다시 시도해 주세요')
+    if (lockAbort.signal.aborted || requestAbort.signal.aborted) throw new ApiError(0, 'REFRESH_TIMEOUT', '연결이 늦어요. 잠시 후 다시 시도해 주세요')
     throw e
   } finally {
-    clearTimeout(timer)
+    clearTimeout(lockTimer)
+    clearTimeout(requestTimer)
   }
 }
 

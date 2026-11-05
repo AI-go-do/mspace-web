@@ -231,6 +231,25 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     }
   })
 
+  it('잠금을 오래 기다렸어도 refresh 요청은 자기 시간을 처음부터 다 쓴다', async () => {
+    vi.useFakeTimers()
+    // 9초 뒤에야 잠금을 받는 브라우저 흉내
+    const request = vi.fn((_name: string, _opts: unknown, fn: () => Promise<unknown>) =>
+      new Promise((resolve, reject) => setTimeout(() => fn().then(resolve, reject), 9_000)))
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } })
+    // 요청은 잠금을 받은 뒤 5초 걸린다(합치면 14초 > 제한 10초)
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) =>
+      setTimeout(() => resolve(json(200, { accessToken: 'slow', expiresAt: later(60), memberId: 1, newMember: false })), 5_000)))
+    try {
+      const pending = refreshTokens().catch((e) => e)
+      await vi.advanceTimersByTimeAsync(14_000)
+      expect(await pending).toMatchObject({ accessToken: 'slow' })
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
   it('오류는 서버의 code·message를 그대로 던진다', async () => {
     saveTokens({ accessToken: 'a1', expiresAt: later(30) })
     fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
