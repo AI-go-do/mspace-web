@@ -19,8 +19,11 @@ const blank = (): Row => ({ dayOfWeek: 'MON', startTime: '09:00', endTime: '10:3
  */
 export default function Schedule() {
   const navigate = useNavigate()
-  // 이 화면을 연 학생 토큰으로만 보낸다(다른 탭에서 다른 학생이 로그인했으면 SESSION_CHANGED)
-  const [member] = useState(currentMemberId)
+  // 이 화면을 연 학생 토큰으로만 보낸다(다른 탭에서 다른 학생이 로그인했으면 SESSION_CHANGED).
+  // 열 때 토큰이 없었으면(시작 refresh가 네트워크 오류로 실패) 아직 묶지 않고, 처음 성공한 요청의 회원으로 묶는다
+  const memberRef = useRef<number | null>(currentMemberId())
+  const bound = () => memberRef.current ?? undefined
+  const bind = () => { if (memberRef.current === null) memberRef.current = currentMemberId() }
   const [saved, setSaved] = useState<Saved | null | undefined>(undefined)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -34,9 +37,10 @@ export default function Schedule() {
 
   const load = () => {
     setLoadError(null)
-    getSchedule(member).then(setSaved).catch((e) => setLoadError(scheduleErrorMessage(e)))
+    getSchedule(bound()).then((s) => { bind(); setSaved(s) }).catch((e) => setLoadError(scheduleErrorMessage(e)))
   }
-  useEffect(load, [member])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 한 번만 (다시 부르기는 버튼)
+  useEffect(load, [])
 
   const reset = () => { setMsg(null); setDone(null); setProblem(null); setAskDelete(false) }
   const edit = () => { reset(); setDraft(null); setRows(saved ? toRows(saved.classes) : [blank()]) }
@@ -53,7 +57,8 @@ export default function Schedule() {
     if (p) return setProblem(p)
     setBusy('save')
     try {
-      setSaved(await saveSchedule(classes, member))
+      setSaved(await saveSchedule(classes, bound()))
+      bind()
       setRows(null)
       setDraft(null)
       setDone('저장했어요. 이제 비서에게 "내일 수업 끝나고 빈방 잡아 줘"라고 해 보세요.')
@@ -68,7 +73,8 @@ export default function Schedule() {
     reset()
     setBusy('delete')
     try {
-      await deleteSchedule(member)
+      await deleteSchedule(bound())
+      bind()
       setSaved(null)
       setDone('시간표를 지웠어요.')
     } catch (e) {
@@ -89,7 +95,8 @@ export default function Schedule() {
       const small = await shrinkImage(file).catch(() => undefined)
       if (small === undefined) return setMsg('사진을 열지 못했어요. 다른 사진으로 다시 올려 주세요.')
       if (!small) return setMsg('사진이 너무 커요. 시간표 부분만 잘라서 다시 올려 주세요.')
-      const d = await parseScheduleImage(small, member)
+      const d = await parseScheduleImage(small, bound())
+      bind()
       setDraft({ note: d.note, dropped: d.dropped })
       setRows(d.classes.length ? toRows(d.classes) : [blank()])
     } catch (err) {
@@ -138,7 +145,7 @@ export default function Schedule() {
             비서가 '수업 끝나고'를 알아들으려면 요일별 수업 시각이 필요해요. 넣어 두면 "내일 수업 끝나고 빈방 잡아 줘"에
             마지막 수업이 끝난 뒤 빈방을 찾아 줘요. 과목명과 시각만 저장해요.
           </span>
-          <button type="button" className="btn-primary" onClick={edit}>직접 입력</button>
+          <button type="button" className="btn-primary" disabled={busy !== null} onClick={edit}>직접 입력</button>
           {capture}
         </section>
       )}
@@ -158,7 +165,7 @@ export default function Schedule() {
             )
           })}
           <div className="sc-col sc-sec">
-            <button type="button" className="btn-primary" onClick={edit}>고치기</button>
+            <button type="button" className="btn-primary" disabled={busy !== null} onClick={edit}>고치기</button>
             {capture}
             {!askDelete && <button type="button" className="sc-link" onClick={() => { reset(); setAskDelete(true) }}>전체 지우기</button>}
             {askDelete && (
@@ -188,7 +195,7 @@ export default function Schedule() {
             </section>
           )}
           {rows.map((r, i) => (
-            <fieldset key={r.key} className="card sc-edit" aria-invalid={problem?.index === i}>
+            <fieldset key={r.key} className="card sc-edit" aria-invalid={problem?.index === i} disabled={busy !== null}>
               <legend className="sr-only">{i + 1}번째 수업</legend>
               <div className="sc-row">
                 <select aria-label="요일" value={r.dayOfWeek} onChange={(e) => change(r.key, { dayOfWeek: e.target.value as Day })}>
@@ -209,12 +216,12 @@ export default function Schedule() {
           ))}
           {problem && problem.index === null && <p role="alert" className="card sc-msg">{problem.message}</p>}
           <div className="sc-col sc-sec">
-            <button type="button" className="btn-line" disabled={rows.length >= MAX_CLASSES}
+            <button type="button" className="btn-line" disabled={busy !== null || rows.length >= MAX_CLASSES}
               onClick={() => { setProblem(null); setRows([...rows, blank()]) }}>
               {rows.length >= MAX_CLASSES ? `수업은 ${MAX_CLASSES}개까지예요` : '+ 수업 더하기'}
             </button>
             <div className="sc-row">
-              <button type="button" className="btn-line" onClick={() => { reset(); setRows(null); setDraft(null) }}>취소</button>
+              <button type="button" className="btn-line" disabled={busy !== null} onClick={() => { reset(); setRows(null); setDraft(null) }}>취소</button>
               <button type="button" className="btn-primary" disabled={busy !== null} onClick={save}>
                 {busy === 'save' ? '저장하는 중…' : '저장'}
               </button>
