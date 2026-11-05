@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConfirmResult } from '../api/agent'
-import { cardOutcomeOf, currentClearing, loadChat, rememberClearing, resetChat, restoreChat, SAVED_TTL_MS, saveCardOutcome, saveChat, toSaved, watchCardOutcome } from './chatStore'
+import { cardOutcomeOf, clearChatOf, currentClearing, loadChat, rememberClearing, resetChat, restoreChat, SAVED_TTL_MS, saveCardOutcome, saveChat, toSaved, watchCardOutcome } from './chatStore'
 
 describe('확인 카드 결과 기억', () => {
   it('누른 카드 결과는 화면을 다시 열어도 같은 회원에게 그대로 남는다', () => {
@@ -82,6 +82,26 @@ describe('새로고침해도 대화 유지(이 탭 저장소)', () => {
       { id: 5, role: 'assistant', text: '결과 정상', pastCards: [{ summary: '카드', result: { action: 'CREATE', reservationId: 7, message: '예약했어요' } }] },
     ] }
     expect(restoreChat(saved, 1, 0)?.messages.map((m) => m.text)).toEqual(['정상', '결과 정상'])
+  })
+
+  it('지우기가 끝났을 때 다른 회원으로 바뀌어 있으면 지운 회원 기록만 비우고 지금 회원 것은 둔다', () => {
+    const store = new Map<string, string>()
+    const fake = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) }
+    const g = globalThis as { sessionStorage?: unknown }
+    const before = g.sessionStorage
+    g.sessionStorage = fake
+    try {
+      loadChat(21)
+      saveChat({ memberId: 21, pending: null, messages: [{ id: 1, role: 'user', text: '21번 질문' }] })
+      clearChatOf(22)
+      expect(loadChat(21).messages).toHaveLength(1)
+      expect(store.size).toBe(1)
+      clearChatOf(21)
+      expect(loadChat(21).messages).toHaveLength(0)
+      expect(store.size).toBe(0)
+    } finally {
+      g.sessionStorage = before
+    }
   })
 
   it('새 대화로 지우는 동안은 화면 밖에도 기억하고, 끝나면(실패해도) 비운다', async () => {

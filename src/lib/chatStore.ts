@@ -62,6 +62,19 @@ export function resetChat(memberId: number | null): ChatState {
   return state
 }
 
+/**
+ * 서버 기억을 지운 뒤 그 회원 것만 비운다. 그사이 다른 회원으로 바뀌었어도 지운 회원의 기록이 남지 않게 하고,
+ * 지금 회원(다른 사람)의 화면 기록·저장소는 건드리지 않는다
+ */
+export function clearChatOf(memberId: number): void {
+  if (state.memberId === memberId) {
+    state = { memberId, messages: [], pending: null }
+    cardOutcomes = new Map()
+  }
+  const saved = readSaved()
+  if (saved && typeof saved === 'object' && (saved as Partial<SavedChat>).memberId === memberId) writeSaved(null)
+}
+
 // ---- 이 탭 저장소(sessionStorage) ----
 
 const STORAGE_KEY = 'mspace.agent.chat.v1'

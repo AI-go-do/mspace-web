@@ -4,7 +4,7 @@ import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfir
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, resetChat, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
+import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -187,9 +187,7 @@ export default function Assistant() {
     if (owner === null || chat.memberId !== owner || chat.pending !== null || clearing || currentClearing(owner)) return
     setClearing(true)
     // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
-    const cleared = clearChatHistory(owner).then(() => {
-      if (currentMemberId() === owner) resetChat(owner)
-    })
+    const cleared = clearChatHistory(owner).then(() => clearChatOf(owner))
     rememberClearing(owner, cleared)
     try {
       await cleared
