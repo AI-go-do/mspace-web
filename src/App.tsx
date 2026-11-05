@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
+import NotificationToast from './components/NotificationToast'
 import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
 import Assistant from './pages/Assistant'
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="*" element={<Placeholder title="없는 화면" message="주소가 바뀌었거나 없는 화면이에요." />} />
         </Routes>
         {!fullScreen && <TabBar />}
+        {pathname !== '/login' && <NotificationToast />}
       </div>
     </AuthProvider>
   )

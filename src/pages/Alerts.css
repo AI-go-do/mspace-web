@@ -17,3 +17,6 @@
 .alert-body { margin: 0; font-size: 14px; color: var(--navy-70); line-height: 1.5; }
 .alert-link { align-self: flex-start; min-height: var(--touch); display: inline-flex; align-items: center; color: var(--blue); font-weight: 700; font-size: 14px; }
 .alert-btn { margin-top: 4px; }
+.alert-actions { display: flex; flex-direction: column; gap: 6px; }
+.alert-note { margin: 4px 0 0; font-size: 14px; color: var(--navy); }
+.alert-note.err { color: var(--navy); font-weight: 700; }

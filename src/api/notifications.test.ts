@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoLabel, notificationAction, type AppNotification } from './notifications'
+import { agoLabel, freshNotifications, notificationAction, toastTarget, type AppNotification } from './notifications'
 
 const n = (kind: string, reservationId: number | null = 12): AppNotification =>
   ({ id: 1, reservationId, kind, title: 't', body: 'b', createdAt: '2026-11-05T14:00:00+09:00', read: false })
@@ -27,5 +27,21 @@ describe('알림 시각', () => {
   })
   it('하루가 넘으면 서울 날짜와 시각', () => {
     expect(agoLabel('2026-11-03T09:05:00+09:00', now)).toBe('11월 3일 09:05')
+  })
+})
+
+describe('앱 안 알림 배너', () => {
+  const at = (id: number, kind: string, iso: string): AppNotification =>
+    ({ id, reservationId: 5, kind, title: 't', body: 'b', createdAt: iso, read: false })
+  it('처음 받은 목록은 배너로 띄우지 않고, 그 뒤 새로 생긴 것만 최신순으로 띄운다', () => {
+    const first = [at(1, 'END_SOON', '2026-11-05T10:00:00+09:00')]
+    expect(freshNotifications(first, null)).toEqual([])
+    const next = [...first, at(2, 'START_SOON', '2026-11-05T10:01:00+09:00'), at(3, 'AWAY_SOON', '2026-11-05T10:02:00+09:00')]
+    expect(freshNotifications(next, new Set([1])).map((n) => n.id)).toEqual([3, 2])
+  })
+  it('자리 비움 배너는 두 버튼이 있는 알림함으로, 나머지는 알림의 갈 곳으로', () => {
+    expect(toastTarget(at(1, 'AWAY_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/alerts')
+    expect(toastTarget(at(1, 'START_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/reservations/5')
+    expect(toastTarget({ ...at(1, 'END_SOON', '2026-11-05T10:00:00+09:00'), reservationId: null })).toBe('/alerts')
   })
 })

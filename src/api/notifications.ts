@@ -49,3 +49,15 @@ export function agoLabel(iso: string, now = new Date()): string {
     .formatToParts(t).reduce<Record<string, string>>((a, x) => ({ ...a, [x.type]: x.value }), {})
   return `${p.month}월 ${p.day}일 ${p.hour}:${p.minute}`
 }
+
+/** 배너(앱 안 알림)를 눌렀을 때 갈 곳. 자리 비움은 "아직 있어요"·"퇴실할게요"를 고를 수 있게 알림함으로 */
+export function toastTarget(n: AppNotification): string {
+  if (n.kind === 'AWAY_SOON') return '/alerts'
+  return notificationAction(n)?.to ?? '/alerts'
+}
+
+/** 처음 받은 목록 뒤로 새로 생긴 알림만 (최신 것이 앞). seen이 null이면 첫 조회라 아무것도 새것으로 보지 않는다 */
+export function freshNotifications(list: AppNotification[], seen: ReadonlySet<number> | null): AppNotification[] {
+  if (!seen) return []
+  return list.filter((n) => !seen.has(n.id)).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+}

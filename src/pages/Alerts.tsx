@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { agoLabel, getMyNotifications, notificationAction, type AppNotification } from '../api/notifications'
+import { stillHere } from '../api/reservations'
+import { ApiError } from '../api/client'
 import { useNow } from '../lib/useNow'
 import './Alerts.css'
 
@@ -84,12 +86,58 @@ export default function Alerts() {
                   <time className="alert-time" dateTime={n.createdAt}>{agoLabel(n.createdAt, now)}</time>
                 </div>
                 <p className="alert-body">{n.body}</p>
-                {act && <Link to={act.to} className={n.kind === 'AWAY_SOON' ? 'btn-primary alert-btn' : 'alert-link'}>{act.label}</Link>}
+                {n.kind === 'AWAY_SOON' && n.reservationId != null
+                  ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} />
+                  : act && <Link to={act.to} className="alert-link">{act.label}</Link>}
               </li>
             )
           })}
         </ul>
       )}
     </main>
+  )
+}
+
+/** "아직 있어요"를 누른 예약. 30초마다 목록을 다시 받아도, 화면을 다시 열어도 버튼이 되살아나지 않게 */
+const stillHereDone = new Map<number, string>()
+
+/**
+ * 자리 비움 알림의 두 버튼 (FR-NTF-103, FR-DEV-103): "아직 있어요"(예약당 1번) · "퇴실할게요"(퇴실 화면으로).
+ * 서버가 이미 썼다·꺼 뒀다·사용 중 아님이라고 하면 그 문구를 남기고 버튼을 거둔다
+ */
+function AwayActions({ reservationId, checkoutTo }: { reservationId: number; checkoutTo?: string }) {
+  const [state, setState] = useState<{ kind: 'idle' | 'sending' } | { kind: 'error'; message: string } | { kind: 'done'; message: string }>(() => {
+    const done = stillHereDone.get(reservationId)
+    return done ? { kind: 'done', message: done } : { kind: 'idle' }
+  })
+
+  async function press() {
+    setState({ kind: 'sending' })
+    try {
+      await stillHere(reservationId)
+      const message = '알겠어요. 자리 비움 시간을 지금부터 다시 잴게요.'
+      stillHereDone.set(reservationId, message)
+      setState({ kind: 'done', message })
+    } catch (e) {
+      const err = e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '잠시 후 다시 눌러 주세요')
+      if (['STILL_HERE_ALREADY_USED', 'STILL_HERE_DISABLED', 'RESERVATION_NOT_IN_USE'].includes(err.code)) {
+        stillHereDone.set(reservationId, err.message)
+        setState({ kind: 'done', message: err.message })
+      } else setState({ kind: 'error', message: err.message })
+    }
+  }
+
+  return (
+    <div className="alert-actions">
+      {state.kind === 'done'
+        ? <p className="alert-note" role="status">{state.message}</p>
+        : (
+          <button type="button" className="btn-primary alert-btn" disabled={state.kind === 'sending'} onClick={() => void press()}>
+            {state.kind === 'sending' ? '알리는 중…' : '아직 있어요'}
+          </button>
+        )}
+      {state.kind === 'error' && <p className="alert-note err" role="alert">{state.message}</p>}
+      {checkoutTo && <Link to={checkoutTo} className="btn-line alert-btn">퇴실할게요</Link>}
+    </div>
   )
 }
