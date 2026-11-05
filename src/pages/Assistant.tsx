@@ -4,7 +4,7 @@ import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfir
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, resetChat, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
+import { cardOutcomeOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, resetChat, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -22,7 +22,8 @@ export default function Assistant() {
   const [chat, setChat] = useState<ChatState>(() => loadChat(currentMemberId()))
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
-  const [clearing, setClearing] = useState(false)
+  // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
+  const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
@@ -84,6 +85,16 @@ export default function Assistant() {
     )
     // 접수 중이던 기록만 남고 요청은 없다(예: 새로고침 직전): 다시 보내게 푼다
     else if (p) update((s) => ({ ...s, pending: null }))
+    // 떠나기 전에 누른 "새 대화"가 아직 안 끝났다: 끝나면 저장소(비워졌거나 그대로)를 다시 읽는다
+    const clearingNow = currentClearing(memberId)
+    if (clearingNow) {
+      const reload = () => {
+        if (!mounted.current) return
+        setChat(loadChat(currentMemberId()))
+        setClearing(false)
+      }
+      clearingNow.then(reload, reload)
+    }
     return () => {
       mounted.current = false
       alive.current?.abort()
@@ -145,7 +156,7 @@ export default function Assistant() {
     // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
     const stored = loadChat(owner)
     if (stored !== chat) setChat(stored)
-    if (!msg || stored.pending !== null || clearing || msg.length > MAX_CHARS) return
+    if (!msg || stored.pending !== null || clearing || currentClearing(owner) || msg.length > MAX_CHARS) return
     const history = historyOf(stored.messages)
     const startedAt = Date.now()
     update((s) => ({
@@ -172,14 +183,18 @@ export default function Assistant() {
   /** "새 대화": 서버가 기억한 대화를 먼저 지우고, 성공하면 화면과 이 탭 저장소도 비운다 */
   async function startOver() {
     const owner = currentMemberId()
-    if (owner === null || chat.pending !== null || clearing) return
+    if (owner === null || chat.pending !== null || clearing || currentClearing(owner)) return
     setClearing(true)
+    // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
+    const cleared = clearChatHistory(owner).then(() => {
+      if (currentMemberId() === owner) resetChat(owner)
+    })
+    rememberClearing(owner, cleared)
     try {
-      await clearChatHistory(owner)
+      await cleared
       if (currentMemberId() !== owner) return
-      const next = resetChat(owner)
       if (mounted.current) {
-        setChat(next)
+        setChat(loadChat(owner))
         setText('')
       }
     } catch (e) {

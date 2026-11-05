@@ -145,10 +145,20 @@ export function restoreChat(saved: unknown, memberId: number | null, now: number
   if (!Array.isArray(v.messages)) return null
   const messages = v.messages.filter((m): m is ChatMessage =>
     !!m && typeof m === 'object' && typeof m.id === 'number' && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string'
-    && (m.pastCards === undefined || Array.isArray(m.pastCards)))
+    && (m.pastCards === undefined || (Array.isArray(m.pastCards) && m.pastCards.every(isPastCard))))
   const p = v.pending
   const pending = p && typeof p.jobId === 'string' && p.jobId && typeof p.startedAt === 'number' && now - p.startedAt < RESUME_MS ? p : null
   return { memberId, messages, pending }
+}
+
+/** 지난 카드 하나의 모양 검사(요약 문자열, 결과가 있으면 종류·예약 id·안내 문장) */
+function isPastCard(c: unknown): c is PastCard {
+  if (!c || typeof c !== 'object') return false
+  const { summary, result } = c as Partial<PastCard>
+  if (typeof summary !== 'string') return false
+  if (result === undefined) return true
+  return !!result && typeof result === 'object'
+    && typeof result.action === 'string' && typeof result.reservationId === 'number' && typeof result.message === 'string'
 }
 
 // 로그아웃·refresh 실패: 화면 기록과 이 탭 저장소를 비운다(같은 기기의 다음 사람이 보지 않게)
@@ -171,6 +181,22 @@ export function setSubmitting(memberId: number | null, promise: Submission): voi
 /** 그 접수일 때만 비운다(다른 회원·다음 접수의 것을 지우지 않게) */
 export function clearSubmitting(promise: Submission): void {
   if (submitting?.promise === promise) submitting = null
+}
+
+/** "새 대화"로 서버 기억을 지우는 중인 요청. 화면을 떠났다 와도 지우는 동안 보내지 않게 화면 밖에 둔다 */
+let clearingChat: { memberId: number; promise: Promise<void> } | null = null
+
+/** 지우기 요청을 기억하고, 끝나면(성공·실패 모두) 비운다 */
+export function rememberClearing(memberId: number, promise: Promise<void>): void {
+  const entry = { memberId, promise }
+  clearingChat = entry
+  const done = () => { if (clearingChat === entry) clearingChat = null }
+  promise.then(done, done)
+}
+
+/** 그 회원의 대화를 지우는 중이면 그 요청. 아니면 null */
+export function currentClearing(memberId: number | null): Promise<void> | null {
+  return clearingChat && clearingChat.memberId === memberId ? clearingChat.promise : null
 }
 
 /** 그 회원이 보내는 중인 접수. 다른 회원이면 null */
