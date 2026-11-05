@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult, type ConfirmResult } from '../api/agent'
+import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type ChatMessage, type ChatState } from '../lib/chatStore'
+import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -240,11 +240,7 @@ function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
   )
 }
 
-type CardState =
-  | { kind: 'open'; error?: string }
-  | { kind: 'sending' }
-  | { kind: 'done'; result: ConfirmResult }
-  | { kind: 'closed'; message: string }
+type CardState = CardOutcome
 
 /** 이 코드면 카드를 다시 쓸 수 없다(비서에게 다시 말해야 함) */
 const CLOSED = new Set(['CONFIRMATION_USED', 'CONFIRMATION_EXPIRED', 'CONFIRMATION_NOT_FOUND'])
@@ -254,7 +250,12 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
   // 이미 누른 카드면 그 결과로 시작한다(다른 화면에 갔다 와도 입력 칸이 다시 뜨지 않게, 11/5 재웅 피드백)
   const [state, setState] = useState<CardState>(() => cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
   // 보내는 동안 화면을 떠났다 와도, 결과가 오면 다시 그려진 카드에 바로 반영한다
-  useEffect(() => watchCardOutcome(c.token, (o) => setState(o ?? { kind: 'open' })), [c.token])
+  // 처음 읽은 뒤 구독하기 전에 결과가 바뀌었을 수 있어, 구독한 다음 한 번 더 읽는다
+  useEffect(() => {
+    const stop = watchCardOutcome(c.token, (o) => setState(o ?? { kind: 'open' }))
+    setState(cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
+    return stop
+  }, [c.token, owner])
   const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, () => ''))
   const [names, setNames] = useState<Record<number, string>>({})
   // 칸마다 마지막 조회 번호. 입력이 바뀌면 늦게 온 앞 조회 결과는 버린다
@@ -289,8 +290,10 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     // 지금 적힌 학번을 모두 다시 찾아, 실제로 있는 사람일 때만 보낸다(잘못 친 학번으로 남이 참여자로 들어가지 않게)
     const found = await Promise.all(students.map((sid, i) => lookup(i, sid)))
     if (found.some((ok) => !ok)) {
-      saveCardOutcome(owner, c.token, undefined)
-      return setState({ kind: 'open', error: '없는 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요' })
+      const error = '없는 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요'
+      // 다시 누를 수 있는 오류도 기억해서, 다시 그려진 카드에 같은 안내가 보이게 한다
+      saveCardOutcome(owner, c.token, { kind: 'open', error })
+      return setState({ kind: 'open', error })
     }
     try {
       const result = await confirmCard(c.token, c.needsParticipants > 0 ? students : undefined, owner)
@@ -303,7 +306,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
         saveCardOutcome(owner, c.token, { kind: 'closed', message: err.message })
         setState({ kind: 'closed', message: err.message })
       } else {
-        saveCardOutcome(owner, c.token, undefined)
+        saveCardOutcome(owner, c.token, { kind: 'open', error: err.message })
         setState({ kind: 'open', error: err.message })
       }
     }

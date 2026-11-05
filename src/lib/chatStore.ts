@@ -59,12 +59,17 @@ export function currentSubmitting(memberId: number | null): Submission | null {
  * 확인 카드 상태. 화면을 떠났다 와도 누른 카드가 다시 입력 상태로 돌아가지 않게 토큰별로 기억한다.
  * 보내는 중(sending)도 기억해서, 다시 그려진 카드가 같은 토큰을 한 번 더 보내지 않게 한다
  */
-export type CardOutcome = { kind: 'sending' } | { kind: 'done'; result: ConfirmResult } | { kind: 'closed'; message: string }
+export type CardOutcome =
+  | { kind: 'open'; error?: string }
+  | { kind: 'sending' }
+  | { kind: 'done'; result: ConfirmResult }
+  | { kind: 'closed'; message: string }
 
 /** 지금 대화 주인(loadChat의 회원) 것만 담는다. 회원이 바뀌면 loadChat이 비운다 */
 let cardOutcomes = new Map<string, CardOutcome>()
 const cardListeners = new Map<string, Set<(o: CardOutcome | undefined) => void>>()
 
+/** 지금 대화 주인의 그 카드 결과. 다른 회원이 물으면 undefined */
 export function cardOutcomeOf(memberId: number | null, token: string): CardOutcome | undefined {
   return state.memberId === memberId ? cardOutcomes.get(token) : undefined
 }
@@ -91,6 +96,7 @@ export function watchCardOutcome(token: string, fn: (o: CardOutcome | undefined)
   }
 }
 
+/** 대화 메시지에 붙일 새 번호 */
 export function newMessageId(): number {
   return nextId++
 }
