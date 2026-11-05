@@ -107,10 +107,13 @@ export default function Assistant() {
 
   async function send(message: string) {
     const msg = message.trim()
-    if (!msg || busy || msg.length > MAX_CHARS) return
-    const history = historyOf(chat.messages)
-    const startedAt = Date.now()
     const owner = currentMemberId()
+    // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
+    const stored = loadChat(owner)
+    if (stored !== chat) setChat(stored)
+    if (!msg || stored.pending !== null || msg.length > MAX_CHARS) return
+    const history = historyOf(stored.messages)
+    const startedAt = Date.now()
     update((s) => ({
       ...s,
       pending: { jobId: '', startedAt },
@@ -221,17 +224,22 @@ export function ConfirmCard({ c }: { c: ChatConfirmation }) {
   const [state, setState] = useState<CardState>({ kind: 'open' })
   const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, () => ''))
   const [names, setNames] = useState<Record<number, string>>({})
+  // 칸마다 마지막 조회 번호. 입력이 바뀌면 늦게 온 앞 조회 결과는 버린다
+  const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
 
   async function lookup(i: number) {
     const sid = ids[i].trim()
     if (!sid) return
+    const seq = (lookups.current[i] ?? 0) + 1
+    lookups.current[i] = seq
+    let name: string
     try {
-      const m = await findMember(sid)
-      setNames((n) => ({ ...n, [i]: m.name }))
+      name = (await findMember(sid)).name
     } catch {
-      setNames((n) => ({ ...n, [i]: '없는 학번이에요' }))
+      name = '없는 학번이에요'
     }
+    if (lookups.current[i] === seq) setNames((n) => ({ ...n, [i]: name }))
   }
 
   async function confirm() {
@@ -280,6 +288,7 @@ export function ConfirmCard({ c }: { c: ChatConfirmation }) {
                   const next = [...ids]
                   next[i] = e.target.value
                   setIds(next)
+                  lookups.current[i] = (lookups.current[i] ?? 0) + 1
                   setNames((n) => ({ ...n, [i]: '' }))
                 }}
                 onBlur={() => void lookup(i)}

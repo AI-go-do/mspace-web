@@ -65,6 +65,19 @@ describe('비서 채팅: 접수 → 결과 조회 (docs api 7장)', () => {
     expect(t).toBeLessThanOrEqual(MAX_WAIT_MS)
   })
 
+  it('조회 요청이 기한까지 안 끝나면 그 요청을 끊고 CHAT_TIMEOUT', async () => {
+    let aborted = false
+    fetchMock.mockImplementation((_p: string, init: RequestInit) => new Promise((_, reject) => {
+      init.signal?.addEventListener('abort', () => { aborted = true; reject(new DOMException('aborted', 'AbortError')) })
+    }))
+    let t = 89_950
+    const err = await waitForChat({ jobId: 'j_1', status: 'PENDING', pollAfterMs: 10 }, {
+      now: () => t, startedAt: 0, sleep: async (ms) => { t += ms },
+    }).catch((e) => e)
+    expect(aborted).toBe(true)
+    expect(err).toMatchObject({ code: 'CHAT_TIMEOUT' })
+  })
+
   it('보관 시간이 지난 번호(404)는 서버 문장 그대로 알린다', async () => {
     fetchMock.mockResolvedValue(json(404, { code: 'CHAT_JOB_NOT_FOUND', message: '대화 결과를 찾지 못했어요. 다시 보내 주세요.' }))
     await expect(waitForChat({ jobId: 'j_old', status: 'PENDING' }, { sleep: async () => {} }))

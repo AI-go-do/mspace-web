@@ -42,14 +42,49 @@ export interface ChatJob {
   error?: { code: string; message: string } | null
 }
 
-/** 대화 접수. 202 + { jobId, status: PENDING, pollAfterMs } */
-export function submitChat(message: string, history: ChatTurn[], signal?: AbortSignal): Promise<ChatJob> {
-  return api('/api/agent/chat', { method: 'POST', body: JSON.stringify({ message, history }), signal })
+/** 대화 접수. 202 + { jobId, status: PENDING, pollAfterMs }. 응답이 SUBMIT_TIMEOUT_MS 안에 안 오면 요청을 끊는다 */
+export async function submitChat(message: string, history: ChatTurn[], signal?: AbortSignal): Promise<ChatJob> {
+  const d = deadline(SUBMIT_TIMEOUT_MS, signal)
+  try {
+    return await api('/api/agent/chat', { method: 'POST', body: JSON.stringify({ message, history }), signal: d.signal })
+  } catch (e) {
+    if (d.timedOut()) throw new ApiError(0, 'CHAT_TIMEOUT', '보내는 데 너무 오래 걸려요. 잠시 뒤 다시 보내 주세요.')
+    throw e
+  } finally {
+    d.done()
+  }
 }
 
 /** 결과 조회. 남의 번호·없는 번호·5분 지난 번호는 404 CHAT_JOB_NOT_FOUND */
 export function getChatJob(jobId: string, signal?: AbortSignal): Promise<ChatJob> {
   return api(`/api/agent/chat/${encodeURIComponent(jobId)}`, { signal })
+}
+
+/** 접수(POST)를 기다리는 최대 시간. 접수는 바로 202가 와야 해서 짧게 둔다 */
+export const SUBMIT_TIMEOUT_MS = 15_000
+
+/**
+ * 부르는 쪽 signal을 그대로 따르면서, ms가 지나면 스스로 끊는 signal을 만든다.
+ * (AbortSignal.any·timeout은 오래된 Safari에 없어서 직접 묶는다)
+ */
+export function deadline(ms: number, outer?: AbortSignal) {
+  const ctrl = new AbortController()
+  let timedOut = false
+  const onAbort = () => ctrl.abort()
+  if (outer?.aborted) ctrl.abort()
+  else outer?.addEventListener('abort', onAbort, { once: true })
+  const t = setTimeout(() => {
+    timedOut = true
+    ctrl.abort()
+  }, Math.max(0, ms))
+  return {
+    signal: ctrl.signal,
+    timedOut: () => timedOut,
+    done: () => {
+      clearTimeout(t)
+      outer?.removeEventListener('abort', onAbort)
+    },
+  }
 }
 
 /** 서버가 pollAfterMs를 안 주면 1초 */
@@ -104,7 +139,16 @@ export async function waitForChat(first: ChatJob, opts: WaitOptions = {}): Promi
       throw new ApiError(0, 'CHAT_TIMEOUT', '답이 너무 늦어요. 잠시 뒤 다시 보내 주세요.')
     }
     await pause(wait, opts.signal)
-    job = await getChatJob(first.jobId, opts.signal)
+    // 조회 요청도 90초 기한에서 끊는다(응답이 안 오는 요청 하나에 화면이 묶이지 않게)
+    const d = deadline(startedAt + MAX_WAIT_MS - now(), opts.signal)
+    try {
+      job = await getChatJob(first.jobId, d.signal)
+    } catch (e) {
+      if (d.timedOut()) throw new ApiError(0, 'CHAT_TIMEOUT', '답이 너무 늦어요. 잠시 뒤 다시 보내 주세요.')
+      throw e
+    } finally {
+      d.done()
+    }
   }
 }
 
