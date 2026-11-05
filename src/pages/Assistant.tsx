@@ -60,7 +60,7 @@ export default function Assistant() {
     const ctrl = new AbortController()
     alive.current = ctrl
     try {
-      const result = await waitForChat({ jobId, status: 'PENDING', pollAfterMs }, { signal: ctrl.signal, startedAt })
+      const result = await waitForChat({ jobId, status: 'PENDING', pollAfterMs }, { signal: ctrl.signal, startedAt, member: owner })
       if (!ctrl.signal.aborted) addReply(result, owner)
     } catch (e) {
       if (ctrl.signal.aborted) return
@@ -97,6 +97,7 @@ export default function Assistant() {
       if (memberId === chat.memberId) return
       alive.current?.abort()
       setChat(loadChat(memberId))
+      setText('')
     }
     check()
     const t = setInterval(check, 1000)
@@ -140,7 +141,7 @@ export default function Assistant() {
       messages: [...s.messages, { id: newMessageId(), role: 'user', text: msg }],
     }), owner)
     setText('')
-    const submitted = submitChat(msg, history)
+    const submitted = submitChat(msg, history, undefined, owner)
     setSubmitting(owner, submitted)
     try {
       const job = await submitted

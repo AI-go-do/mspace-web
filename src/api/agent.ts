@@ -43,10 +43,10 @@ export interface ChatJob {
 }
 
 /** 대화 접수. 202 + { jobId, status: PENDING, pollAfterMs }. 응답이 SUBMIT_TIMEOUT_MS 안에 안 오면 요청을 끊는다 */
-export async function submitChat(message: string, history: ChatTurn[], signal?: AbortSignal): Promise<ChatJob> {
+export async function submitChat(message: string, history: ChatTurn[], signal?: AbortSignal, member?: number | null): Promise<ChatJob> {
   const d = deadline(SUBMIT_TIMEOUT_MS, signal)
   try {
-    return await api('/api/agent/chat', { method: 'POST', body: JSON.stringify({ message, history }), signal: d.signal })
+    return await api('/api/agent/chat', { method: 'POST', body: JSON.stringify({ message, history }), signal: d.signal, member })
   } catch (e) {
     if (d.timedOut()) throw new ApiError(0, 'CHAT_TIMEOUT', '보내는 데 너무 오래 걸려요. 잠시 뒤 다시 보내 주세요.')
     throw e
@@ -56,8 +56,8 @@ export async function submitChat(message: string, history: ChatTurn[], signal?: 
 }
 
 /** 결과 조회. 남의 번호·없는 번호·5분 지난 번호는 404 CHAT_JOB_NOT_FOUND */
-export function getChatJob(jobId: string, signal?: AbortSignal): Promise<ChatJob> {
-  return api(`/api/agent/chat/${encodeURIComponent(jobId)}`, { signal })
+export function getChatJob(jobId: string, signal?: AbortSignal, member?: number | null): Promise<ChatJob> {
+  return api(`/api/agent/chat/${encodeURIComponent(jobId)}`, { signal, member })
 }
 
 /** 접수(POST)를 기다리는 최대 시간. 접수는 바로 202가 와야 해서 짧게 둔다 */
@@ -99,6 +99,8 @@ export interface WaitOptions {
   now?: () => number
   /** 접수한 시각(이어서 조회할 때 처음 접수 시각부터 90초를 센다) */
   startedAt?: number
+  /** 보낸 회원. 주면 그 회원 토큰으로만 조회한다 */
+  member?: number | null
 }
 
 function abortError(): DOMException {
@@ -142,7 +144,7 @@ export async function waitForChat(first: ChatJob, opts: WaitOptions = {}): Promi
     // 조회 요청도 90초 기한에서 끊는다(응답이 안 오는 요청 하나에 화면이 묶이지 않게)
     const d = deadline(startedAt + MAX_WAIT_MS - now(), opts.signal)
     try {
-      job = await getChatJob(first.jobId, d.signal)
+      job = await getChatJob(first.jobId, d.signal, opts.member)
     } catch (e) {
       if (d.timedOut()) throw new ApiError(0, 'CHAT_TIMEOUT', '답이 너무 늦어요. 잠시 뒤 다시 보내 주세요.')
       throw e
