@@ -258,7 +258,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
   const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
 
-  /** 학번으로 사람을 찾아 이름을 보여 준다. 찾았는지(ok)를 돌려준다 */
+  /** 학번으로 사람을 찾아 이름을 보여 준다. 찾았고 그사이 입력이 안 바뀌었을 때만 true */
   async function lookup(i: number, sid = ids[i].trim()): Promise<boolean> {
     if (!sid) return false
     const seq = (lookups.current[i] ?? 0) + 1
@@ -271,7 +271,9 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     } catch {
       name = '없는 학번이에요'
     }
-    if (lookups.current[i] === seq) setNames((n) => ({ ...n, [i]: name }))
+    // 기다리는 사이 학번이 바뀌었으면 이 결과는 버리고 실패로 본다(보이는 학번과 다른 학번을 보내지 않게)
+    if (lookups.current[i] !== seq) return false
+    setNames((n) => ({ ...n, [i]: name }))
     return ok
   }
 
@@ -282,7 +284,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     setState({ kind: 'sending' })
     // 지금 적힌 학번을 모두 다시 찾아, 실제로 있는 사람일 때만 보낸다(잘못 친 학번으로 남이 참여자로 들어가지 않게)
     const found = await Promise.all(students.map((sid, i) => lookup(i, sid)))
-    if (found.some((ok) => !ok)) return setState({ kind: 'open', error: '없는 학번이 있어요. 학번을 다시 확인해 주세요' })
+    if (found.some((ok) => !ok)) return setState({ kind: 'open', error: '없는 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요' })
     try {
       const result = await confirmCard(c.token, c.needsParticipants > 0 ? students : undefined, owner)
       setState({ kind: 'done', result })
@@ -320,6 +322,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
                 aria-label={`함께 쓸 사람 ${i + 1} 학번`}
                 placeholder="학번"
                 value={v}
+                disabled={state.kind === 'sending'}
                 onChange={(e) => {
                   const next = [...ids]
                   next[i] = e.target.value
