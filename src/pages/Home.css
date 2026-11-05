@@ -21,7 +21,7 @@
 .dot-sky { width: 12px; height: 12px; border-radius: 6px; background: var(--sky); }
 .sample { font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }
 .chips { display: flex; gap: 8px; margin-top: 8px; }
-.chip { height: 36px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 13px; }
+.chip { height: var(--touch); padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 13px; }
 .chip-solid { background: var(--white); color: var(--navy); font-weight: 700; }
 .chip-line { border: 1.5px solid rgba(255, 255, 255, 0.5); color: var(--white); }
 
@@ -31,6 +31,7 @@
 .legend { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--navy-70); }
 .legend > span { display: flex; align-items: center; gap: 4px; }
 .lg { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.lg-free { background: var(--sky-soft); }
 .lg-taken { background: var(--taken); }
 .lg-mine { background: var(--yellow); }
 .guide { font-size: 12px; color: var(--navy-70); }
@@ -50,7 +51,11 @@
 }
 .room-no.free { background: var(--sky); }
 .room-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.bar { position: relative; display: block; height: 18px; border-radius: 6px; background: var(--gray); overflow: hidden; }
+/* 지난 시간은 회색, 남은 빈 시간은 연한 하늘 (배치도·예약 화면과 같은 뜻의 색) */
+.bar {
+  position: relative; display: block; height: 18px; border-radius: 6px; overflow: hidden;
+  background: linear-gradient(to right, var(--gray) var(--now, 0%), var(--sky-soft) var(--now, 0%));
+}
 .seg { position: absolute; top: 0; bottom: 0; background: var(--taken); }
 .seg.mine { background: var(--yellow); }
 .now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--navy); }

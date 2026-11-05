@@ -13,7 +13,7 @@ export function mockAvailability(date: string, now = new Date()): DayAvailabilit
   const dayStart = new Date(`${date}T00:00:00+09:00`)
   const rooms = [1, 2, 3, 4, 5].map((id) => ({
     roomId: id,
-    roomName: `${id}번 방`,
+    roomName: `창작실 ${id}`,
     minPeople: id === 5 ? 5 : 3,
     maxPeople: id === 5 ? 8 : 5,
     slots: Array.from({ length: 48 }, (_, i) => {

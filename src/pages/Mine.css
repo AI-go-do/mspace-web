@@ -5,7 +5,7 @@
 .mine-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
 .seg-tabs { display: flex; background: var(--gray); border-radius: 12px; padding: 4px; }
 .seg-tabs button {
-  min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent;
+  min-height: var(--touch); padding: 0 14px; border: 0; border-radius: 8px; background: transparent;
   font-size: 14px; color: var(--navy-70); cursor: pointer;
 }
 .seg-tabs button[aria-pressed='true'] { background: var(--white); color: var(--navy); font-weight: 700; }

@@ -6,6 +6,7 @@
   --gray: #eef1f5;      /* 바탕 */
   --white: #ffffff;
   --sky: #7dbbff;       /* 빈 방 · 조건 맞음 */
+  --sky-soft: color-mix(in srgb, var(--sky) 40%, var(--white)); /* 남은 빈 시간 막대 */
   --yellow: #ffc53d;    /* 내 예약 · 마감 안내 · 안 읽은 알림 */
   --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
   --radius: 16px;

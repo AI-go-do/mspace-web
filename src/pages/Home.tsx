@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability } from '../api/rooms'
@@ -89,7 +89,8 @@ export default function Home() {
         <div className="today-head">
           <h2 id="today-title">오늘 방 현황</h2>
           <span className="legend">
-            <span><i className="lg lg-taken" />예약</span>
+            <span><i className="lg lg-free" />빈 시간</span>
+            <span><i className="lg lg-taken" />예약됨</span>
             <span><i className="lg lg-mine" />내 예약</span>
           </span>
         </div>
@@ -114,7 +115,7 @@ export default function Home() {
                   aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
-                    <span className="bar" aria-hidden="true">
+                    <span className="bar" aria-hidden="true" style={{ '--now': `${pct ?? 0}%` } as CSSProperties}>
                       {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}
