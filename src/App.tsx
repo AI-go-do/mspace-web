@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { ViewTransition, type ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
 import NotificationToast from './components/NotificationToast'
@@ -29,6 +29,9 @@ export default function App() {
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''}`}>
+        {/* 화면이 바뀔 때 앞 화면은 살짝 가라앉고 새 화면이 떠오른다(View Transitions, 지원 안 하는 브라우저는 그냥 바뀜).
+            주소 변경은 라우터가 startTransition 안에서 하므로 그때만 움직이고, 1분마다 새로 받는 데이터에는 안 움직인다 */}
+        <ViewTransition default="page">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={auth(<Home />)} />
@@ -44,6 +47,7 @@ export default function App() {
           <Route path="/alerts" element={auth(<Alerts />)} />
           <Route path="*" element={<Placeholder title="없는 화면" message="주소가 바뀌었거나 없는 화면이에요." />} />
         </Routes>
+        </ViewTransition>
         {!fullScreen && <TabBar />}
         {pathname !== '/login' && <NotificationToast />}
       </div>
