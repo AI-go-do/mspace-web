@@ -41,8 +41,12 @@ export function takenSegments(slots: Slot[], now = new Date()): Segment[] {
   return segs
 }
 
-/** 지금 들어갈 수 있는 첫 칸이 비어 있는지 */
-export function isFreeNow(slots: Slot[], now = new Date()): boolean {
+/**
+ * 지금 비어 있는지. core가 occupiedNow를 주면 그대로 따른다.
+ * 없으면(예전 core·예시 데이터) 지금 칸은 지난 칸이라 알 수 없으니 들어갈 수 있는 첫 칸으로 짐작한다
+ */
+export function isFreeNow(slots: Slot[], now = new Date(), occupiedNow?: boolean): boolean {
+  if (occupiedNow !== undefined) return !occupiedNow
   const next = slots.find((s) => Date.parse(s.startAt) >= now.getTime())
   return next?.available ?? false
 }
@@ -56,10 +60,10 @@ export function nowPercent(slots: Slot[], now = new Date()): number | null {
 }
 
 /** 지금 상태 한 줄: "21:30까지 비어 있어요" / "20:00에 비어요" (배치도 화면) */
-export function nowState(slots: Slot[], now = new Date()): { free: boolean; text: string } {
+export function nowState(slots: Slot[], now = new Date(), occupiedNow?: boolean): { free: boolean; text: string } {
   const t = now.getTime()
   const ahead = slots.filter((s) => Date.parse(s.startAt) >= t)
-  const free = ahead[0]?.available ?? false
+  const free = isFreeNow(slots, now, occupiedNow)
   const change = ahead.find((s) => s.available !== free)
   const at = change ? seoulClock(new Date(change.startAt)) : null
   if (free) return { free, text: at ? `${at}까지 비어 있어요` : '오늘은 계속 비어 있어요' }

@@ -91,7 +91,7 @@ export default function MapPage() {
         <div className="map-floor">
           <div className="map-rooms">
             {ordered.map((r) => {
-              const st = nowState(r.slots, now)
+              const st = nowState(r.slots, now, r.occupiedNow)
               const on = r.roomId === picked
               return (
                 <button key={r.roomId} type="button" aria-pressed={on}
@@ -117,7 +117,7 @@ export default function MapPage() {
         <div className="map-bar">
           <div className="map-bar-row">
             <b>창작실 {room.roomId}</b>
-            <span className="muted">{room.minPeople}–{room.maxPeople}명 · {nowState(room.slots, now).text}</span>
+            <span className="muted">{room.minPeople}–{room.maxPeople}명 · {nowState(room.slots, now, room.occupiedNow).text}</span>
           </div>
           <button type="button" className="btn-primary" onClick={() => navigate(`/rooms/${room.roomId}`)}>이 방으로 시간 정하기</button>
         </div>

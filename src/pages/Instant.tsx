@@ -46,7 +46,7 @@ export default function Instant() {
     idemKey.current = newKey()
   }, [roomId, endAt, people])
 
-  const free = (rooms ?? []).filter((r) => isFreeNow(r.slots, now)).sort((a, b) => a.roomId - b.roomId)
+  const free = (rooms ?? []).filter((r) => isFreeNow(r.slots, now, r.occupiedNow)).sort((a, b) => a.roomId - b.roomId)
   const room = free.find((r) => r.roomId === roomId) ?? null
   const ends = room ? instantEnds(room.slots, now) : []
   // 고른 끝 시각이 시간이 지나 못 쓰게 되면 지운다

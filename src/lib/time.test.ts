@@ -29,6 +29,12 @@ describe('isFreeNow', () => {
     expect(isFreeNow(rooms[0].slots, now)).toBe(true) // 1번: 13–15 끝남
     expect(isFreeNow(rooms[4].slots, now)).toBe(false) // 5번: 15–17 사용 중
   })
+  it('서버가 occupiedNow를 주면 그 값을 따른다', () => {
+    const now = at('15:20')
+    const rooms = mockAvailability(date, now).rooms
+    expect(isFreeNow(rooms[0].slots, now, true)).toBe(false)
+    expect(isFreeNow(rooms[4].slots, now, false)).toBe(true)
+  })
 })
 
 describe('nowPercent', () => {
@@ -50,6 +56,9 @@ describe('nowState 배치도 한 줄', () => {
   })
   it('사용 중이면 언제 비는지', () => {
     expect(nowState(mk([false, false, true]), at)).toEqual({ free: false, text: '사용 중 · 20:00에 비어요' })
+  })
+  it('서버가 사용 중이라 하면 다음 빈 칸까지 사용 중', () => {
+    expect(nowState(mk([true, true, false]), at, true)).toEqual({ free: false, text: '사용 중 · 19:00에 비어요' })
   })
   it('끝까지 비어 있음', () => {
     expect(nowState(mk([true, true]), at).text).toBe('오늘은 계속 비어 있어요')

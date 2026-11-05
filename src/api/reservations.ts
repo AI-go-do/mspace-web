@@ -59,6 +59,8 @@ export interface MyReservation {
   owner: boolean
   /** 키패드 번호. 대표자일 때만 값이 있다 */
   accessCode: string | null
+  /** 입실 마감 (core #54, DB 값 그대로). 예전 core에는 없어서 선택 값 → 없으면 화면이 계산 */
+  checkinDeadline?: string
   /** 이름은 가려서 온다(김*영) */
   participants: { name: string; owner: boolean }[]
 }
