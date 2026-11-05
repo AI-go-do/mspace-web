@@ -33,15 +33,31 @@ export default function Instant() {
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
 
-  const load = () =>
-    getAvailability(seoulDate())
-      .then((r) => { setRooms(r.data.rooms); setSample(r.sample); setError(null) })
-      .catch((e: Error) => setError(e.message))
+  // 새 요청을 보내면 이전 요청은 끊는다. 늦게 온 옛 응답이 새 값을 덮지 않게
+  const active = useRef<AbortController | null>(null)
+  const load = () => {
+    active.current?.abort()
+    const ctrl = new AbortController()
+    active.current = ctrl
+    return getAvailability(seoulDate(), ctrl.signal)
+      .then((r) => {
+        if (active.current !== ctrl) return
+        setRooms(r.data.rooms); setSample(r.sample); setError(null)
+      })
+      .catch((e: Error) => {
+        if (ctrl.signal.aborted || active.current !== ctrl) return
+        setError(e.message)
+      })
+  }
   useEffect(() => {
     load()
     // 서버 occupiedNow는 불러온 순간 값이라, 열어 둔 동안 1분마다 새로 받는다
     const t = setInterval(load, 60_000)
-    return () => clearInterval(t)
+    return () => {
+      clearInterval(t)
+      active.current?.abort()
+      active.current = null
+    }
   }, [])
 
   const idemKey = useRef(newKey())
