@@ -96,7 +96,7 @@ export default function Home() {
           <span className="home-count">
             <span className="dot-sky" aria-hidden="true" />
             {day
-              ? <span aria-label={`${rooms.length}개 중 ${freeCount}개`}>{rooms.length}개 중 <b className="count-num">{freeShown}</b>개</span>
+              ? <span><span aria-hidden="true">{rooms.length}개 중 <b className="count-num">{freeShown}</b>개</span><span className="sr-only">{rooms.length}개 중 {freeCount}개</span></span>
               : '불러오는 중'}
             {sample && <span className="sample">예시</span>}
           </span>
