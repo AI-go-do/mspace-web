@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConfirmResult } from '../api/agent'
-import { cardOutcomeOf, loadChat, resetChat, restoreChat, SAVED_TTL_MS, saveCardOutcome, toSaved, watchCardOutcome } from './chatStore'
+import { cardOutcomeOf, loadChat, resetChat, restoreChat, SAVED_TTL_MS, saveCardOutcome, saveChat, toSaved, watchCardOutcome } from './chatStore'
 
 describe('확인 카드 결과 기억', () => {
   it('누른 카드 결과는 화면을 다시 열어도 같은 회원에게 그대로 남는다', () => {
@@ -71,6 +71,34 @@ describe('새로고침해도 대화 유지(이 탭 저장소)', () => {
     expect(restoreChat(saved, null, 1000)).toBeNull()
     expect(restoreChat(saved, 1, SAVED_TTL_MS + 1)).toBeNull()
     expect(restoreChat('깨진 값', 1, 0)).toBeNull()
+  })
+
+  it('지난 카드 값이 배열이 아니면 그 메시지는 되살리지 않는다(화면이 깨지지 않게)', () => {
+    const saved = { memberId: 1, savedAt: 0, pending: null, messages: [
+      { id: 1, role: 'assistant', text: '정상', pastCards: [{ summary: '카드' }] },
+      { id: 2, role: 'assistant', text: '깨짐', pastCards: { summary: '배열 아님' } },
+    ] }
+    expect(restoreChat(saved, 1, 0)?.messages.map((m) => m.text)).toEqual(['정상'])
+  })
+
+  it('다른 회원이 들어오면 앞 회원 기록을 저장소에서도 지우고, 회원을 모를 때(null)는 남겨 둔다', () => {
+    const store = new Map<string, string>()
+    const fake = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) }
+    const g = globalThis as { sessionStorage?: unknown }
+    const before = g.sessionStorage
+    g.sessionStorage = fake
+    try {
+      loadChat(11)
+      saveChat({ memberId: 11, pending: null, messages: [{ id: 1, role: 'user', text: '11번 회원 질문' }] })
+      expect(store.size).toBe(1)
+      loadChat(null)
+      expect(store.size).toBe(1)
+      expect(loadChat(11).messages).toHaveLength(1)
+      loadChat(12)
+      expect(store.size).toBe(0)
+    } finally {
+      g.sessionStorage = before
+    }
   })
 
   it('기다리던 답은 90초 안일 때만 이어서 조회한다', () => {

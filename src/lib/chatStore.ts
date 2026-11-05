@@ -38,7 +38,10 @@ let nextId = 1
 /** 그 회원의 대화를 꺼낸다. 회원이 바뀌었으면 앞 회원 대화와 카드 결과를 비우고, 이 탭에 저장된 그 회원 대화가 있으면 되살린다 */
 export function loadChat(memberId: number | null): ChatState {
   if (state.memberId !== memberId) {
-    state = restoreChat(readSaved(), memberId, Date.now()) ?? { memberId, messages: [], pending: null }
+    const saved = readSaved()
+    state = restoreChat(saved, memberId, Date.now()) ?? { memberId, messages: [], pending: null }
+    // 다른 회원이 들어왔으면 앞 회원 기록을 저장소에서도 지운다(null은 잠깐 refresh 실패일 수 있어 남겨 둔다)
+    if (memberId !== null && saved && typeof saved === 'object' && (saved as Partial<SavedChat>).memberId !== memberId) writeSaved(null)
     cardOutcomes = new Map()
     nextId = Math.max(nextId, ...state.messages.map((m) => m.id + 1))
   }
@@ -76,6 +79,7 @@ export interface SavedChat {
   pending: ChatState['pending']
 }
 
+/** 이 탭 저장소. 막힌 브라우저(사생활 모드 등)·테스트 환경이면 null */
 function storage(): Storage | null {
   try {
     return typeof sessionStorage === 'undefined' ? null : sessionStorage
@@ -84,6 +88,7 @@ function storage(): Storage | null {
   }
 }
 
+/** 저장된 값을 읽는다. 없거나 깨졌으면 null */
 function readSaved(): unknown {
   try {
     const raw = storage()?.getItem(STORAGE_KEY)
@@ -93,6 +98,7 @@ function readSaved(): unknown {
   }
 }
 
+/** 저장하거나(메시지가 있을 때) 지운다(null·빈 대화) */
 function writeSaved(saved: SavedChat | null): void {
   try {
     const s = storage()
@@ -104,6 +110,7 @@ function writeSaved(saved: SavedChat | null): void {
   }
 }
 
+/** 지금 대화를 저장소에 맞춘다. 회원을 모르면 건드리지 않는다 */
 function persist(): void {
   if (state.memberId === null) return
   writeSaved(toSaved(state, cardOutcomes, Date.now()))
@@ -137,7 +144,8 @@ export function restoreChat(saved: unknown, memberId: number | null, now: number
   if (v.memberId !== memberId || typeof v.savedAt !== 'number' || now - v.savedAt > SAVED_TTL_MS) return null
   if (!Array.isArray(v.messages)) return null
   const messages = v.messages.filter((m): m is ChatMessage =>
-    !!m && typeof m === 'object' && typeof m.id === 'number' && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string')
+    !!m && typeof m === 'object' && typeof m.id === 'number' && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string'
+    && (m.pastCards === undefined || Array.isArray(m.pastCards)))
   const p = v.pending
   const pending = p && typeof p.jobId === 'string' && p.jobId && typeof p.startedAt === 'number' && now - p.startedAt < RESUME_MS ? p : null
   return { memberId, messages, pending }

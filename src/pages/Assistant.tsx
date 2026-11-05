@@ -145,7 +145,7 @@ export default function Assistant() {
     // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
     const stored = loadChat(owner)
     if (stored !== chat) setChat(stored)
-    if (!msg || stored.pending !== null || msg.length > MAX_CHARS) return
+    if (!msg || stored.pending !== null || clearing || msg.length > MAX_CHARS) return
     const history = historyOf(stored.messages)
     const startedAt = Date.now()
     update((s) => ({
@@ -215,7 +215,7 @@ export default function Assistant() {
             안녕하세요, 스페이시예요. 무엇을 도와드릴까요?
             <div className="ask-chips">
               {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy}>{ex}</button>
+                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy || clearing}>{ex}</button>
               ))}
             </div>
           </div>
@@ -246,7 +246,7 @@ export default function Assistant() {
             }
           }}
         />
-        <button type="submit" className="send" disabled={busy || !trimmed} aria-label="보내기">
+        <button type="submit" className="send" disabled={busy || clearing || !trimmed} aria-label="보내기">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
         </button>
       </form>
@@ -254,6 +254,7 @@ export default function Assistant() {
   )
 }
 
+/** 말풍선 하나와 거기 붙은 확인 카드·입실 번호 카드·지난 카드 */
 function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
   if (m.role === 'user') return <div className="bubble me">{m.text}</div>
   return (
