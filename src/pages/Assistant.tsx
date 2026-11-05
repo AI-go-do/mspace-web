@@ -183,7 +183,8 @@ export default function Assistant() {
   /** "새 대화": 서버가 기억한 대화를 먼저 지우고, 성공하면 화면과 이 탭 저장소도 비운다 */
   async function startOver() {
     const owner = currentMemberId()
-    if (owner === null || chat.pending !== null || clearing || currentClearing(owner)) return
+    // 화면에 보이는 대화가 지금 로그인한 회원 것일 때만 지운다(회원이 막 바뀌어 앞 회원 대화가 보이는 순간 등)
+    if (owner === null || chat.memberId !== owner || chat.pending !== null || clearing || currentClearing(owner)) return
     setClearing(true)
     // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
     const cleared = clearChatHistory(owner).then(() => {
