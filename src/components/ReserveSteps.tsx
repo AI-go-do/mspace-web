@@ -135,7 +135,9 @@ export function Members(props: {
     }
   }
 
-  const added = !!found && people.some((p) => p.studentId === found.studentId)
+  // 본인(대표자)은 이미 인원에 들어 있어 다시 넣지 않는다 (core #66 me)
+  const self = !!found?.me
+  const added = !!found && (self || people.some((p) => p.studentId === found.studentId))
   // 인원이 안 맞으면 아래 버튼을 막고 몇 명이 더 필요한지 알려 준다 (돌아가서 예약하다 또 막히지 않게, 11/5 재웅 피드백)
   const countOk = count >= min && count <= max
   const note = count < min ? `${min - count}명 더 필요해요` : count > max ? `최대 ${max}명이에요` : `인원 맞아요 (${min}–${max}명)`
@@ -161,7 +163,7 @@ export function Members(props: {
       {found && (
         <div className="card found">
           <span className="avatar">{found.name.slice(0, 1)}</span>
-          <span className="who"><b>{found.name}</b><span className="muted">{found.studentId} · 찾은 사람</span></span>
+          <span className="who"><b>{found.name}</b><span className="muted">{found.studentId} · {self ? '나 (대표자)' : '찾은 사람'}</span></span>
           {added ? <span className="muted strong">추가됨</span> : (
             <button type="button" className="add-btn" disabled={busy} onClick={() => { setPeople([...people, found]); setQuery('') }}>추가</button>
           )}

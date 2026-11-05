@@ -29,12 +29,13 @@
 .slot.on { background: var(--blue); border-color: var(--blue); color: var(--white); font-weight: 700; }
 
 .rs-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rs-when { display: flex; flex-direction: column; }
+.rs-when { display: flex; flex-direction: column; min-width: 0; }
 .rs-when .muted { font-size: 12px; }
 .rs-when b { font-size: 22px; font-variant-numeric: tabular-nums; }
 .people-chip {
   min-height: var(--touch); border: 0; border-radius: 12px; background: var(--gray); color: var(--navy);
   padding: 0 12px; display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; cursor: pointer;
+  flex-shrink: 0; white-space: nowrap;
 }
 .center { text-align: center; }
 .small { font-size: 12px; }
@@ -101,3 +102,7 @@
 .agree-check { min-height: 48px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
 .agree-check input { width: 24px; height: 24px; accent-color: var(--blue); }
 
+
+/* 자정 넘김: 23시 무렵 시작이면 다음 날 앞쪽 칸을 끝 칸으로 이어 보인다 */
+.next-day { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--taken); display: flex; flex-direction: column; gap: 6px; }
+.next-day-label { font-size: 13px; color: var(--navy-70); font-weight: 600; }

@@ -270,8 +270,10 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     let name: string
     let ok = false
     try {
-      name = (await findMember(sid)).name
-      ok = true
+      const m = await findMember(sid)
+      // 본인 학번을 참여자로 넣으면 서버가 거절한다(PARTICIPANT_DUPLICATE). 보내기 전에 알려 준다
+      name = m.me ? '본인 학번이에요. 함께 쓸 다른 사람을 적어 주세요' : m.name
+      ok = !m.me
     } catch {
       name = '없는 학번이에요'
     }
