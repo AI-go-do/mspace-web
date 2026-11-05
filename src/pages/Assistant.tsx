@@ -89,6 +89,26 @@ export default function Assistant() {
     }
   }, [])
 
+  // 같은 브라우저 다른 탭에서 다른 학생이 로그인하면 이 탭의 토큰도 그 학생 것으로 바뀐다.
+  // 그때 앞 학생의 대화·확인 카드가 화면에 남지 않게, 회원이 바뀌면 조회를 멈추고 그 회원 기록으로 바꾼다
+  useEffect(() => {
+    const check = () => {
+      const memberId = currentMemberId()
+      if (memberId === chat.memberId) return
+      alive.current?.abort()
+      setChat(loadChat(memberId))
+    }
+    check()
+    const t = setInterval(check, 1000)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [chat.memberId])
+
   // 기다린 시간 표시
   useEffect(() => {
     if (!chat.pending) return setWaitingSec(0)
