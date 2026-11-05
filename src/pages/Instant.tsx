@@ -137,7 +137,7 @@ export default function Instant() {
     <main className="reserve instant">
       <header className="rs-head">
         <div className="rs-title">
-          <button type="button" className="back" aria-label="뒤로" onClick={() => navigate(-1)}><BackIcon /></button>
+          <button type="button" className="back" aria-label="뒤로" disabled={busy} onClick={() => navigate(-1)}><BackIcon /></button>
           <div>
             <h1>지금 바로 쓰기</h1>
             <span className="muted sub">지금 {seoulClock(now)}부터 시작해요</span>
@@ -154,7 +154,7 @@ export default function Instant() {
           const ok = canStart(r)
           const until = freeUntil(r)
           return (
-            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={!ok}
+            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={busy || !ok}
               onClick={() => { setRoomId(r.roomId); setEndAt(null) }}>
               <span className="in-no">{r.roomId}</span>
               <span className="in-text">
@@ -174,7 +174,7 @@ export default function Instant() {
           </div>
           <div className="end-chips">
             {ends.map((e) => (
-              <button key={e.endAt} type="button" disabled={!e.ok} aria-pressed={e.endAt === end} onClick={() => setEndAt(e.endAt)}>
+              <button key={e.endAt} type="button" disabled={busy || !e.ok} aria-pressed={e.endAt === end} onClick={() => setEndAt(e.endAt)}>
                 {seoulClock(new Date(e.endAt))}
               </button>
             ))}
@@ -190,7 +190,7 @@ export default function Instant() {
             <span className="muted">{room ? `창작실 ${room.roomId}` : '방을 골라 주세요'}</span>
             <b>{end ? `${seoulClock(now)} – ${seoulClock(new Date(end))}` : '끝 시각을 골라 주세요'}</b>
           </span>
-          <button type="button" className="people-chip" disabled={!room} onClick={() => setStep('members')}>
+          <button type="button" className="people-chip" disabled={busy || !room} onClick={() => setStep('members')}>
             함께 {count}명
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
           </button>

@@ -143,12 +143,12 @@ export default function Reserve() {
         <>
           <header className="rs-head">
             <div className="rs-title">
-              <button type="button" className="back" aria-label="뒤로" onClick={() => navigate(-1)}><BackIcon /></button>
+              <button type="button" className="back" aria-label="뒤로" disabled={busy} onClick={() => navigate(-1)}><BackIcon /></button>
               <h1>{title} {room && <span className="muted">{room.minPeople}–{room.maxPeople}명</span>}</h1>
             </div>
             <div className="days" role="group" aria-label="날짜">
               {chips.map((c) => (
-                <button key={c.date} type="button" aria-pressed={c.date === date} onClick={() => setDate(c.date)}
+                <button key={c.date} type="button" aria-pressed={c.date === date} disabled={busy} onClick={() => setDate(c.date)}
                   aria-label={c.weekday === '오늘' ? `오늘 ${dayLabel(c.date)}` : dayLabel(c.date)}>
                   <span className="wd">{c.weekday}</span>
                   <span className="dn">{c.day}</span>
@@ -179,7 +179,7 @@ export default function Reserve() {
                 const label = `${slotClock(i)} ${taken ? '예약됨' : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
                 return (
                   <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''}`}
-                    disabled={!free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
+                    disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
                     {slotClock(i)}
                   </button>
                 )
@@ -196,7 +196,7 @@ export default function Reserve() {
                     const label = `다음 날 ${slotClock(k)} ${taken ? '예약됨' : on ? '선택됨' : '비어 있음'}`
                     return (
                       <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${on ? 'on' : ''}`}
-                        disabled={!free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
+                        disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
                         {slotClock(k)}
                       </button>
                     )
@@ -213,7 +213,7 @@ export default function Reserve() {
                 <span className="muted">{dayLabel(date)}{pick ? ` · ${lengthLabel(pick.len)}` : ''}</span>
                 <b>{clock}</b>
               </span>
-              <button type="button" className="people-chip" onClick={() => setStep('members')}>
+              <button type="button" className="people-chip" disabled={busy} onClick={() => setStep('members')}>
                 함께 {count}명
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>

@@ -117,6 +117,8 @@ export default function Home() {
             {rooms.map((r) => {
               const free = isFreeNow(r.slots, now, r.occupiedNow)
               const pct = nowPercent(r.slots, now)
+              // 지금 시각이 시간표 밖이면(날이 바뀌었는데 새 시간표가 아직 없음) 옛 날의 비어 있음·사용 중을 보이지 않는다
+              const status = pct === null ? '상태 확인 중' : free ? '지금 비어 있음' : '사용 중'
               const segs = takenSegments(r.slots, now)
               const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
               const mySegs = mineToday.filter((m) => m.room.id === r.roomId)
@@ -125,8 +127,8 @@ export default function Home() {
               const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
               return (
                 <Link key={r.roomId} to={`/rooms/${r.roomId}`} className="room-row"
-                  aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
-                  <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
+                  aria-label={`창작실 ${r.roomId}, ${status}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
+                  <span className={`room-no ${free && pct !== null ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
                     <span className="bar" aria-hidden="true" style={barStyle(pct, r.occupiedNow)}>
                       {segs.map((s) => (
@@ -137,7 +139,7 @@ export default function Home() {
                       ))}
                       {pct !== null && <i className="now" style={{ left: `${pct}%` }} />}
                     </span>
-                    <span className="room-meta"><b>{free ? '지금 비어 있음' : '사용 중'}</b> · {r.minPeople}–{r.maxPeople}명</span>
+                    <span className="room-meta"><b>{status}</b> · {r.minPeople}–{r.maxPeople}명</span>
                   </span>
                 </Link>
               )

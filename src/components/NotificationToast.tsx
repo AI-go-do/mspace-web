@@ -23,6 +23,8 @@ export default function NotificationToast() {
   const navigate = useNavigate()
   const [shown, setShown] = useState<{ n: AppNotification; more: number } | null>(null)
   const busy = useRef(false)
+  // 로그아웃·화면이 사라질 때 끊을 진행 중 요청. 늦게 온 응답이 본 목록·배너를 바꾸지 않게
+  const inflight = useRef<AbortController | null>(null)
   const onAlerts = useRef(pathname === '/alerts')
   onAlerts.current = pathname === '/alerts'
 
@@ -33,10 +35,11 @@ export default function NotificationToast() {
     const memberId = readTokens()?.memberId ?? null
     if (seenStore.memberId !== memberId) seenStore = { memberId, ids: null }
     const abort = new AbortController()
+    inflight.current = abort
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
     getMyNotifications(abort.signal)
       .then((list) => {
-        if (seenStore.memberId !== memberId) return
+        if (abort.signal.aborted || seenStore.memberId !== memberId) return
         const fresh = freshNotifications(list, seenStore.ids)
         seenStore.ids = new Set(list.map((n) => n.id))
         // 알림함을 보고 있으면 목록에 바로 보이니 배너는 띄우지 않는다
@@ -46,7 +49,11 @@ export default function NotificationToast() {
         }
       })
       .catch(() => undefined)
-      .finally(() => { clearTimeout(timer); busy.current = false })
+      .finally(() => {
+        clearTimeout(timer)
+        // 끊긴 앞 요청이 늦게 끝나도 그 뒤에 시작한 요청의 '보내는 중'을 풀지 않게
+        if (inflight.current === abort) { inflight.current = null; busy.current = false }
+      })
   }, [])
 
   useEffect(() => {
@@ -56,7 +63,14 @@ export default function NotificationToast() {
     /** 다른 앱에 갔다 돌아오면 30초를 기다리지 않고 바로 확인한다 */
     const onVisible = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      // 끊고 바로 다음 확인을 받을 수 있게 한다(개발 모드에서 효과가 두 번 돌 때도 첫 조회가 빠지지 않게)
+      inflight.current?.abort()
+      inflight.current = null
+      busy.current = false
+    }
   }, [status, check])
 
   useEffect(() => {

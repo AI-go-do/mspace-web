@@ -349,6 +349,11 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
                   setIds(next)
                   lookups.current[i] = (lookups.current[i] ?? 0) + 1
                   setNames((n) => ({ ...n, [i]: '' }))
+                  // 다시 그려진 카드에 남은 앞 오류는 새로 고치는 입력과 상관없으니 지운다
+                  if (state.kind === 'open' && state.error) {
+                    saveCardOutcome(owner, c.token, undefined)
+                    setState({ kind: 'open' })
+                  }
                 }}
                 onBlur={() => void lookup(i)}
               />
