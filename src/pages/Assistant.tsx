@@ -194,7 +194,7 @@ export default function Assistant() {
         {chat.messages.map((m) => <Message key={m.id} m={m} owner={chat.memberId} />)}
         {busy && (
           <div className="bubble bot thinking" role="status">
-            생각하는 중…{waitingSec >= 3 && <span className="muted"> {waitingSec}초</span>}
+            생각하는 중<span className="typing" aria-hidden="true"><i /><i /><i /></span>{waitingSec >= 3 && <span className="muted"> {waitingSec}초</span>}
           </div>
         )}
         <div ref={listEnd} />

@@ -90,8 +90,12 @@ export function Members(props: {
   min: number
   max: number
   onBack: () => void
+  /** 인원이 맞을 때 아래 버튼. 없으면 onBack (인원만 정하고 돌아감) */
+  onDone?: () => void
+  /** 아래 버튼 글자. 기본 "N명으로 정하기" */
+  doneLabel?: string
 }) {
-  const { title, room, when, people, setPeople, count, min, max, onBack } = props
+  const { title, room, when, people, setPeople, count, min, max, onBack, onDone, doneLabel } = props
   const [query, setQuery] = useState('')
   const [found, setFound] = useState<FoundMember | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -129,6 +133,8 @@ export function Members(props: {
   }
 
   const added = !!found && people.some((p) => p.studentId === found.studentId)
+  // 인원이 안 맞으면 아래 버튼을 막고 몇 명이 더 필요한지 알려 준다 (돌아가서 예약하다 또 막히지 않게, 11/5 재웅 피드백)
+  const countOk = count >= min && count <= max
   const note = count < min ? `${min - count}명 더 필요해요` : count > max ? `최대 ${max}명이에요` : `인원 맞아요 (${min}–${max}명)`
 
   return (
@@ -163,7 +169,7 @@ export function Members(props: {
       <div className="card people">
         <div className="people-head">
           <span>함께 쓰는 사람 {count}명</span>
-          <span className="count-note"><i className={count >= min && count <= max ? 'ok' : ''} />{note}</span>
+          <span className="count-note"><i className={countOk ? 'ok' : ''} />{note}</span>
         </div>
         <div className="person">
           <span className="avatar me">나</span>
@@ -182,7 +188,14 @@ export function Members(props: {
       </div>
 
       <div className="rs-bar">
-        <button type="button" className="btn-primary" onClick={onBack}>{count}명으로 정하기</button>
+        {!countOk && (
+          <p className="count-hint" role="status">
+            {count < min ? <><b>{min - count}명</b> 더 추가하면 예약할 수 있어요</> : <>최대 {max}명이에요. <b>{count - max}명</b>을 빼 주세요</>}
+          </p>
+        )}
+        <button type="button" className="btn-primary" disabled={!countOk} onClick={onDone ?? onBack}>
+          {doneLabel ?? `${count}명으로 정하기`}
+        </button>
       </div>
     </section>
   )

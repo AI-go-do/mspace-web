@@ -74,6 +74,9 @@
 .count-note { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .count-note i { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); }
 .count-note i.ok { background: var(--sky); }
+/* 인원이 모자랄 때 아래 버튼 바로 위 안내 */
+.count-hint { margin: 0; text-align: center; font-size: 14px; color: var(--navy); }
+.count-hint b { color: var(--blue); }
 .person { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--gray); }
 .person .avatar { width: 36px; height: 36px; font-size: 13px; }
 .person .who b { font-size: 14px; }

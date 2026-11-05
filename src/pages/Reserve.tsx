@@ -191,7 +191,8 @@ export default function Reserve() {
 
       {step === 'members' && (
         <Members title={title} room={room} when={when} people={people} setPeople={setPeople}
-          count={count} min={min} max={max} onBack={() => setStep('time')} />
+          count={count} min={min} max={max} onBack={() => setStep('time')}
+          onDone={pick ? reserve : undefined} doneLabel={pick ? `${count}명으로 예약하기` : undefined} />
       )}
 
       {step === 'rules' && (
