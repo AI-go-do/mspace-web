@@ -67,7 +67,7 @@ export const BOOKING_FACTS: { big: string; small: string; strong?: boolean }[] =
   { big: '30분', small: '시간 단위' },
   { big: '1건', small: '대표자당 진행 중' },
   { big: '15분', small: '안에 입실, 아니면 노쇼', strong: true },
-  { big: '3–5명', small: '창작실 1–4 (5는 5–8명)' },
+  { big: '3–5명', small: '창작실 1–4 · 5번은 5–8명' },
 ]
 
 /** 이용 규칙 화면의 "방에서 지킬 것" (요구사항 3.1 전체) */

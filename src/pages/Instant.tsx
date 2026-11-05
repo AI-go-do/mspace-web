@@ -179,7 +179,7 @@ export default function Instant() {
         </section>
       )}
 
-      <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>
+      {room && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
 
       <div className="rs-bar">
         <div className="rs-bar-row">

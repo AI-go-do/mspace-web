@@ -10,6 +10,7 @@ import Instant from './pages/Instant'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
 import MyReservations from './pages/MyReservations'
+import Alerts from './pages/Alerts'
 import Placeholder from './pages/Placeholder'
 import ReservationDetail from './pages/ReservationDetail'
 import Rules from './pages/Rules'
@@ -39,7 +40,7 @@ export default function App() {
           <Route path="/assistant" element={auth(<Assistant />)} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/now" element={auth(<Instant />)} />
-          <Route path="/alerts" element={auth(<Placeholder title="알림" fr="FR-NTF-103" message="예약 시작·입실 마감·퇴실 알림이 곧 여기에 모여요. 지금은 메일로 보내 드려요." />)} />
+          <Route path="/alerts" element={auth(<Alerts />)} />
           <Route path="*" element={<Placeholder title="없는 화면" message="주소가 바뀌었거나 없는 화면이에요." />} />
         </Routes>
         {!fullScreen && <TabBar />}

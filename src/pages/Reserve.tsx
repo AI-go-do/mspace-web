@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { minutesLabel } from '../lib/format'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import type { FoundMember } from '../api/members'
@@ -70,7 +71,7 @@ export default function Reserve() {
   const min = room?.minPeople ?? 1
   const max = room?.maxPeople ?? 99
   const countOk = count >= min && count <= max
-  const range = pick ? `${slotClock(pick.start)} – ${slotClock(pick.start + pick.len)}` : '시간을 골라 주세요'
+  const range = pick ? `${slotClock(pick.start)} – ${slotClock(pick.start + pick.len)} · ${minutesLabel(pick.len * 30)}` : '시작 칸을 눌러 주세요'
 
   async function submit() {
     if (!pick || !room || busy) return
