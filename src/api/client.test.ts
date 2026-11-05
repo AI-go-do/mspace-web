@@ -96,6 +96,14 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     off()
   })
 
+  it('보낼 회원을 정했는데 refresh가 다른 회원 토큰을 주면 보내지 않는다', async () => {
+    saveTokens({ accessToken: 'old', expiresAt: later(-1), memberId: 1 })
+    fetchMock.mockImplementation(async (path: string) =>
+      path === '/api/auth/refresh' ? json(200, { accessToken: 'other', expiresAt: later(60), memberId: 2 }) : json(200, { ok: true }))
+    await expect(api('/api/agent/chat', { method: 'POST', body: '{}', member: 1 })).rejects.toMatchObject({ code: 'SESSION_CHANGED' })
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/api/auth/refresh'])
+  })
+
   it('새로고침해서 메모리에 토큰이 없으면 먼저 쿠키로 refresh하고 보낸다', async () => {
     fetchMock.mockImplementation(async (path: string, init: RequestInit) => {
       if (path === '/api/auth/refresh') return json(200, { accessToken: 'fresh', expiresAt: later(60) })

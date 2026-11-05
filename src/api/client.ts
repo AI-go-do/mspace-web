@@ -48,7 +48,12 @@ async function toError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, body.code ?? 'UNKNOWN', body.message ?? '잠시 후 다시 시도해 주세요')
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * member를 주면 그 회원의 토큰으로만 보낸다. refresh로 다른 회원 토큰을 받았으면(같은 브라우저 다른 탭에서
+ * 다른 학생이 로그인) 보내지 않고 SESSION_CHANGED를 던진다. 앞 학생의 말을 새 학생 계정으로 보내지 않으려고.
+ */
+export async function api<T>(path: string, { member, ...init }: RequestInit & { member?: number | null } = {}): Promise<T> {
+  const wrongMember = (t: Tokens | null) => member !== undefined && (t?.memberId ?? null) !== member
   // 로그인 API(/api/auth/)는 토큰 없이 부른다
   const isAuth = path.startsWith('/api/auth/')
   let tokens = isAuth ? null : readTokens()
@@ -59,7 +64,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   // 예전 요청을 새 계정 토큰으로 보내지 않는다(예: 예전 사람의 예약 취소가 새 사람 계정에 적용되는 일)
   const started = generation
   if (!isAuth && !accessAlive(tokens)) tokens = await refreshTokens()
-  if (started !== generation) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
+  if (started !== generation || wrongMember(tokens)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
 
   let res = await send(path, init, tokens?.accessToken ?? null)
   if (res.status === 401 && tokens) {
@@ -67,6 +72,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (started !== generation) throw await toError(res)
     const fresh = await refreshTokens()
     if (started !== generation) throw await toError(res)
+    if (wrongMember(fresh)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
     res = await send(path, init, fresh.accessToken)
   }
   if (res.status === 401 && !isAuth && started === generation) endSession()

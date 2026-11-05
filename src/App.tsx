@@ -3,6 +3,7 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
 import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
+import Assistant from './pages/Assistant'
 import Checkout from './pages/Checkout'
 import Home from './pages/Home'
 import Instant from './pages/Instant'
@@ -35,7 +36,7 @@ export default function App() {
           <Route path="/me" element={auth(<MyReservations />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
-          <Route path="/assistant" element={auth(<Placeholder title="비서 스페이시" fr="FR-AGT-101" />)} />
+          <Route path="/assistant" element={auth(<Assistant />)} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/now" element={auth(<Instant />)} />
           <Route path="/alerts" element={auth(<Placeholder title="알림" fr="FR-NTF-103" />)} />
