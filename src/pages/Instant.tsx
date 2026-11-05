@@ -35,21 +35,30 @@ export default function Instant() {
 
   // 새 요청을 보내면 이전 요청은 끊는다. 늦게 온 옛 응답이 새 값을 덮지 않게
   const active = useRef<AbortController | null>(null)
+  // 지난번에 받은 다음 날 칸. 1분마다 다시 받을 때 오늘 칸만 먼저 보여서 자정 넘는 끝 칩이 잠깐 사라지지 않게
+  const lastNext = useRef<{ date: string; rooms: RoomSlots[] }>({ date: '', rooms: [] })
   const load = () => {
     active.current?.abort()
     const ctrl = new AbortController()
     active.current = ctrl
     const today = seoulDate()
-    // 밤 10시 넘어 시작하면 끝(최대 2시간)이 자정을 넘을 수 있어, 다음 날 앞쪽 칸도 받아 이어 붙인다. 못 받으면 오늘 칸만 쓴다
+    // 밤 10시 넘어 시작하면 끝(최대 2시간)이 자정을 넘을 수 있어, 다음 날 앞쪽 칸도 받아 이어 붙인다.
+    // 오늘 칸은 다음 날 응답을 기다리지 않고 바로 보여 준다(그동안은 지난번에 받은 다음 날 칸을 잇는다). 못 받으면 오늘 칸만 쓴다
+    const merge = (todayRooms: RoomSlots[], next: RoomSlots[]) => todayRooms.map((room) => {
+      const tail = next.find((x) => x.roomId === room.roomId)?.slots.slice(0, MAX_SLOTS) ?? []
+      return { ...room, slots: [...room.slots, ...tail] }
+    })
     const nextDay = getAvailability(addDays(today, 1), ctrl.signal).then((r) => r.data.rooms).catch(() => [] as RoomSlots[])
-    return Promise.all([getAvailability(today, ctrl.signal), nextDay])
-      .then(([r, next]) => {
+    return getAvailability(today, ctrl.signal)
+      .then((r) => {
         if (active.current !== ctrl) return
-        const merged = r.data.rooms.map((room) => {
-          const tail = next.find((x) => x.roomId === room.roomId)?.slots.slice(0, MAX_SLOTS) ?? []
-          return { ...room, slots: [...room.slots, ...tail] }
+        setRooms(merge(r.data.rooms, lastNext.current.date === addDays(today, 1) ? lastNext.current.rooms : []))
+        setSample(r.sample); setError(null)
+        return nextDay.then((next) => {
+          if (active.current !== ctrl) return
+          lastNext.current = { date: addDays(today, 1), rooms: next }
+          setRooms(merge(r.data.rooms, next))
         })
-        setRooms(merged); setSample(r.sample); setError(null)
       })
       .catch((e: Error) => {
         if (ctrl.signal.aborted || active.current !== ctrl) return

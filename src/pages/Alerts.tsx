@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { agoLabel, getMyNotifications, notificationAction, type AppNotification } from '../api/notifications'
 import { stillHere } from '../api/reservations'
-import { ApiError } from '../api/client'
+import { ApiError, currentMemberId } from '../api/client'
 import { useNow } from '../lib/useNow'
 import './Alerts.css'
 
@@ -24,10 +24,13 @@ export default function Alerts() {
 
   const load = useCallback(() => {
     if (busy.current) return
+    // 이 화면을 연 회원의 알림만 받는다. 다른 탭에서 다른 회원으로 바뀌면 api가 요청을 막는다. 토큰이 아직 없으면 다음 확인을 기다린다
+    const memberId = currentMemberId()
+    if (memberId === null) return
     busy.current = true
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
-    getMyNotifications(abort.signal)
+    getMyNotifications(abort.signal, memberId)
       .then((l) => {
         if (seen.current) {
           const fresh = l.filter((n) => !seen.current!.has(n.id)).length
