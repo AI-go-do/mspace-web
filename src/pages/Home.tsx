@@ -7,12 +7,15 @@ import './Home.css'
 
 /**
  * 하루 막대 배경 위치. 지금 위치를 모르면 아무 값도 주지 않아 전체가 회색(알 수 없음)이 된다.
- * 지금 칸이 사용 중이면 그 30분 칸 끝까지는 예약 색으로 칠한다(그 칸은 takenSegments에서 빠지므로)
+ * 지금 칸이 사용 중이면 그 30분 칸 끝까지는 예약 색으로 칠한다(그 칸은 takenSegments에서 빠지므로).
+ * 서버가 지금 사용 여부(occupiedNow)를 안 주면 지금 칸 끝까지는 회색(알 수 없음)으로 둔다
  */
-function barStyle(pct: number | null, freeNow: boolean): CSSProperties | undefined {
+function barStyle(pct: number | null, occupiedNow: boolean | undefined): CSSProperties | undefined {
   if (pct === null) return undefined
-  const slotEnd = (Math.floor((pct / 100) * 48) + 1) * (100 / 48)
-  return { '--now': `${pct}%`, '--free-from': `${freeNow ? pct : Math.min(100, slotEnd)}%` } as CSSProperties
+  const slotEnd = Math.min(100, (Math.floor((pct / 100) * 48) + 1) * (100 / 48))
+  const style: Record<string, string> = { '--now': `${pct}%`, '--free-from': `${occupiedNow === false ? pct : slotEnd}%` }
+  if (occupiedNow === undefined) style['--cur'] = 'var(--gray)'
+  return style as CSSProperties
 }
 
 /** 하루 중 몇 시간째(14.5) → "14:30" */
@@ -125,7 +128,7 @@ export default function Home() {
                   aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
-                    <span className="bar" aria-hidden="true" style={barStyle(pct, free)}>
+                    <span className="bar" aria-hidden="true" style={barStyle(pct, r.occupiedNow)}>
                       {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}

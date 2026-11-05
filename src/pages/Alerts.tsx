@@ -29,7 +29,11 @@ export default function Alerts() {
       .then((l) => {
         if (seen.current) {
           const fresh = l.filter((n) => !seen.current!.has(n.id)).length
-          if (fresh) setAnnounce(`새 알림 ${fresh}개`)
+          if (fresh) {
+            // 같은 문구가 연달아 와도 다시 읽히게, 한 번 비웠다가 다음 틱에 넣는다
+            setAnnounce('')
+            setTimeout(() => setAnnounce(`새 알림 ${fresh}개`), 100)
+          }
         }
         seen.current = new Set(l.map((n) => n.id))
         setList(l)
