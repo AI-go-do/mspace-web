@@ -34,5 +34,5 @@ export function useCountUp(target: number | null, ms = 650): number | null {
       from.current = target
     }
   }, [target, ms])
-  return target === null ? null : shown
+  return target === null ? null : (shown ?? 0)
 }
