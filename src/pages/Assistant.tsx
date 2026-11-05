@@ -74,11 +74,11 @@ export default function Assistant() {
     const memberId = currentMemberId()
     const p = loadChat(memberId).pending
     const inflight = currentSubmitting(memberId)
-    if (p?.jobId) void follow(p.jobId, p.startedAt, p.pollAfterMs)
+    if (p?.jobId) void follow(p.jobId, p.startedAt, p.pollAfterMs, memberId)
     // 접수 요청이 아직 안 끝났다: 끝나면 그 번호로 조회한다.
     // 실패하면 보낸 쪽이 저장소에 안내를 남기므로(먼저 실행됨) 이 화면은 저장소에서 다시 읽는다
     else if (p && inflight) inflight.then(
-      (j) => follow(j.jobId, p.startedAt, j.pollAfterMs),
+      (j) => { if (currentMemberId() === memberId) void follow(j.jobId, p.startedAt, j.pollAfterMs, memberId) },
       () => { if (mounted.current) setChat(loadChat(currentMemberId())) },
     )
     // 접수 중이던 기록만 남고 요청은 없다(예: 새로고침 직전): 다시 보내게 푼다
