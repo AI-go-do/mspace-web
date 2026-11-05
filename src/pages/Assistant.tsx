@@ -184,9 +184,9 @@ export default function Assistant() {
         {chat.messages.length === 0 && (
           <div className="bubble bot">
             안녕하세요, 스페이시예요. 무엇을 도와드릴까요?
-            <div className="chips">
+            <div className="ask-chips">
               {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" className="chip" onClick={() => void send(ex)} disabled={busy}>{ex}</button>
+                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy}>{ex}</button>
               ))}
             </div>
           </div>
