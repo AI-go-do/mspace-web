@@ -15,6 +15,9 @@ export default function Alerts() {
   const [list, setList] = useState<AppNotification[] | null>(null)
   const [error, setError] = useState(false)
   const busy = useRef(false)
+  // 화면을 보고 있는 동안 새 알림이 오면 화면 읽기 사용자에게 한 번만 알린다 (목록 전체를 다시 읽지 않게)
+  const seen = useRef<Set<number> | null>(null)
+  const [announce, setAnnounce] = useState('')
   const now = useNow(30_000)
 
   const load = useCallback(() => {
@@ -23,7 +26,15 @@ export default function Alerts() {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
     getMyNotifications(abort.signal)
-      .then((l) => { setList(l); setError(false) })
+      .then((l) => {
+        if (seen.current) {
+          const fresh = l.filter((n) => !seen.current!.has(n.id)).length
+          if (fresh) setAnnounce(`새 알림 ${fresh}개`)
+        }
+        seen.current = new Set(l.map((n) => n.id))
+        setList(l)
+        setError(false)
+      })
       .catch(() => setError(true))
       .finally(() => { clearTimeout(timer); busy.current = false })
   }, [])
@@ -39,6 +50,7 @@ export default function Alerts() {
       <header className="alerts-head">
         <h1>알림</h1>
       </header>
+      <p className="sr-only" aria-live="polite">{announce}</p>
 
       {error && (
         <p role="alert" className="alerts-msg">
@@ -63,7 +75,7 @@ export default function Alerts() {
             return (
               <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''}`}>
                 <div className="alert-top">
-                  {!n.read && <i className="dot" aria-label="안 읽음" />}
+                  {!n.read && <><i className="dot" aria-hidden="true" /><span className="sr-only">안 읽음</span></>}
                   <b className="alert-title">{n.title}</b>
                   <time className="alert-time" dateTime={n.createdAt}>{agoLabel(n.createdAt, now)}</time>
                 </div>

@@ -122,7 +122,9 @@ export default function Instant() {
   if (step === 'members') {
     return <main className="reserve"><Members title={title} room={room} when={when} people={people} setPeople={setPeople}
       count={count} min={min} max={max} onBack={() => setStep('pick')}
-      onDone={end ? start : undefined} doneLabel={end ? `${count}명으로 지금 시작하기` : undefined} /></main>
+      onDone={end ? start : undefined} doneLabel={end ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…" />
+      {denied && <DeniedSheet denied={denied} onClose={() => setDenied(null)} onHome={() => navigate('/')} onNext={followDenied} />}
+    </main>
   }
   if (step === 'rules') {
     return <main className="reserve"><RulesAgree sub={`${title} · ${when} · ${count}명`} busy={busy} onBack={() => setStep('pick')}

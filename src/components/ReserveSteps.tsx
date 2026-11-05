@@ -94,8 +94,11 @@ export function Members(props: {
   onDone?: () => void
   /** 아래 버튼 글자. 기본 "N명으로 정하기" */
   doneLabel?: string
+  /** onDone이 예약을 보내는 중이면 true: 버튼·뒤로·사람 넣고 빼기를 막는다 */
+  busy?: boolean
+  busyLabel?: string
 }) {
-  const { title, room, when, people, setPeople, count, min, max, onBack, onDone, doneLabel } = props
+  const { title, room, when, people, setPeople, count, min, max, onBack, onDone, doneLabel, busy = false, busyLabel } = props
   const [query, setQuery] = useState('')
   const [found, setFound] = useState<FoundMember | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -141,7 +144,7 @@ export function Members(props: {
     <section className="members">
       <header className="rs-head">
         <div className="rs-title">
-          <button type="button" className="back" aria-label="뒤로" onClick={onBack}><BackIcon /></button>
+          <button type="button" className="back" aria-label="뒤로" onClick={onBack} disabled={busy}><BackIcon /></button>
           <div>
             <h1>함께 쓸 사람</h1>
             <span className="muted sub">{title}{room ? ` · ${room.minPeople}–${room.maxPeople}명 방` : ''}{when ? ` · ${when}` : ''}</span>
@@ -151,7 +154,7 @@ export function Members(props: {
           <label htmlFor="sid" className="sr-only">학번으로 찾기</label>
           <input id="sid" value={query} onChange={(e) => changeQuery(e.target.value.replace(/\D/g, ''))}
             inputMode="numeric" placeholder="학번으로 찾기" maxLength={20} />
-          <button className="search-btn" disabled={!query || searching}>{searching ? '찾는 중' : '찾기'}</button>
+          <button className="search-btn" disabled={!query || searching || busy}>{searching ? '찾는 중' : '찾기'}</button>
         </form>
       </header>
 
@@ -160,7 +163,7 @@ export function Members(props: {
           <span className="avatar">{found.name.slice(0, 1)}</span>
           <span className="who"><b>{found.name}</b><span className="muted">{found.studentId} · 찾은 사람</span></span>
           {added ? <span className="muted strong">추가됨</span> : (
-            <button type="button" className="add-btn" onClick={() => { setPeople([...people, found]); setQuery('') }}>추가</button>
+            <button type="button" className="add-btn" disabled={busy} onClick={() => { setPeople([...people, found]); setQuery('') }}>추가</button>
           )}
         </div>
       )}
@@ -179,7 +182,7 @@ export function Members(props: {
           <div key={p.studentId} className="person">
             <span className="avatar">{p.name.slice(0, 1)}</span>
             <span className="who"><b>{p.name}</b><span className="muted">{p.studentId}</span></span>
-            <button type="button" className="remove" aria-label={`${p.name} 빼기`}
+            <button type="button" className="remove" aria-label={`${p.name} 빼기`} disabled={busy}
               onClick={() => setPeople(people.filter((x) => x.studentId !== p.studentId))}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
             </button>
@@ -193,8 +196,8 @@ export function Members(props: {
             {count < min ? <><b>{min - count}명</b> 더 추가하면 예약할 수 있어요</> : <>최대 {max}명이에요. <b>{count - max}명</b>을 빼 주세요</>}
           </p>
         )}
-        <button type="button" className="btn-primary" disabled={!countOk} onClick={onDone ?? onBack}>
-          {doneLabel ?? `${count}명으로 정하기`}
+        <button type="button" className="btn-primary" disabled={!countOk || busy} onClick={onDone ?? onBack}>
+          {busy && busyLabel ? busyLabel : doneLabel ?? `${count}명으로 정하기`}
         </button>
       </div>
     </section>

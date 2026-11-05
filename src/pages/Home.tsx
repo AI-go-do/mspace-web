@@ -5,6 +5,16 @@ import { getAvailability, type DayAvailability } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import './Home.css'
 
+/**
+ * 하루 막대 배경 위치. 지금 위치를 모르면 아무 값도 주지 않아 전체가 회색(알 수 없음)이 된다.
+ * 지금 칸이 사용 중이면 그 30분 칸 끝까지는 예약 색으로 칠한다(그 칸은 takenSegments에서 빠지므로)
+ */
+function barStyle(pct: number | null, freeNow: boolean): CSSProperties | undefined {
+  if (pct === null) return undefined
+  const slotEnd = (Math.floor((pct / 100) * 48) + 1) * (100 / 48)
+  return { '--now': `${pct}%`, '--free-from': `${freeNow ? pct : Math.min(100, slotEnd)}%` } as CSSProperties
+}
+
 /** 하루 중 몇 시간째(14.5) → "14:30" */
 const hm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`
 
@@ -115,7 +125,7 @@ export default function Home() {
                   aria-label={`창작실 ${r.roomId}, ${free ? '지금 비어 있음' : '사용 중'}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
-                    <span className="bar" aria-hidden="true" style={{ '--now': `${pct ?? 0}%` } as CSSProperties}>
+                    <span className="bar" aria-hidden="true" style={barStyle(pct, free)}>
                       {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}

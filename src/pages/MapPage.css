@@ -7,9 +7,9 @@
 .map-legend { display: flex; gap: 12px; font-size: 12px; color: var(--navy-70); }
 .map-legend span { display: flex; align-items: center; gap: 4px; }
 .map-legend i { width: 10px; height: 10px; border-radius: 3px; }
-.lg-free { background: var(--sky); }
-.lg-busy { background: var(--taken); }
-.lg-on { background: var(--blue); }
+.map-legend .lg-free { background: var(--sky); }
+.map-legend .lg-busy { background: var(--taken); }
+.map-legend .lg-on { background: var(--blue); }
 .map-workshop {
   height: 44px; border-radius: 12px; border: 1.5px dashed var(--taken);
   display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--navy-70);
