@@ -54,12 +54,11 @@ export default function Assistant() {
     update((s) => ({ ...s, pending: null, messages: [...s.messages, { id: newMessageId(), role: 'assistant', text: message, error: true }] }), owner)
   }
 
-  async function follow(jobId: string, startedAt: number, pollAfterMs?: number) {
+  async function follow(jobId: string, startedAt: number, pollAfterMs?: number, owner: number | null = currentMemberId()) {
     if (!mounted.current) return
     alive.current?.abort()
     const ctrl = new AbortController()
     alive.current = ctrl
-    const owner = currentMemberId()
     try {
       const result = await waitForChat({ jobId, status: 'PENDING', pollAfterMs }, { signal: ctrl.signal, startedAt })
       if (!ctrl.signal.aborted) addReply(result, owner)
@@ -122,9 +121,11 @@ export default function Assistant() {
     setSubmitting(owner, submitted)
     try {
       const job = await submitted
-      update((s) => ({ ...s, pending: { jobId: job.jobId, startedAt, pollAfterMs: job.pollAfterMs } }), owner)
       clearSubmitting(submitted)
-      await follow(job.jobId, startedAt, job.pollAfterMs)
+      // 그사이 다른 회원으로 바뀌었으면 이 접수는 이어 받지 않는다
+      if (currentMemberId() !== owner) return
+      update((s) => ({ ...s, pending: { jobId: job.jobId, startedAt, pollAfterMs: job.pollAfterMs } }), owner)
+      await follow(job.jobId, startedAt, job.pollAfterMs, owner)
     } catch (e) {
       clearSubmitting(submitted)
       addError(e instanceof ApiError ? e.message : '보내지 못했어요. 잠시 뒤 다시 보내 주세요.', owner)
