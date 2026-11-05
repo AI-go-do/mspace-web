@@ -166,6 +166,14 @@ export interface ConfirmResult {
   message: string
 }
 
+/**
+ * "새 대화": 서버가 기억한 앞선 대화(24시간)를 지운다. 204.
+ * 답을 만드는 중이면 409 CHAT_IN_PROGRESS(끝나면서 옛 대화를 다시 저장하기 때문)
+ */
+export function clearChatHistory(member?: number | null): Promise<void> {
+  return api('/api/agent/chat/history', { method: 'DELETE', member })
+}
+
 /** 예약 만들기 카드만 참여자 학번을 보낸다. 취소·퇴실은 본문 없음 */
 export function confirmCard(token: string, participantStudentIds?: string[], member?: number | null): Promise<ConfirmResult> {
   return api(`/api/agent/confirmations/${encodeURIComponent(token)}`, {

@@ -1,9 +1,11 @@
 import type { ChatConfirmation, ConfirmResult } from '../api/agent'
+import { onSessionEnd } from '../api/client'
 
 /**
  * 비서 대화 기록. 탭을 옮겼다 돌아와도 이어지게 화면 밖(메모리)에 둔다.
- * 확인 토큰이 들어 있어서 브라우저 저장소에는 넣지 않는다(새로고침하면 사라진다).
- * 회원이 바뀌면 비운다.
+ * 새로고침해도 이어지게 이 탭의 sessionStorage에도 남긴다(탭을 닫으면 사라짐).
+ * 단, 확인 토큰·입실 번호는 저장소에 넣지 않는다. 확인 카드는 "지난 카드"(요약·결과만)로 바꿔 남긴다.
+ * 회원이 바뀌면 비우고, 로그인이 끝나면(로그아웃·refresh 실패) 저장소도 지운다.
  */
 export interface ChatMessage {
   id: number
@@ -13,6 +15,14 @@ export interface ChatMessage {
   error?: boolean
   confirmations?: ChatConfirmation[]
   accessCodeCards?: { reservationId: number }[]
+  /** 새로고침 전에 받은 확인 카드. 토큰이 없어 다시 누를 수 없다 */
+  pastCards?: PastCard[]
+}
+
+/** 저장소에서 되살린 확인 카드. 눌러서 끝난 카드면 결과(입실 번호 빼고)를 함께 둔다 */
+export interface PastCard {
+  summary: string
+  result?: Pick<ConfirmResult, 'action' | 'reservationId' | 'message'>
 }
 
 export interface ChatState {
@@ -25,11 +35,12 @@ export interface ChatState {
 let state: ChatState = { memberId: null, messages: [], pending: null }
 let nextId = 1
 
-/** 그 회원의 대화를 꺼낸다. 회원이 바뀌었으면 앞 회원 대화와 카드 결과를 비운다 */
+/** 그 회원의 대화를 꺼낸다. 회원이 바뀌었으면 앞 회원 대화와 카드 결과를 비우고, 이 탭에 저장된 그 회원 대화가 있으면 되살린다 */
 export function loadChat(memberId: number | null): ChatState {
   if (state.memberId !== memberId) {
-    state = { memberId, messages: [], pending: null }
+    state = restoreChat(readSaved(), memberId, Date.now()) ?? { memberId, messages: [], pending: null }
     cardOutcomes = new Map()
+    nextId = Math.max(nextId, ...state.messages.map((m) => m.id + 1))
   }
   return state
 }
@@ -37,7 +48,107 @@ export function loadChat(memberId: number | null): ChatState {
 /** 화면이 바꾼 대화를 저장한다 */
 export function saveChat(next: ChatState): void {
   state = next
+  persist()
 }
+
+/** "새 대화": 그 회원의 화면 기록·카드 결과·저장소를 비운다(서버 기억은 화면이 먼저 지운다) */
+export function resetChat(memberId: number | null): ChatState {
+  state = { memberId, messages: [], pending: null }
+  cardOutcomes = new Map()
+  writeSaved(null)
+  return state
+}
+
+// ---- 이 탭 저장소(sessionStorage) ----
+
+const STORAGE_KEY = 'mspace.agent.chat.v1'
+/** 서버가 대화를 기억하는 시간(24시간)과 맞춘다. 더 오래된 화면 기록은 버린다 */
+export const SAVED_TTL_MS = 24 * 60 * 60 * 1000
+/** 저장소에 남길 최근 메시지 수 */
+const MAX_SAVED = 60
+/** 기다리던 답을 이어서 조회할 수 있는 시간(화면의 90초 기한과 같음) */
+const RESUME_MS = 90_000
+
+export interface SavedChat {
+  memberId: number
+  savedAt: number
+  messages: ChatMessage[]
+  pending: ChatState['pending']
+}
+
+function storage(): Storage | null {
+  try {
+    return typeof sessionStorage === 'undefined' ? null : sessionStorage
+  } catch {
+    return null
+  }
+}
+
+function readSaved(): unknown {
+  try {
+    const raw = storage()?.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function writeSaved(saved: SavedChat | null): void {
+  try {
+    const s = storage()
+    if (!s) return
+    if (saved && saved.messages.length > 0) s.setItem(STORAGE_KEY, JSON.stringify(saved))
+    else s.removeItem(STORAGE_KEY)
+  } catch {
+    // 저장소가 꽉 찼거나 막혀 있으면 새로고침 때만 사라진다(화면은 그대로 동작)
+  }
+}
+
+function persist(): void {
+  if (state.memberId === null) return
+  writeSaved(toSaved(state, cardOutcomes, Date.now()))
+}
+
+/**
+ * 저장할 모양으로 바꾼다. 확인 토큰은 버리고 카드는 요약과(눌렀으면) 결과만 남긴다.
+ * 결과의 입실 번호(accessCode)는 넣지 않는다. 접수 중(번호를 아직 못 받음)은 저장하지 않는다
+ */
+export function toSaved(s: ChatState, outcomes: Map<string, CardOutcome>, now: number): SavedChat | null {
+  if (s.memberId === null) return null
+  const messages = s.messages.slice(-MAX_SAVED).map((m): ChatMessage => {
+    const { confirmations, ...rest } = m
+    if (!confirmations?.length) return rest
+    const past = confirmations.map((c): PastCard => {
+      const o = outcomes.get(c.token)
+      return o?.kind === 'done'
+        ? { summary: c.summary, result: { action: o.result.action, reservationId: o.result.reservationId, message: o.result.message } }
+        : { summary: c.summary }
+    })
+    return { ...rest, pastCards: [...(m.pastCards ?? []), ...past] }
+  })
+  const pending = s.pending?.jobId ? s.pending : null
+  return { memberId: s.memberId, savedAt: now, messages, pending }
+}
+
+/** 저장소 값을 그 회원 대화로 되살린다. 다른 회원·24시간 지난 기록·깨진 값이면 null */
+export function restoreChat(saved: unknown, memberId: number | null, now: number): ChatState | null {
+  if (memberId === null || !saved || typeof saved !== 'object') return null
+  const v = saved as Partial<SavedChat>
+  if (v.memberId !== memberId || typeof v.savedAt !== 'number' || now - v.savedAt > SAVED_TTL_MS) return null
+  if (!Array.isArray(v.messages)) return null
+  const messages = v.messages.filter((m): m is ChatMessage =>
+    !!m && typeof m === 'object' && typeof m.id === 'number' && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string')
+  const p = v.pending
+  const pending = p && typeof p.jobId === 'string' && p.jobId && typeof p.startedAt === 'number' && now - p.startedAt < RESUME_MS ? p : null
+  return { memberId, messages, pending }
+}
+
+// 로그아웃·refresh 실패: 화면 기록과 이 탭 저장소를 비운다(같은 기기의 다음 사람이 보지 않게)
+onSessionEnd(() => {
+  state = { memberId: null, messages: [], pending: null }
+  cardOutcomes = new Map()
+  writeSaved(null)
+})
 
 type Submission = Promise<{ jobId: string; pollAfterMs?: number }>
 
@@ -86,6 +197,8 @@ export function saveCardOutcome(memberId: number | null, token: string, outcome:
   if (state.memberId !== memberId) return
   if (outcome) cardOutcomes.set(token, outcome)
   else cardOutcomes.delete(token)
+  // 눌러서 끝난 결과도 새로고침 뒤 "지난 카드"에 보이게 저장소를 맞춘다
+  if (outcome?.kind === 'done') persist()
   cardListeners.get(token)?.forEach((fn) => fn(outcome))
 }
 

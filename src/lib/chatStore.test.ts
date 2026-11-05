@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConfirmResult } from '../api/agent'
-import { cardOutcomeOf, loadChat, saveCardOutcome, watchCardOutcome } from './chatStore'
+import { cardOutcomeOf, loadChat, resetChat, restoreChat, SAVED_TTL_MS, saveCardOutcome, toSaved, watchCardOutcome } from './chatStore'
 
 describe('확인 카드 결과 기억', () => {
   it('누른 카드 결과는 화면을 다시 열어도 같은 회원에게 그대로 남는다', () => {
@@ -33,5 +33,57 @@ describe('확인 카드 결과 기억', () => {
     stop()
     saveCardOutcome(3, 'tok-e', undefined)
     expect(seen).toEqual(['closed'])
+  })
+})
+
+describe('새로고침해도 대화 유지(이 탭 저장소)', () => {
+  const card = { tool: 'create_reservation', token: 'secret-token', summary: '3번 방 11/7 14:00–16:00', notes: [], needsParticipants: 0, expiresAt: '2026-11-07T00:00:00+09:00' }
+  const result: ConfirmResult = { action: 'CREATE', reservationId: 9, status: 'BOOKED', accessCode: '123456', replayed: false, message: '예약했어요' }
+
+  it('저장할 때 확인 토큰과 입실 번호는 빼고, 카드는 요약과 결과만 남긴다', () => {
+    const saved = toSaved({
+      memberId: 1, pending: null,
+      messages: [
+        { id: 1, role: 'user', text: '내일 2시 3번 방 잡아 줘' },
+        { id: 2, role: 'assistant', text: '이렇게 예약할까요?', confirmations: [card, { ...card, token: 'other', summary: '안 누른 카드' }] },
+      ],
+    }, new Map([['secret-token', { kind: 'done', result }]]), 1000)
+    const raw = JSON.stringify(saved)
+    expect(raw).not.toContain('secret-token')
+    expect(raw).not.toContain('123456')
+    expect(saved?.messages[1].pastCards).toEqual([
+      { summary: '3번 방 11/7 14:00–16:00', result: { action: 'CREATE', reservationId: 9, message: '예약했어요' } },
+      { summary: '안 누른 카드' },
+    ])
+    expect(saved?.messages[1].confirmations).toBeUndefined()
+  })
+
+  it('접수 중(번호를 아직 못 받음)은 저장하지 않고, 받은 번호는 저장한다', () => {
+    const base = { memberId: 1, messages: [{ id: 1, role: 'user' as const, text: '안녕' }] }
+    expect(toSaved({ ...base, pending: { jobId: '', startedAt: 5 } }, new Map(), 10)?.pending).toBeNull()
+    expect(toSaved({ ...base, pending: { jobId: 'job-1', startedAt: 5 } }, new Map(), 10)?.pending).toMatchObject({ jobId: 'job-1' })
+  })
+
+  it('같은 회원의 24시간 안 기록만 되살리고, 다른 회원·오래된 기록·깨진 값은 버린다', () => {
+    const saved = { memberId: 1, savedAt: 0, messages: [{ id: 3, role: 'assistant', text: '안녕하세요' }, { bad: true }], pending: null }
+    expect(restoreChat(saved, 1, 1000)?.messages).toEqual([{ id: 3, role: 'assistant', text: '안녕하세요' }])
+    expect(restoreChat(saved, 2, 1000)).toBeNull()
+    expect(restoreChat(saved, null, 1000)).toBeNull()
+    expect(restoreChat(saved, 1, SAVED_TTL_MS + 1)).toBeNull()
+    expect(restoreChat('깨진 값', 1, 0)).toBeNull()
+  })
+
+  it('기다리던 답은 90초 안일 때만 이어서 조회한다', () => {
+    const saved = { memberId: 1, savedAt: 0, messages: [], pending: { jobId: 'job-1', startedAt: 0 } }
+    expect(restoreChat(saved, 1, 60_000)?.pending).toMatchObject({ jobId: 'job-1' })
+    expect(restoreChat(saved, 1, 120_000)?.pending).toBeNull()
+  })
+
+  it('새 대화는 그 회원 기록과 카드 결과를 비운다', () => {
+    loadChat(5)
+    saveCardOutcome(5, 'tok-z', { kind: 'closed', message: '이미 쓴 확인이에요' })
+    const next = resetChat(5)
+    expect(next).toEqual({ memberId: 5, messages: [], pending: null })
+    expect(cardOutcomeOf(5, 'tok-z')).toBeUndefined()
   })
 })

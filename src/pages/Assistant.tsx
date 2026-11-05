@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
+import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState } from '../lib/chatStore'
+import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, resetChat, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -22,6 +22,7 @@ export default function Assistant() {
   const [chat, setChat] = useState<ChatState>(() => loadChat(currentMemberId()))
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
+  const [clearing, setClearing] = useState(false)
   const listEnd = useRef<HTMLDivElement>(null)
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
@@ -96,8 +97,11 @@ export default function Assistant() {
       const memberId = currentMemberId()
       if (memberId === chat.memberId) return
       alive.current?.abort()
-      setChat(loadChat(memberId))
+      const next = loadChat(memberId)
+      setChat(next)
       setText('')
+      // 이 탭에 저장해 둔 그 회원 대화에 기다리던 답이 있으면 이어서 조회한다
+      if (next.pending?.jobId) void follow(next.pending.jobId, next.pending.startedAt, next.pending.pollAfterMs, memberId)
     }
     check()
     const t = setInterval(check, 1000)
@@ -165,6 +169,26 @@ export default function Assistant() {
     }
   }
 
+  /** "새 대화": 서버가 기억한 대화를 먼저 지우고, 성공하면 화면과 이 탭 저장소도 비운다 */
+  async function startOver() {
+    const owner = currentMemberId()
+    if (owner === null || chat.pending !== null || clearing) return
+    setClearing(true)
+    try {
+      await clearChatHistory(owner)
+      if (currentMemberId() !== owner) return
+      const next = resetChat(owner)
+      if (mounted.current) {
+        setChat(next)
+        setText('')
+      }
+    } catch (e) {
+      addError(e instanceof ApiError ? e.message : '대화를 지우지 못했어요. 잠시 뒤 다시 눌러 주세요.', owner)
+    } finally {
+      if (mounted.current) setClearing(false)
+    }
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault()
     void send(text)
@@ -178,6 +202,11 @@ export default function Assistant() {
           <h1>비서 스페이시</h1>
           <p className="muted">빈 방 찾기·예약·취소를 말로 할 수 있어요</p>
         </div>
+        {chat.messages.length > 0 && (
+          <button type="button" className="chat-reset" onClick={() => void startOver()} disabled={busy || clearing}>
+            {clearing ? '지우는 중…' : '새 대화'}
+          </button>
+        )}
       </header>
 
       <div className="chat-list" aria-live="polite">
@@ -231,12 +260,35 @@ function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
     <>
       <div className={`bubble bot ${m.error ? 'err' : ''}`} role={m.error ? 'alert' : undefined}>{m.text}</div>
       {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} />)}
+      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
           입실 번호 보기 →
         </Link>
       ))}
     </>
+  )
+}
+
+/** 새로고침 전에 받은 확인 카드. 토큰을 저장하지 않아 다시 누를 수 없다 */
+function PastConfirmCard({ c }: { c: PastCard }) {
+  const r = c.result
+  if (r) {
+    return (
+      <div className="bot-card done" role="status">
+        <strong>{r.message}</strong>
+        {r.action === 'CREATE'
+          ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+          : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+      </div>
+    )
+  }
+  return (
+    <div className="bot-card past">
+      <p className="card-label">지난 확인 카드</p>
+      <strong className="card-summary">{c.summary}</strong>
+      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 스페이시에게 말해 주세요.</p>
+    </div>
   )
 }
 
