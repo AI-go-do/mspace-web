@@ -10,7 +10,7 @@ const REQUEST_TIMEOUT_MS = 15_000
 const SHOW_MS = 4_000
 
 /** 이미 본 알림 번호. 화면을 옮겨 다녀도 같은 알림을 두 번 띄우지 않게 회원별로 화면 밖에 둔다 */
-let seenStore: { memberId: number | null | undefined; ids: Set<number> | null } = { memberId: undefined, ids: null }
+let seenStore: { memberId: number | undefined; ids: Set<number> | null } = { memberId: undefined, ids: null }
 
 /**
  * 앱 안 알림 배너 (FR-NTF-103, 재웅 11/5 요청). 앱을 열어 둔 동안 30초마다 알림함을 받아 보고,
@@ -31,8 +31,10 @@ export default function NotificationToast() {
   /** 알림함을 받아 새 알림이 있으면 배너를 띄운다. 알림함 화면에 있을 때는 본 것으로만 표시한다 */
   const check = useCallback(() => {
     if (busy.current || document.visibilityState !== 'visible') return
-    busy.current = true
+    // 토큰이 아직 없으면(시작 때 refresh가 네트워크로 실패) 회원을 모른 채 조회하지 않고 다음 확인을 기다린다
     const memberId = readTokens()?.memberId ?? null
+    if (memberId === null) return
+    busy.current = true
     if (seenStore.memberId !== memberId) seenStore = { memberId, ids: null }
     const abort = new AbortController()
     inflight.current = abort
