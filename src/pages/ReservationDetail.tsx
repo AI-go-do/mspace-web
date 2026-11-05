@@ -5,7 +5,7 @@ import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } fro
 import { timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
-import { checkInDeadline } from './AccessCode'
+import { deadlineOf } from './AccessCode'
 import { useMyReservations } from './MyReservations'
 import './Mine.css'
 
@@ -74,7 +74,7 @@ export default function ReservationDetail() {
           <span className={`badge ${active ? 'on' : ''}`}>{STATUS_LABEL[r.status]}</span>
         </div>
         <dl className="detail-facts">
-          {r.status === 'BOOKED' && (<><dt>입실 마감</dt><dd>{seoulClock(checkInDeadline(r.startAt))}</dd></>)}
+          {r.status === 'BOOKED' && (<><dt>입실 마감</dt><dd>{seoulClock(deadlineOf(r))}</dd></>)}
           <dt>만든 사람</dt><dd>{r.owner ? '나 (대표자)' : `${host?.name ?? '대표자'} (대표자)`}</dd>
         </dl>
         <div className="detail-people">

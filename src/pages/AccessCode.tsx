@@ -26,6 +26,15 @@ export function checkInDeadline(startAt: string, instant = isInstantStart(startA
   return new Date(Date.parse(startAt) + (instant ? 10 : 15) * 60_000)
 }
 
+/**
+ * 예약의 입실 마감. core가 준 값(checkinDeadline)이 있으면 그대로 쓴다: 시작 뒤에 미리 예약하면
+ * DB는 예약한 시각 + 15분으로 잡아서 화면 계산과 다르다. 없으면(예전 core) 화면이 계산한다
+ */
+export function deadlineOf(r: { startAt: string; checkinDeadline?: string }, instant?: boolean): Date {
+  if (r.checkinDeadline) return new Date(r.checkinDeadline)
+  return checkInDeadline(r.startAt, instant || isInstantStart(r.startAt))
+}
+
 /** 열어 둔 동안 상태(입실·노쇼·취소)가 바뀌면 번호를 고치거나 끈다 */
 const REFRESH_MS = 30_000
 
@@ -104,7 +113,7 @@ export default function AccessCode() {
   const roomName = `창작실 ${r.room.id}`
   const active = isActive(r.status)
   const showCode = r.owner && active && !!r.accessCode
-  const deadline = seoulClock(checkInDeadline(r.startAt, state.instant || isInstantStart(r.startAt)))
+  const deadline = seoulClock(deadlineOf(r, state.instant))
 
   async function share() {
     const text = `M-space ${roomName} · ${when} ${time}\n입실 번호 ${r!.accessCode} (방 앞 키패드에 누르고 #)`

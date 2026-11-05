@@ -12,6 +12,11 @@ export interface RoomSlots {
   roomName: string
   minPeople: number
   maxPeople: number
+  /**
+   * 지금 이 방에 끝나지 않은 예약이 걸쳐 있는지 (core #54). 지금 시각이 든 칸은 지난 칸이라
+   * available만으로는 알 수 없어서 따로 온다. 예전 core·예시 데이터에는 없어서 선택 값
+   */
+  occupiedNow?: boolean
   slots: Slot[]
 }
 export interface DayAvailability {

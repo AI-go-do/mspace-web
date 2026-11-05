@@ -46,7 +46,7 @@ export default function Home() {
   }, [])
 
   const rooms = [...(day?.rooms ?? [])].sort((a, b) => b.roomId - a.roomId)
-  const freeCount = rooms.filter((r) => isFreeNow(r.slots, now)).length
+  const freeCount = rooms.filter((r) => isFreeNow(r.slots, now, r.occupiedNow)).length
   // 오늘 끝나지 않은 내 예약 → 막대를 노랑으로, 아래 카드로
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
@@ -101,7 +101,7 @@ export default function Home() {
         <div className="floor">
           <div className="rooms">
             {rooms.map((r) => {
-              const free = isFreeNow(r.slots, now)
+              const free = isFreeNow(r.slots, now, r.occupiedNow)
               const pct = nowPercent(r.slots, now)
               const segs = takenSegments(r.slots, now)
               const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
