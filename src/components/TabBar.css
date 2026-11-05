@@ -3,14 +3,15 @@
 .tabbar {
   position: fixed;
   left: 50%;
-  /* 아래 여백이 커도(34px 넘는 기기) 84px 안을 넘지 않게 20px에서 멈춘다.
-     그래서 배치도 아래 막대·비서 입력칸의 bottom: 84px이 늘 탭 위에 있다 */
-  bottom: clamp(10px, calc(env(safe-area-inset-bottom) - 14px), 20px);
+  /* 막대 전체를 홈 표시줄(아래 안전 여백) 위에 두고, 그만큼 높이를 줄여 위 끝을 84px 안에 맞춘다
+     (배치도 아래 막대·비서 입력칸이 bottom: 84px 기준). 여백 0 → 64px, 34px(아이폰) → 50px.
+     줄어도 탭 하나는 50 - 6 = 44px로 누르는 곳 최소 크기를 지킨다 */
+  bottom: max(10px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   width: calc(100% - 24px);
   max-width: 456px;
-  height: 64px;
-  padding: 6px;
+  height: clamp(50px, calc(84px - max(10px, env(safe-area-inset-bottom))), 64px);
+  padding: 3px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-radius: 24px;
@@ -22,8 +23,8 @@
   z-index: 5;
 }
 .tab-glow {
-  position: absolute; top: 6px; bottom: 6px; left: 6px;
-  width: calc((100% - 12px) / 4);
+  position: absolute; top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 6px) / 4);
   border-radius: 18px;
   background: color-mix(in srgb, var(--blue) 9%, var(--white));
   transform: translateX(calc(var(--i, 0) * 100%));
