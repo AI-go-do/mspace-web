@@ -39,6 +39,9 @@ export default function Instant() {
       .catch((e: Error) => setError(e.message))
   useEffect(() => {
     load()
+    // 서버 occupiedNow는 불러온 순간 값이라, 열어 둔 동안 1분마다 새로 받는다
+    const t = setInterval(load, 60_000)
+    return () => clearInterval(t)
   }, [])
 
   const idemKey = useRef(newKey())
