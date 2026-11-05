@@ -25,6 +25,7 @@ export interface ChatState {
 let state: ChatState = { memberId: null, messages: [], pending: null }
 let nextId = 1
 
+/** 그 회원의 대화를 꺼낸다. 회원이 바뀌었으면 앞 회원 대화와 카드 결과를 비운다 */
 export function loadChat(memberId: number | null): ChatState {
   if (state.memberId !== memberId) {
     state = { memberId, messages: [], pending: null }
@@ -33,6 +34,7 @@ export function loadChat(memberId: number | null): ChatState {
   return state
 }
 
+/** 화면이 바꾼 대화를 저장한다 */
 export function saveChat(next: ChatState): void {
   state = next
 }
@@ -42,6 +44,7 @@ type Submission = Promise<{ jobId: string; pollAfterMs?: number }>
 /** 접수 요청이 아직 안 끝났을 때 그 결과(접수 번호). 화면을 떠났다 와도 같은 접수를 이어 받는다. 보낸 회원만 이어 받는다 */
 let submitting: { memberId: number | null; promise: Submission } | null = null
 
+/** 보내는 중인 접수를 기억한다 */
 export function setSubmitting(memberId: number | null, promise: Submission): void {
   submitting = { memberId, promise }
 }
@@ -51,6 +54,7 @@ export function clearSubmitting(promise: Submission): void {
   if (submitting?.promise === promise) submitting = null
 }
 
+/** 그 회원이 보내는 중인 접수. 다른 회원이면 null */
 export function currentSubmitting(memberId: number | null): Submission | null {
   return submitting && submitting.memberId === memberId ? submitting.promise : null
 }

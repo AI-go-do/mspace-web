@@ -26,6 +26,7 @@ export default function NotificationToast() {
   const onAlerts = useRef(pathname === '/alerts')
   onAlerts.current = pathname === '/alerts'
 
+  /** 알림함을 받아 새 알림이 있으면 배너를 띄운다. 알림함 화면에 있을 때는 본 것으로만 표시한다 */
   const check = useCallback(() => {
     if (busy.current || document.visibilityState !== 'visible') return
     busy.current = true
@@ -52,6 +53,7 @@ export default function NotificationToast() {
     if (status !== 'in') return
     check()
     const id = setInterval(check, POLL_MS)
+    /** 다른 앱에 갔다 돌아오면 30초를 기다리지 않고 바로 확인한다 */
     const onVisible = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible) }
@@ -69,7 +71,7 @@ export default function NotificationToast() {
     <div className="toast-slot" aria-live="polite">
       {shown && (
         <div key={shown.n.id} className={`toast ${shown.n.kind === 'AWAY_SOON' ? 'urgent' : ''}`}>
-          <button type="button" className="toast-main" onClick={() => { setShown(null); navigate(toastTarget(shown.n)) }}>
+          <button type="button" className="toast-main" onClick={() => { setShown(null); navigate(shown.more > 0 ? '/alerts' : toastTarget(shown.n)) }}>
             <BellIcon />
             <span className="toast-text">
               <b>{shown.n.title}</b>
@@ -83,6 +85,7 @@ export default function NotificationToast() {
   )
 }
 
+/** 배너 왼쪽 종 아이콘 (흔들리는 움직임은 CSS가 맡는다) */
 function BellIcon() {
   return (
     <svg className="toast-bell" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -111,6 +111,7 @@ function AwayActions({ reservationId, checkoutTo }: { reservationId: number; che
     return done ? { kind: 'done', message: done } : { kind: 'idle' }
   })
 
+  /** "아직 있어요"를 서버에 보내고 결과 문구로 버튼을 바꾼다 */
   async function press() {
     setState({ kind: 'sending' })
     try {
