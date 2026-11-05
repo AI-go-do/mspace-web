@@ -102,9 +102,10 @@ let inFlight: Promise<Tokens> | null = null
  */
 export function refreshTokens(): Promise<Tokens> {
   if (!inFlight) {
-    inFlight = withLock(doRefresh).finally(() => {
-      inFlight = null
+    const p: Promise<Tokens> = doRefresh().finally(() => {
+      if (inFlight === p) inFlight = null
     })
+    inFlight = p
   }
   return inFlight
 }
@@ -114,11 +115,12 @@ export const REFRESH_TIMEOUT_MS = 10_000
 
 async function doRefresh(): Promise<Tokens> {
   const started = generation
-  // 시간 제한: 단순히 기다림만 끝내면 살아 있는 요청이 나중에 로그인 쿠키를 덮을 수 있어서, 요청 자체를 끊는다
+  // 시간 제한: 단순히 기다림만 끝내면 살아 있는 요청이 나중에 로그인 쿠키를 덮을 수 있어서, 요청 자체를 끊는다.
+  // 다른 탭이 잠금을 오래 쥐고 있어도 멈추지 않게, 잠금 기다림까지 같은 제한 시간에 넣는다
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), REFRESH_TIMEOUT_MS)
   try {
-    return await refreshOnce(started, abort.signal)
+    return await withLock(() => refreshOnce(started, abort.signal), abort.signal)
   } catch (e) {
     if (abort.signal.aborted) throw new ApiError(0, 'REFRESH_TIMEOUT', '연결이 늦어요. 잠시 후 다시 시도해 주세요')
     throw e
@@ -146,9 +148,11 @@ async function refreshOnce(started: number, signal: AbortSignal): Promise<Tokens
   return next
 }
 
-function withLock<T>(fn: () => Promise<T>): Promise<T> {
+/** signal을 주면 잠금을 기다리는 중에도 끊을 수 있다 (끊기면 AbortError로 실패) */
+function withLock<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
-  return locks ? (locks.request('mspace.refresh', fn) as Promise<T>) : fn()
+  if (!locks) return fn()
+  return (signal ? locks.request('mspace.refresh', { signal }, fn) : locks.request('mspace.refresh', fn)) as Promise<T>
 }
 
 // ---- 로그인 (FR-AUTH-001) ----

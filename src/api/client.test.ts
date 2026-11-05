@@ -208,6 +208,29 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     }
   })
 
+  it('다른 탭이 refresh 잠금을 오래 쥐고 있어도 시간 제한 뒤 끝나고, 다음 refresh는 새로 시작한다', async () => {
+    vi.useFakeTimers()
+    // 잠금을 끝내 못 받는 브라우저 흉내: signal이 끊기면 AbortError로 실패
+    const request = vi.fn((_name: string, opts: unknown, _fn?: unknown) => new Promise((_, reject) => {
+      const signal = (opts as { signal?: AbortSignal }).signal
+      signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    }))
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } })
+    try {
+      const first = refreshTokens().catch((e) => e)
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+      expect(await first).toMatchObject({ code: 'REFRESH_TIMEOUT' })
+      expect(fetchMock).not.toHaveBeenCalled()
+      const second = refreshTokens().catch((e) => e)
+      expect(request).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+      await second
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
   it('오류는 서버의 code·message를 그대로 던진다', async () => {
     saveTokens({ accessToken: 'a1', expiresAt: later(30) })
     fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
