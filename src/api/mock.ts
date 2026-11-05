@@ -11,8 +11,11 @@ const BOOKED: [number, number, number][] = [
 
 export function mockAvailability(date: string, now = new Date()): DayAvailability {
   const dayStart = new Date(`${date}T00:00:00+09:00`)
+  const nowH = (now.getTime() - dayStart.getTime()) / 3_600_000
   const rooms = [1, 2, 3, 4, 5].map((id) => ({
     roomId: id,
+    // 예시에도 지금 사용 여부를 넣는다(없으면 화면이 '상태 확인 중'으로 본다)
+    occupiedNow: BOOKED.some(([r, a, b]) => r === id && nowH >= a && nowH < b),
     roomName: `창작실 ${id}`,
     minPeople: id === 5 ? 5 : 3,
     maxPeople: id === 5 ? 8 : 5,

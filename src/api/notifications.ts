@@ -18,8 +18,9 @@ export interface AppNotification {
 }
 
 /** 내 알림함 (FR-NTF-103) */
-export function getMyNotifications(signal?: AbortSignal): Promise<AppNotification[]> {
-  return api('/api/notifications/me', { signal })
+export function getMyNotifications(signal?: AbortSignal, member?: number | null): Promise<AppNotification[]> {
+  // member를 주면 다른 탭에서 다른 회원으로 바뀐 토큰으로는 보내지 않는다(남의 알림을 받지 않게)
+  return api('/api/notifications/me', { signal, member })
 }
 
 /** 알림에서 바로 갈 곳. 예약과 상관없거나 갈 곳이 없으면 null */

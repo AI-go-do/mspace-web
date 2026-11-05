@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
-import { getAvailability, type DayAvailability } from '../api/rooms'
+import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import './Home.css'
 
@@ -59,7 +59,12 @@ export default function Home() {
   }, [])
 
   const rooms = [...(day?.rooms ?? [])].sort((a, b) => b.roomId - a.roomId)
-  const freeCount = rooms.filter((r) => isFreeNow(r.slots, now, r.occupiedNow)).length
+  /**
+   * 지금 상태를 아는 방만 비어 있음·사용 중으로 본다. 서버가 occupiedNow를 안 줬거나(예전 core)
+   * 지금 시각이 시간표 밖이면(날이 바뀌고 새 시간표가 아직 없음) 알 수 없음으로 둔다
+   */
+  const known = (r: RoomSlots) => r.occupiedNow !== undefined && nowPercent(r.slots, now) !== null
+  const freeCount = rooms.filter((r) => known(r) && isFreeNow(r.slots, now, r.occupiedNow)).length
   // 오늘 끝나지 않은 내 예약 → 막대를 노랑으로, 아래 카드로
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
@@ -118,10 +123,9 @@ export default function Home() {
         <div className="floor">
           <div className="rooms">
             {rooms.map((r) => {
-              const free = isFreeNow(r.slots, now, r.occupiedNow)
               const pct = nowPercent(r.slots, now)
-              // 지금 시각이 시간표 밖이면(날이 바뀌었는데 새 시간표가 아직 없음) 옛 날의 비어 있음·사용 중을 보이지 않는다
-              const status = pct === null ? '상태 확인 중' : free ? '지금 비어 있음' : '사용 중'
+              const free = known(r) && isFreeNow(r.slots, now, r.occupiedNow)
+              const status = !known(r) ? '상태 확인 중' : free ? '지금 비어 있음' : '사용 중'
               const segs = takenSegments(r.slots, now)
               const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
               const mySegs = mineToday.filter((m) => m.room.id === r.roomId)
@@ -131,7 +135,7 @@ export default function Home() {
               return (
                 <Link key={r.roomId} to={`/rooms/${r.roomId}`} className="room-row"
                   aria-label={`창작실 ${r.roomId}, ${status}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
-                  <span className={`room-no ${free && pct !== null ? 'free' : ''}`}>{r.roomId}</span>
+                  <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
                     <span className="bar" aria-hidden="true" style={barStyle(pct, r.occupiedNow)}>
                       {segs.map((s) => (

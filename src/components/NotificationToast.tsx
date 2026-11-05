@@ -37,7 +37,7 @@ export default function NotificationToast() {
     const abort = new AbortController()
     inflight.current = abort
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
-    getMyNotifications(abort.signal)
+    getMyNotifications(abort.signal, memberId)
       .then((list) => {
         if (abort.signal.aborted || seenStore.memberId !== memberId) return
         const fresh = freshNotifications(list, seenStore.ids)
