@@ -106,3 +106,4 @@
 /* 자정 넘김: 23시 무렵 시작이면 다음 날 앞쪽 칸을 끝 칸으로 이어 보인다 */
 .next-day { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--taken); display: flex; flex-direction: column; gap: 6px; }
 .next-day-label { font-size: 13px; color: var(--navy-70); font-weight: 600; }
+.next-day-tag { font-size: 11px; font-weight: 600; }

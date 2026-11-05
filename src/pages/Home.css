@@ -24,6 +24,7 @@
 .chip { height: var(--touch); padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 13px; }
 .chip-solid { background: var(--white); color: var(--navy); font-weight: 700; }
 .chip-line { border: 1.5px solid rgba(255, 255, 255, 0.5); color: var(--white); }
+.chip-off { background: rgba(255, 255, 255, 0.18); color: rgba(255, 255, 255, 0.75); font-weight: 700; }
 
 .today { margin: 16px 16px 0; display: flex; flex-direction: column; gap: 8px; }
 .today-head { display: flex; align-items: center; justify-content: space-between; }

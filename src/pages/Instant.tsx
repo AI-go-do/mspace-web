@@ -7,7 +7,7 @@ import { getAvailability, type RoomSlots } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
-import { instantEnds, nextTakenAt } from '../lib/slots'
+import { addDays, instantEnds, MAX_SLOTS, nextTakenAt } from '../lib/slots'
 import { isFreeNow, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Instant.css'
@@ -39,10 +39,17 @@ export default function Instant() {
     active.current?.abort()
     const ctrl = new AbortController()
     active.current = ctrl
-    return getAvailability(seoulDate(), ctrl.signal)
-      .then((r) => {
+    const today = seoulDate()
+    // 밤 10시 넘어 시작하면 끝(최대 2시간)이 자정을 넘을 수 있어, 다음 날 앞쪽 칸도 받아 이어 붙인다. 못 받으면 오늘 칸만 쓴다
+    const nextDay = getAvailability(addDays(today, 1), ctrl.signal).then((r) => r.data.rooms).catch(() => [] as RoomSlots[])
+    return Promise.all([getAvailability(today, ctrl.signal), nextDay])
+      .then(([r, next]) => {
         if (active.current !== ctrl) return
-        setRooms(r.data.rooms); setSample(r.sample); setError(null)
+        const merged = r.data.rooms.map((room) => {
+          const tail = next.find((x) => x.roomId === room.roomId)?.slots.slice(0, MAX_SLOTS) ?? []
+          return { ...room, slots: [...room.slots, ...tail] }
+        })
+        setRooms(merged); setSample(r.sample); setError(null)
       })
       .catch((e: Error) => {
         if (ctrl.signal.aborted || active.current !== ctrl) return
@@ -175,7 +182,7 @@ export default function Instant() {
           <div className="end-chips">
             {ends.map((e) => (
               <button key={e.endAt} type="button" disabled={busy || !e.ok} aria-pressed={e.endAt === end} onClick={() => setEndAt(e.endAt)}>
-                {seoulClock(new Date(e.endAt))}
+                {seoulDate(new Date(e.endAt)) !== seoulDate(now) && <span className="next-day-tag">다음 날 </span>}{seoulClock(new Date(e.endAt))}
               </button>
             ))}
           </div>
