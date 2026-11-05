@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult, type ConfirmResult } from '../api/agent'
-import { ApiError, currentMemberId } from '../api/client'
+import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
 import { clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveChat, setSubmitting, type ChatMessage, type ChatState } from '../lib/chatStore'
@@ -128,7 +128,16 @@ export default function Assistant() {
 
   async function send(message: string) {
     const msg = message.trim()
-    const owner = currentMemberId()
+    if (!msg) return
+    let owner = currentMemberId()
+    // 앱을 열 때 refresh가 잠깐 실패해 회원을 아직 모르면, 먼저 확인한다(모르는 채로 보내지 않는다)
+    if (owner === null) {
+      owner = await refreshTokens().then((t) => t.memberId ?? null, () => null)
+      if (owner === null) {
+        addError('로그인 정보를 확인하지 못했어요. 잠시 뒤 다시 보내 주세요.', null)
+        return
+      }
+    }
     // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
     const stored = loadChat(owner)
     if (stored !== chat) setChat(stored)
@@ -182,7 +191,7 @@ export default function Assistant() {
             </div>
           </div>
         )}
-        {chat.messages.map((m) => <Message key={m.id} m={m} />)}
+        {chat.messages.map((m) => <Message key={m.id} m={m} owner={chat.memberId} />)}
         {busy && (
           <div className="bubble bot thinking" role="status">
             생각하는 중…{waitingSec >= 3 && <span className="muted"> {waitingSec}초</span>}
@@ -216,12 +225,12 @@ export default function Assistant() {
   )
 }
 
-function Message({ m }: { m: ChatMessage }) {
+function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
   if (m.role === 'user') return <div className="bubble me">{m.text}</div>
   return (
     <>
       <div className={`bubble bot ${m.error ? 'err' : ''}`} role={m.error ? 'alert' : undefined}>{m.text}</div>
-      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} />)}
+      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
           입실 번호 보기 →
@@ -240,7 +249,7 @@ type CardState =
 /** 이 코드면 카드를 다시 쓸 수 없다(비서에게 다시 말해야 함) */
 const CLOSED = new Set(['CONFIRMATION_USED', 'CONFIRMATION_EXPIRED', 'CONFIRMATION_NOT_FOUND'])
 
-export function ConfirmCard({ c }: { c: ChatConfirmation }) {
+export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number | null }) {
   const now = useNow(5_000)
   const [state, setState] = useState<CardState>({ kind: 'open' })
   const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, () => ''))
@@ -249,18 +258,21 @@ export function ConfirmCard({ c }: { c: ChatConfirmation }) {
   const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
 
-  async function lookup(i: number) {
-    const sid = ids[i].trim()
-    if (!sid) return
+  /** 학번으로 사람을 찾아 이름을 보여 준다. 찾았는지(ok)를 돌려준다 */
+  async function lookup(i: number, sid = ids[i].trim()): Promise<boolean> {
+    if (!sid) return false
     const seq = (lookups.current[i] ?? 0) + 1
     lookups.current[i] = seq
     let name: string
+    let ok = false
     try {
       name = (await findMember(sid)).name
+      ok = true
     } catch {
       name = '없는 학번이에요'
     }
     if (lookups.current[i] === seq) setNames((n) => ({ ...n, [i]: name }))
+    return ok
   }
 
   async function confirm() {
@@ -268,8 +280,11 @@ export function ConfirmCard({ c }: { c: ChatConfirmation }) {
     const students = ids.map((s) => s.trim())
     if (students.some((s) => !s)) return setState({ kind: 'open', error: `함께 쓸 사람 학번 ${c.needsParticipants}개를 모두 적어 주세요` })
     setState({ kind: 'sending' })
+    // 지금 적힌 학번을 모두 다시 찾아, 실제로 있는 사람일 때만 보낸다(잘못 친 학번으로 남이 참여자로 들어가지 않게)
+    const found = await Promise.all(students.map((sid, i) => lookup(i, sid)))
+    if (found.some((ok) => !ok)) return setState({ kind: 'open', error: '없는 학번이 있어요. 학번을 다시 확인해 주세요' })
     try {
-      const result = await confirmCard(c.token, c.needsParticipants > 0 ? students : undefined)
+      const result = await confirmCard(c.token, c.needsParticipants > 0 ? students : undefined, owner)
       setState({ kind: 'done', result })
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '잠시 후 다시 시도해 주세요')

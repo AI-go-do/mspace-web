@@ -167,9 +167,10 @@ export interface ConfirmResult {
 }
 
 /** 예약 만들기 카드만 참여자 학번을 보낸다. 취소·퇴실은 본문 없음 */
-export function confirmCard(token: string, participantStudentIds?: string[]): Promise<ConfirmResult> {
+export function confirmCard(token: string, participantStudentIds?: string[], member?: number | null): Promise<ConfirmResult> {
   return api(`/api/agent/confirmations/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: participantStudentIds ? JSON.stringify({ participantStudentIds }) : undefined,
+    member,
   })
 }
