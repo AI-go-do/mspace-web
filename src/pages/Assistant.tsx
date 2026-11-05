@@ -4,7 +4,7 @@ import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatR
 import { ApiError, currentMemberId } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { currentSubmitting, historyOf, loadChat, newMessageId, saveChat, setSubmitting, type ChatMessage, type ChatState } from '../lib/chatStore'
+import { clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveChat, setSubmitting, type ChatMessage, type ChatState } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -27,14 +27,19 @@ export default function Assistant() {
   const alive = useRef<AbortController | null>(null)
   const mounted = useRef(true)
 
-  /** 기록은 화면 밖 저장소가 기준이다. 화면을 떠난 뒤 끝난 일도 기록에는 남는다 */
-  function update(fn: (s: ChatState) => ChatState) {
-    const next = fn(loadChat(currentMemberId()))
+  /**
+   * 기록은 화면 밖 저장소가 기준이다. 화면을 떠난 뒤 끝난 일도 기록에는 남는다.
+   * owner를 주면 그 회원이 아직 로그인해 있을 때만 쓴다(다른 회원 기록에 섞이지 않게).
+   */
+  function update(fn: (s: ChatState) => ChatState, owner?: number | null) {
+    const memberId = currentMemberId()
+    if (owner !== undefined && owner !== memberId) return
+    const next = fn(loadChat(memberId))
     saveChat(next)
     if (mounted.current) setChat(next)
   }
 
-  function addReply(result: ChatResult) {
+  function addReply(result: ChatResult, owner: number | null) {
     update((s) => ({
       ...s,
       pending: null,
@@ -42,11 +47,11 @@ export default function Assistant() {
         id: newMessageId(), role: 'assistant', text: result.reply,
         confirmations: result.confirmations, accessCodeCards: result.accessCodeCards,
       }],
-    }))
+    }), owner)
   }
 
-  function addError(message: string) {
-    update((s) => ({ ...s, pending: null, messages: [...s.messages, { id: newMessageId(), role: 'assistant', text: message, error: true }] }))
+  function addError(message: string, owner: number | null) {
+    update((s) => ({ ...s, pending: null, messages: [...s.messages, { id: newMessageId(), role: 'assistant', text: message, error: true }] }), owner)
   }
 
   async function follow(jobId: string, startedAt: number, pollAfterMs?: number) {
@@ -54,23 +59,29 @@ export default function Assistant() {
     alive.current?.abort()
     const ctrl = new AbortController()
     alive.current = ctrl
+    const owner = currentMemberId()
     try {
       const result = await waitForChat({ jobId, status: 'PENDING', pollAfterMs }, { signal: ctrl.signal, startedAt })
-      if (!ctrl.signal.aborted) addReply(result)
+      if (!ctrl.signal.aborted) addReply(result, owner)
     } catch (e) {
       if (ctrl.signal.aborted) return
-      addError(e instanceof Error ? e.message : '비서가 답하지 못했어요. 다시 보내 주세요.')
+      addError(e instanceof Error ? e.message : '비서가 답하지 못했어요. 다시 보내 주세요.', owner)
     }
   }
 
   // 돌아왔을 때 기다리던 답이 있으면 이어서 조회한다
   useEffect(() => {
     mounted.current = true
-    const p = loadChat(currentMemberId()).pending
-    const inflight = currentSubmitting()
+    const memberId = currentMemberId()
+    const p = loadChat(memberId).pending
+    const inflight = currentSubmitting(memberId)
     if (p?.jobId) void follow(p.jobId, p.startedAt, p.pollAfterMs)
-    // 접수 요청이 아직 안 끝났다: 끝나면 그 번호로 조회한다(실패 안내는 보낸 쪽이 남긴다)
-    else if (p && inflight) inflight.then((j) => follow(j.jobId, p.startedAt, j.pollAfterMs), () => undefined)
+    // 접수 요청이 아직 안 끝났다: 끝나면 그 번호로 조회한다.
+    // 실패하면 보낸 쪽이 저장소에 안내를 남기므로(먼저 실행됨) 이 화면은 저장소에서 다시 읽는다
+    else if (p && inflight) inflight.then(
+      (j) => follow(j.jobId, p.startedAt, j.pollAfterMs),
+      () => { if (mounted.current) setChat(loadChat(currentMemberId())) },
+    )
     // 접수 중이던 기록만 남고 요청은 없다(예: 새로고침 직전): 다시 보내게 푼다
     else if (p) update((s) => ({ ...s, pending: null }))
     return () => {
@@ -100,22 +111,23 @@ export default function Assistant() {
     if (!msg || busy || msg.length > MAX_CHARS) return
     const history = historyOf(chat.messages)
     const startedAt = Date.now()
+    const owner = currentMemberId()
     update((s) => ({
       ...s,
       pending: { jobId: '', startedAt },
       messages: [...s.messages, { id: newMessageId(), role: 'user', text: msg }],
-    }))
+    }), owner)
     setText('')
     const submitted = submitChat(msg, history)
-    setSubmitting(submitted)
+    setSubmitting(owner, submitted)
     try {
       const job = await submitted
-      update((s) => ({ ...s, pending: { jobId: job.jobId, startedAt, pollAfterMs: job.pollAfterMs } }))
-      setSubmitting(null)
+      update((s) => ({ ...s, pending: { jobId: job.jobId, startedAt, pollAfterMs: job.pollAfterMs } }), owner)
+      clearSubmitting(submitted)
       await follow(job.jobId, startedAt, job.pollAfterMs)
     } catch (e) {
-      setSubmitting(null)
-      addError(e instanceof ApiError ? e.message : '보내지 못했어요. 잠시 뒤 다시 보내 주세요.')
+      clearSubmitting(submitted)
+      addError(e instanceof ApiError ? e.message : '보내지 못했어요. 잠시 뒤 다시 보내 주세요.', owner)
     }
   }
 

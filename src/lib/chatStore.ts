@@ -34,15 +34,22 @@ export function saveChat(next: ChatState): void {
   state = next
 }
 
-/** 접수 요청이 아직 안 끝났을 때 그 결과(접수 번호). 화면을 떠났다 와도 같은 접수를 이어 받는다 */
-let submitting: Promise<{ jobId: string; pollAfterMs?: number }> | null = null
+type Submission = Promise<{ jobId: string; pollAfterMs?: number }>
 
-export function setSubmitting(p: typeof submitting): void {
-  submitting = p
+/** 접수 요청이 아직 안 끝났을 때 그 결과(접수 번호). 화면을 떠났다 와도 같은 접수를 이어 받는다. 보낸 회원만 이어 받는다 */
+let submitting: { memberId: number | null; promise: Submission } | null = null
+
+export function setSubmitting(memberId: number | null, promise: Submission): void {
+  submitting = { memberId, promise }
 }
 
-export function currentSubmitting(): typeof submitting {
-  return submitting
+/** 그 접수일 때만 비운다(다른 회원·다음 접수의 것을 지우지 않게) */
+export function clearSubmitting(promise: Submission): void {
+  if (submitting?.promise === promise) submitting = null
+}
+
+export function currentSubmitting(memberId: number | null): Submission | null {
+  return submitting && submitting.memberId === memberId ? submitting.promise : null
 }
 
 export function newMessageId(): number {

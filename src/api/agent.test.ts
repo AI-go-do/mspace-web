@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { historyOf } from '../lib/chatStore'
+import { clearSubmitting, currentSubmitting, historyOf, setSubmitting } from '../lib/chatStore'
 import { MAX_WAIT_MS, confirmCard, submitChat, waitForChat } from './agent'
 import { ApiError } from './client'
 
@@ -102,5 +102,20 @@ describe('historyOf', () => {
       { role: 'user', text: '안녕' }, { role: 'user', text: '빈 방?' }, { role: 'assistant', text: '1번 방이요' },
     ])
     expect(historyOf(msgs, 2)).toHaveLength(2)
+  })
+})
+
+describe('접수 중인 요청', () => {
+  it('보낸 회원만 이어 받고, 다른 접수는 지우지 않는다', () => {
+    const a = Promise.resolve({ jobId: 'a' })
+    const b = Promise.resolve({ jobId: 'b' })
+    setSubmitting(1, a)
+    expect(currentSubmitting(1)).toBe(a)
+    expect(currentSubmitting(2)).toBeNull()
+    setSubmitting(2, b)
+    clearSubmitting(a)
+    expect(currentSubmitting(2)).toBe(b)
+    clearSubmitting(b)
+    expect(currentSubmitting(2)).toBeNull()
   })
 })
