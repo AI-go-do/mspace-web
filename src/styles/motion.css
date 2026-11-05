@@ -19,6 +19,7 @@
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.8); } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes dot-wave { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+@keyframes shine { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
 @keyframes digit-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
 
 /* 1. 화면이 바뀔 때: 서서히 나타나고, 첫 카드들은 살짝 아래에서 떠오름 */
