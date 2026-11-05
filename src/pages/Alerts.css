@@ -1,0 +1,22 @@
+/* 알림함 (FR-NTF-103). 색은 tokens.css 4+2색만: 안 읽음 점 = 노랑, 급한 알림(자리 비움) = 노랑 테두리 */
+.alerts { min-height: 100dvh; padding-bottom: 24px; }
+.alerts-head { background: var(--white); padding: 56px 16px 12px; }
+.alerts-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.alerts-msg { margin: 12px 16px 0; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.alerts-empty { margin: 16px 16px 0; display: flex; flex-direction: column; gap: 4px; }
+.alerts-empty .muted { font-size: 14px; }
+
+.alerts-list { list-style: none; margin: 12px 16px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.alert { display: flex; flex-direction: column; gap: 6px; }
+.alert.urgent { border: 2px solid var(--yellow); }
+.alert-top { display: flex; align-items: center; gap: 8px; }
+.alert-top .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); flex: none; }
+.alert-title { flex: 1; font-size: 16px; }
+.alert:not(.unread) .alert-title { font-weight: 500; }
+.alert-time { font-size: 12px; color: var(--navy-70); white-space: nowrap; }
+.alert-body { margin: 0; font-size: 14px; color: var(--navy-70); line-height: 1.5; }
+.alert-link { align-self: flex-start; min-height: var(--touch); display: inline-flex; align-items: center; color: var(--blue); font-weight: 700; font-size: 14px; }
+.alert-btn { margin-top: 4px; }
+.alert-actions { display: flex; flex-direction: column; gap: 6px; }
+.alert-note { margin: 4px 0 0; font-size: 14px; color: var(--navy); }
+.alert-note.err { color: var(--navy); font-weight: 700; }

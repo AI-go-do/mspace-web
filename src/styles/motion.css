@@ -1,0 +1,91 @@
+/*
+ * 움직임 (11/5 재웅 요청). 라이브러리 없이 CSS만 쓴다.
+ * 원칙: 짧게(120–320ms), 의미 있는 곳에만(화면 들어옴·누름·고름·새로 생김), 반복 움직임은 "지금"·"기다리는 중" 표시에만.
+ * 휴대폰 설정에서 "동작 줄이기"를 켠 사람에게는 모두 끈다(맨 아래).
+ */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 주의: transform 애니메이션이 걸린 요소 안의 position: fixed(아래 버튼 막대·시트)는 그 요소 기준으로 붙는다.
+   그래서 화면 전체(main)·단계 화면(section)에는 transform을 쓰지 않고, 나머지도 끝나면 효과가 사라지게 backwards로 둔다 */
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-up { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
+@keyframes pop { 0% { transform: scale(0.92); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.8); } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes dot-wave { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+@keyframes digit-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
+
+/* 1. 화면이 바뀔 때: 서서히 나타나고, 첫 카드들은 살짝 아래에서 떠오름 */
+.app > main { animation: page-in 0.22s ease-out backwards; }
+.app > main > .card, .ticket { animation: rise-in 0.32s var(--ease-out) backwards; }
+.app > main > :nth-child(3) { animation-delay: 0.04s; }
+.app > main > :nth-child(4) { animation-delay: 0.08s; }
+
+/* 2. 누르는 곳: 손가락에 눌리는 느낌 */
+.btn-primary, .btn-line, .chip, .ask-chip, .slot, .room-row, .map-room, .mine-item,
+.people-chip, .end-chips button, .seg-tabs button, .days button, .tab, .back, .icon-btn, .alert-link {
+  transition: transform 0.12s var(--ease-out), background-color 0.18s, color 0.18s, border-color 0.18s, opacity 0.18s;
+}
+.btn-primary:not(:disabled):active, .btn-line:active, .chip:active, .ask-chip:not(:disabled):active,
+.slot:not(:disabled):active, .room-row:active, .map-room:active, .mine-item:active, .people-chip:not(:disabled):active,
+.end-chips button:not(:disabled):active, .seg-tabs button:active, .days button:active, .tab:active, .back:active, .icon-btn:active {
+  transform: scale(0.96);
+}
+
+/* 3. 고른 칸: 톡 튀어 오름 */
+.slot.on, .map-room.on { animation: pop 0.26s var(--ease-spring); }
+
+/* 4. 아래 시트: 아래에서 올라오고 뒤는 서서히 어두워짐 */
+.sheet-dim { animation: fade-in 0.2s ease-out backwards; }
+.sheet { animation: sheet-up 0.28s var(--ease-out) backwards; }
+
+/* 5. 홈 막대: 예약 구간이 왼쪽에서 자라남, "지금" 점은 숨 쉬듯 */
+.seg { transform-origin: left center; animation: grow-x 0.5s var(--ease-out) backwards; }
+.room-row:nth-child(2) .seg { animation-delay: 0.04s; }
+.room-row:nth-child(3) .seg { animation-delay: 0.08s; }
+.room-row:nth-child(4) .seg { animation-delay: 0.12s; }
+.room-row:nth-child(5) .seg { animation-delay: 0.16s; }
+.dot-sky { animation: pulse 2s ease-in-out infinite; }
+.inuse-state i { animation: pulse 2s ease-in-out infinite; }
+
+/* 6. 목록: 위에서부터 차례로 떠오름 */
+.alerts-list > li, .mine-item { animation: rise-in 0.3s var(--ease-out) backwards; }
+.alerts-list > li:nth-child(2) { animation-delay: 0.05s; }
+.alerts-list > li:nth-child(3) { animation-delay: 0.1s; }
+.alerts-list > li:nth-child(n + 4) { animation-delay: 0.15s; }
+.alert .dot { animation: pulse 1.6s ease-in-out infinite; }
+
+/* 7. 입실 번호: 숫자가 하나씩 나타남 */
+.code-digits span { animation: digit-in 0.32s var(--ease-spring) backwards; }
+.code-digits span:nth-child(2) { animation-delay: 0.05s; }
+.code-digits span:nth-child(3) { animation-delay: 0.1s; }
+.code-digits span:nth-child(4) { animation-delay: 0.15s; }
+.code-digits span:nth-child(5) { animation-delay: 0.2s; }
+.code-digits span:nth-child(6) { animation-delay: 0.25s; }
+
+/* 8. 비서: 말풍선이 떠오르고, 기다리는 동안 점 세 개가 물결침. 스페이시는 로그인에서 살짝 둥실 */
+.bubble { animation: rise-in 0.24s var(--ease-out) backwards; }
+.typing { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.typing i { width: 5px; height: 5px; border-radius: 3px; background: currentColor; animation: dot-wave 1.2s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+.login-mascot svg { animation: bob 3s ease-in-out infinite; }
+
+/* 9. 아래 탭: 고른 탭 아이콘이 톡 */
+.tab.active svg { animation: pop 0.3s var(--ease-spring); }
+
+/* 동작 줄이기를 켠 사람: 모든 움직임을 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

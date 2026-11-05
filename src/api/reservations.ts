@@ -90,6 +90,20 @@ export function cancelReservation(id: number): Promise<{ id: number; status: Res
   return api(`/api/reservations/${id}/cancel`, { method: 'POST' })
 }
 
+/**
+ * "아직 있어요" (FR-DEV-103). 대표자만, 사용 중(IN_USE)만, 예약당 1번. 자리 비움 시간을 지금부터 다시 잰다.
+ * 409 STILL_HERE_ALREADY_USED(이미 씀)·RESERVATION_NOT_IN_USE, 404 STILL_HERE_DISABLED(서버 설정으로 꺼 둠)
+ */
+export function stillHere(id: number): Promise<{ id: number; status: ReservationStatus }> {
+  // 응답이 오지 않으면 15초 뒤 끊어 버튼이 '보내는 중'에 머물지 않게 한다(다시 누를 수 있는 오류로)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), STILL_HERE_TIMEOUT_MS)
+  return api<{ id: number; status: ReservationStatus }>(`/api/reservations/${id}/still-here`, { method: 'POST', signal: controller.signal })
+    .finally(() => clearTimeout(timer))
+}
+
+const STILL_HERE_TIMEOUT_MS = 15_000
+
 /** 퇴실 (FR-RSV-008). 대표자만, 입실한(IN_USE) 예약만. 방이 바로 빈다 */
 export function checkoutReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
   return api(`/api/reservations/${id}/checkout`, { method: 'POST' })

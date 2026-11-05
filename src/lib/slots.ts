@@ -15,16 +15,48 @@ export interface Pick {
  * - 1칸만 고른 상태에서 그 칸을 다시 누르면 선택을 지운다
  * - 그 밖에는 i부터 새로 1칸
  * @param free 칸마다 고를 수 있는지(지난 칸·예약된 칸은 false)
+ * @param startable 이 번호보다 앞 칸만 시작으로 고를 수 있다. 뒤 칸(다음 날 이어 붙인 칸)은 끝으로만 쓴다
  */
-export function tapSlot(pick: Pick | null, i: number, free: boolean[]): Pick | null {
+export function tapSlot(pick: Pick | null, i: number, free: boolean[], startable = free.length): Pick | null {
   if (!free[i]) return pick
-  if (!pick) return { start: i, len: 1 }
+  const fresh = i < startable ? { start: i, len: 1 } : pick
+  if (!pick) return fresh
   if (i === pick.start) return pick.len === 1 ? null : { start: i, len: 1 }
   const len = i - pick.start + 1
   if (i > pick.start && len <= MAX_SLOTS && free.slice(pick.start, i + 1).every(Boolean)) {
     return { start: pick.start, len }
   }
-  return { start: i, len: 1 }
+  return fresh
+}
+
+/** 하루 칸 수(30분 × 48) */
+export const DAY_SLOTS = 48
+
+/**
+ * 자정 넘김 (FR-RSV-001: 시작만 7일 안이면 끝은 다음 날도 된다). 고른 시작에서 2시간 안에 자정이 있으면
+ * 이어 붙일 다음 날 칸 수. 예: 23:00 시작 → 2칸(00:00·00:30, 끝 01:00), 23:30 → 3칸(끝 01:30)
+ */
+export function nextDayReach(start: number | null): number {
+  if (start === null) return 0
+  return Math.max(0, start + MAX_SLOTS - DAY_SLOTS)
+}
+
+/**
+ * 다음 날 앞쪽 칸을 비어 있다고 만든다. 마지막(7일째) 날은 다음 날 시간표를 조회할 수 없어 쓴다.
+ * 그 칸에 걸칠 수 있는 예약은 7일째 늦게 시작한 것뿐이라, 7일째 칸이 이미 막아 준다(서버가 다시 확인한다)
+ * @param nextDate 다음 날 "YYYY-MM-DD"
+ */
+export function freeNextDaySlots(nextDate: string, n = MAX_SLOTS - 1): { startAt: string; endAt: string; available: boolean }[] {
+  return Array.from({ length: n }, (_, k) => ({
+    startAt: `${nextDate}T${slotClock(k)}:00+09:00`,
+    endAt: `${nextDate}T${slotClock(k + 1)}:00+09:00`,
+    available: true,
+  }))
+}
+
+/** 칸 번호 → 시계. 하루를 넘긴 번호는 "다음 날 01:00"처럼 (48 = 24:00은 그대로) */
+export function slotClockAcross(i: number): string {
+  return i > DAY_SLOTS ? `다음 날 ${slotClock(i - DAY_SLOTS)}` : slotClock(i)
 }
 
 /** "YYYY-MM-DD"에 n일을 더한다(달력 날짜만 다룬다) */

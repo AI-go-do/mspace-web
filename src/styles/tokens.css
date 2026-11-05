@@ -6,8 +6,10 @@
   --gray: #eef1f5;      /* 바탕 */
   --white: #ffffff;
   --sky: #7dbbff;       /* 빈 방 · 조건 맞음 */
+  --sky-soft: color-mix(in srgb, var(--sky) 40%, var(--white)); /* 남은 빈 시간 막대 */
   --yellow: #ffc53d;    /* 내 예약 · 마감 안내 · 안 읽은 알림 */
   --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
+  --taken-solid: color-mix(in srgb, rgb(21, 35, 61) 22%, var(--white)); /* 같은 색을 불투명하게 (밝은 하늘 위에 겹쳐도 범례와 같은 색) */
   --radius: 16px;
   --touch: 44px;        /* 누르는 곳 최소 크기 */
   font-family: 'Noto Sans KR', system-ui, sans-serif;

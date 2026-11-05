@@ -1,4 +1,4 @@
-import type { ChatConfirmation } from '../api/agent'
+import type { ChatConfirmation, ConfirmResult } from '../api/agent'
 
 /**
  * 비서 대화 기록. 탭을 옮겼다 돌아와도 이어지게 화면 밖(메모리)에 둔다.
@@ -25,11 +25,16 @@ export interface ChatState {
 let state: ChatState = { memberId: null, messages: [], pending: null }
 let nextId = 1
 
+/** 그 회원의 대화를 꺼낸다. 회원이 바뀌었으면 앞 회원 대화와 카드 결과를 비운다 */
 export function loadChat(memberId: number | null): ChatState {
-  if (state.memberId !== memberId) state = { memberId, messages: [], pending: null }
+  if (state.memberId !== memberId) {
+    state = { memberId, messages: [], pending: null }
+    cardOutcomes = new Map()
+  }
   return state
 }
 
+/** 화면이 바꾼 대화를 저장한다 */
 export function saveChat(next: ChatState): void {
   state = next
 }
@@ -39,6 +44,7 @@ type Submission = Promise<{ jobId: string; pollAfterMs?: number }>
 /** 접수 요청이 아직 안 끝났을 때 그 결과(접수 번호). 화면을 떠났다 와도 같은 접수를 이어 받는다. 보낸 회원만 이어 받는다 */
 let submitting: { memberId: number | null; promise: Submission } | null = null
 
+/** 보내는 중인 접수를 기억한다 */
 export function setSubmitting(memberId: number | null, promise: Submission): void {
   submitting = { memberId, promise }
 }
@@ -48,10 +54,53 @@ export function clearSubmitting(promise: Submission): void {
   if (submitting?.promise === promise) submitting = null
 }
 
+/** 그 회원이 보내는 중인 접수. 다른 회원이면 null */
 export function currentSubmitting(memberId: number | null): Submission | null {
   return submitting && submitting.memberId === memberId ? submitting.promise : null
 }
 
+/**
+ * 확인 카드 상태. 화면을 떠났다 와도 누른 카드가 다시 입력 상태로 돌아가지 않게 토큰별로 기억한다.
+ * 보내는 중(sending)도 기억해서, 다시 그려진 카드가 같은 토큰을 한 번 더 보내지 않게 한다
+ */
+export type CardOutcome =
+  | { kind: 'open'; error?: string }
+  | { kind: 'sending' }
+  | { kind: 'done'; result: ConfirmResult }
+  | { kind: 'closed'; message: string }
+
+/** 지금 대화 주인(loadChat의 회원) 것만 담는다. 회원이 바뀌면 loadChat이 비운다 */
+let cardOutcomes = new Map<string, CardOutcome>()
+const cardListeners = new Map<string, Set<(o: CardOutcome | undefined) => void>>()
+
+/** 지금 대화 주인의 그 카드 결과. 다른 회원이 물으면 undefined */
+export function cardOutcomeOf(memberId: number | null, token: string): CardOutcome | undefined {
+  return state.memberId === memberId ? cardOutcomes.get(token) : undefined
+}
+
+/**
+ * 결과를 기억하고 그 카드를 보고 있는 화면에 알린다. undefined면 지운다(다시 누를 수 있는 상태).
+ * 보낸 회원이 지금 대화 주인이 아니면(그사이 로그아웃·다른 회원) 늦게 온 결과는 버린다
+ */
+export function saveCardOutcome(memberId: number | null, token: string, outcome: CardOutcome | undefined): void {
+  if (state.memberId !== memberId) return
+  if (outcome) cardOutcomes.set(token, outcome)
+  else cardOutcomes.delete(token)
+  cardListeners.get(token)?.forEach((fn) => fn(outcome))
+}
+
+/** 카드가 자기 토큰의 결과를 받아 보게 한다. 돌려준 함수로 그만 받는다 */
+export function watchCardOutcome(token: string, fn: (o: CardOutcome | undefined) => void): () => void {
+  const set = cardListeners.get(token) ?? new Set()
+  set.add(fn)
+  cardListeners.set(token, set)
+  return () => {
+    set.delete(fn)
+    if (set.size === 0) cardListeners.delete(token)
+  }
+}
+
+/** 대화 메시지에 붙일 새 번호 */
 export function newMessageId(): number {
   return nextId++
 }

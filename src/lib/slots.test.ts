@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayLabel, instantEnds, lengthLabel, nextTakenAt, tapSlot, weekChips } from './slots'
+import { addDays, dayLabel, freeNextDaySlots, instantEnds, lengthLabel, nextDayReach, nextTakenAt, slotClockAcross, tapSlot, weekChips } from './slots'
 
 const allFree = Array(48).fill(true)
 
@@ -70,5 +70,28 @@ describe('instantEnds 지금 바로 쓰기 끝 시각', () => {
     expect(new Date(nextTakenAt(day([42]), seoul(15, 32))!).toISOString().slice(11, 16)).toBe('12:00')
     // 지난 칸(15:00, 30)은 세지 않는다
     expect(nextTakenAt(day([30]), seoul(15, 32))).toBeNull()
+  })
+})
+
+describe('자정 넘김', () => {
+  const withNext = Array(51).fill(true)
+  it('23:00·23:30 시작이면 다음 날 칸까지 끝으로 늘릴 수 있다(최대 2시간)', () => {
+    expect(tapSlot({ start: 46, len: 1 }, 49, withNext, 48)).toEqual({ start: 46, len: 4 })
+    expect(tapSlot({ start: 47, len: 1 }, 50, withNext, 48)).toEqual({ start: 47, len: 4 })
+  })
+  it('다음 날 칸은 시작으로 못 고른다', () => {
+    expect(tapSlot(null, 48, withNext, 48)).toBeNull()
+    expect(tapSlot({ start: 44, len: 1 }, 49, withNext, 48)).toEqual({ start: 44, len: 1 })
+  })
+  it('시작에서 2시간 안에 자정이 있을 때만 다음 날 칸을 이어 붙인다', () => {
+    expect(nextDayReach(null)).toBe(0)
+    expect(nextDayReach(44)).toBe(0)
+    expect(nextDayReach(46)).toBe(2)
+    expect(nextDayReach(47)).toBe(3)
+  })
+  it('다음 날 칸 시각과 표시', () => {
+    expect(freeNextDaySlots('2026-11-11')[2]).toEqual({ startAt: '2026-11-11T01:00:00+09:00', endAt: '2026-11-11T01:30:00+09:00', available: true })
+    expect(slotClockAcross(48)).toBe('24:00')
+    expect(slotClockAcross(50)).toBe('다음 날 01:00')
   })
 })

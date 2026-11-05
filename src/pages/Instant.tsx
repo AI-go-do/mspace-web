@@ -7,7 +7,7 @@ import { getAvailability, type RoomSlots } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
-import { instantEnds, nextTakenAt } from '../lib/slots'
+import { addDays, instantEnds, MAX_SLOTS, nextTakenAt } from '../lib/slots'
 import { isFreeNow, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Instant.css'
@@ -35,14 +35,30 @@ export default function Instant() {
 
   // 새 요청을 보내면 이전 요청은 끊는다. 늦게 온 옛 응답이 새 값을 덮지 않게
   const active = useRef<AbortController | null>(null)
+  // 지난번에 받은 다음 날 칸. 1분마다 다시 받을 때 오늘 칸만 먼저 보여서 자정 넘는 끝 칩이 잠깐 사라지지 않게
+  const lastNext = useRef<{ date: string; rooms: RoomSlots[] }>({ date: '', rooms: [] })
   const load = () => {
     active.current?.abort()
     const ctrl = new AbortController()
     active.current = ctrl
-    return getAvailability(seoulDate(), ctrl.signal)
+    const today = seoulDate()
+    // 밤 10시 넘어 시작하면 끝(최대 2시간)이 자정을 넘을 수 있어, 다음 날 앞쪽 칸도 받아 이어 붙인다.
+    // 오늘 칸은 다음 날 응답을 기다리지 않고 바로 보여 준다(그동안은 지난번에 받은 다음 날 칸을 잇는다). 못 받으면 오늘 칸만 쓴다
+    const merge = (todayRooms: RoomSlots[], next: RoomSlots[]) => todayRooms.map((room) => {
+      const tail = next.find((x) => x.roomId === room.roomId)?.slots.slice(0, MAX_SLOTS) ?? []
+      return { ...room, slots: [...room.slots, ...tail] }
+    })
+    const nextDay = getAvailability(addDays(today, 1), ctrl.signal).then((r) => r.data.rooms).catch(() => [] as RoomSlots[])
+    return getAvailability(today, ctrl.signal)
       .then((r) => {
         if (active.current !== ctrl) return
-        setRooms(r.data.rooms); setSample(r.sample); setError(null)
+        setRooms(merge(r.data.rooms, lastNext.current.date === addDays(today, 1) ? lastNext.current.rooms : []))
+        setSample(r.sample); setError(null)
+        return nextDay.then((next) => {
+          if (active.current !== ctrl) return
+          lastNext.current = { date: addDays(today, 1), rooms: next }
+          setRooms(merge(r.data.rooms, next))
+        })
       })
       .catch((e: Error) => {
         if (ctrl.signal.aborted || active.current !== ctrl) return
@@ -121,7 +137,10 @@ export default function Instant() {
 
   if (step === 'members') {
     return <main className="reserve"><Members title={title} room={room} when={when} people={people} setPeople={setPeople}
-      count={count} min={min} max={max} onBack={() => setStep('pick')} /></main>
+      count={count} min={min} max={max} onBack={() => setStep('pick')}
+      onDone={end && !sample ? start : undefined} doneLabel={end && !sample ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…" />
+      {denied && <DeniedSheet denied={denied} onClose={() => setDenied(null)} onHome={() => navigate('/')} onNext={followDenied} />}
+    </main>
   }
   if (step === 'rules') {
     return <main className="reserve"><RulesAgree sub={`${title} · ${when} · ${count}명`} busy={busy} onBack={() => setStep('pick')}
@@ -134,7 +153,7 @@ export default function Instant() {
     <main className="reserve instant">
       <header className="rs-head">
         <div className="rs-title">
-          <button type="button" className="back" aria-label="뒤로" onClick={() => navigate(-1)}><BackIcon /></button>
+          <button type="button" className="back" aria-label="뒤로" disabled={busy} onClick={() => navigate(-1)}><BackIcon /></button>
           <div>
             <h1>지금 바로 쓰기</h1>
             <span className="muted sub">지금 {seoulClock(now)}부터 시작해요</span>
@@ -151,7 +170,7 @@ export default function Instant() {
           const ok = canStart(r)
           const until = freeUntil(r)
           return (
-            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={!ok}
+            <button key={r.roomId} type="button" className="in-room" aria-pressed={r.roomId === roomId} disabled={busy || !ok}
               onClick={() => { setRoomId(r.roomId); setEndAt(null) }}>
               <span className="in-no">{r.roomId}</span>
               <span className="in-text">
@@ -171,15 +190,15 @@ export default function Instant() {
           </div>
           <div className="end-chips">
             {ends.map((e) => (
-              <button key={e.endAt} type="button" disabled={!e.ok} aria-pressed={e.endAt === end} onClick={() => setEndAt(e.endAt)}>
-                {seoulClock(new Date(e.endAt))}
+              <button key={e.endAt} type="button" disabled={busy || !e.ok} aria-pressed={e.endAt === end} onClick={() => setEndAt(e.endAt)}>
+                {seoulDate(new Date(e.endAt)) !== seoulDate(now) && <span className="next-day-tag">다음 날 </span>}{seoulClock(new Date(e.endAt))}
               </button>
             ))}
           </div>
         </section>
       )}
 
-      <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>
+      {room && !sample && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
 
       <div className="rs-bar">
         <div className="rs-bar-row">
@@ -187,7 +206,7 @@ export default function Instant() {
             <span className="muted">{room ? `창작실 ${room.roomId}` : '방을 골라 주세요'}</span>
             <b>{end ? `${seoulClock(now)} – ${seoulClock(new Date(end))}` : '끝 시각을 골라 주세요'}</b>
           </span>
-          <button type="button" className="people-chip" disabled={!room} onClick={() => setStep('members')}>
+          <button type="button" className="people-chip" disabled={busy || !room} onClick={() => setStep('members')}>
             함께 {count}명
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
           </button>

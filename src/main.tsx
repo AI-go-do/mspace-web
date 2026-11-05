@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
 import './styles/tokens.css'
+import './styles/motion.css'
 
 registerSW({ immediate: true })
 

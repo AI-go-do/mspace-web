@@ -18,12 +18,12 @@
 .bubble.bot.err { border: 1.5px solid var(--yellow); }
 .bubble.thinking { color: var(--navy-70); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.chip {
-  min-height: 36px; padding: 0 12px; border-radius: 18px;
+.ask-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ask-chip {
+  min-height: var(--touch); padding: 0 12px; border-radius: 22px;
   border: 1.5px solid var(--gray); background: var(--white); font-size: 14px; cursor: pointer;
 }
-.chip:disabled { opacity: .5; cursor: default; }
+.ask-chip:disabled { opacity: .5; cursor: default; }
 
 .bot-card {
   align-self: flex-start; width: 85%;

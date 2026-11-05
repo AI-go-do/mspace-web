@@ -17,24 +17,25 @@
 .rs-grid-card { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 12px; }
 .rs-grid-head { display: flex; align-items: center; justify-content: space-between; }
 .rs-grid-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
-.lg-taken-slot { background: var(--gray); }
+.lg-taken-slot { background: var(--taken); }
 .lg-pick { background: var(--blue); }
 .slot-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .slot {
-  height: 36px; border-radius: 8px; border: 1px solid var(--gray); background: var(--white);
+  height: var(--touch); border-radius: 8px; border: 1px solid var(--gray); background: var(--white);
   color: var(--navy); font-size: 12px; padding: 0; cursor: pointer; font-variant-numeric: tabular-nums;
 }
-.slot.taken { background: var(--gray); color: var(--navy-70); cursor: default; }
+.slot.taken { background: var(--taken); color: var(--navy-70); cursor: default; }
 .slot.past { color: rgba(21, 35, 61, 0.3); cursor: default; }
 .slot.on { background: var(--blue); border-color: var(--blue); color: var(--white); font-weight: 700; }
 
 .rs-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rs-when { display: flex; flex-direction: column; }
+.rs-when { display: flex; flex-direction: column; min-width: 0; }
 .rs-when .muted { font-size: 12px; }
 .rs-when b { font-size: 22px; font-variant-numeric: tabular-nums; }
 .people-chip {
   min-height: var(--touch); border: 0; border-radius: 12px; background: var(--gray); color: var(--navy);
   padding: 0 12px; display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; cursor: pointer;
+  flex-shrink: 0; white-space: nowrap;
 }
 .center { text-align: center; }
 .small { font-size: 12px; }
@@ -74,6 +75,9 @@
 .count-note { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .count-note i { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); }
 .count-note i.ok { background: var(--sky); }
+/* 인원이 모자랄 때 아래 버튼 바로 위 안내 */
+.count-hint { margin: 0; text-align: center; font-size: 14px; color: var(--navy); }
+.count-hint b { color: var(--blue); }
 .person { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--gray); }
 .person .avatar { width: 36px; height: 36px; font-size: 13px; }
 .person .who b { font-size: 14px; }
@@ -98,3 +102,8 @@
 .agree-check { min-height: 48px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
 .agree-check input { width: 24px; height: 24px; accent-color: var(--blue); }
 
+
+/* 자정 넘김: 23시 무렵 시작이면 다음 날 앞쪽 칸을 끝 칸으로 이어 보인다 */
+.next-day { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--taken); display: flex; flex-direction: column; gap: 6px; }
+.next-day-label { font-size: 13px; color: var(--navy-70); font-weight: 600; }
+.next-day-tag { font-size: 11px; font-weight: 600; }

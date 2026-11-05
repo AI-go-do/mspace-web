@@ -208,6 +208,48 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
     }
   })
 
+  it('다른 탭이 refresh 잠금을 오래 쥐고 있어도 시간 제한 뒤 끝나고, 다음 refresh는 새로 시작한다', async () => {
+    vi.useFakeTimers()
+    // 잠금을 끝내 못 받는 브라우저 흉내: signal이 끊기면 AbortError로 실패
+    const request = vi.fn((_name: string, opts: unknown, _fn?: unknown) => new Promise((_, reject) => {
+      const signal = (opts as { signal?: AbortSignal }).signal
+      signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    }))
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } })
+    try {
+      const first = refreshTokens().catch((e) => e)
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+      expect(await first).toMatchObject({ code: 'REFRESH_TIMEOUT' })
+      expect(fetchMock).not.toHaveBeenCalled()
+      const second = refreshTokens().catch((e) => e)
+      expect(request).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+      await second
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('잠금을 오래 기다렸어도 refresh 요청은 자기 시간을 처음부터 다 쓴다', async () => {
+    vi.useFakeTimers()
+    // 9초 뒤에야 잠금을 받는 브라우저 흉내
+    const request = vi.fn((_name: string, _opts: unknown, fn: () => Promise<unknown>) =>
+      new Promise((resolve, reject) => setTimeout(() => fn().then(resolve, reject), 9_000)))
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } })
+    // 요청은 잠금을 받은 뒤 5초 걸린다(합치면 14초 > 제한 10초)
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) =>
+      setTimeout(() => resolve(json(200, { accessToken: 'slow', expiresAt: later(60), memberId: 1, newMember: false })), 5_000)))
+    try {
+      const pending = refreshTokens().catch((e) => e)
+      await vi.advanceTimersByTimeAsync(14_000)
+      expect(await pending).toMatchObject({ accessToken: 'slow' })
+    } finally {
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
   it('오류는 서버의 code·message를 그대로 던진다', async () => {
     saveTokens({ accessToken: 'a1', expiresAt: later(30) })
     fetchMock.mockResolvedValue(json(409, { code: 'RESERVATION_TIME_TAKEN', message: '이미 예약된 시간입니다' }))
