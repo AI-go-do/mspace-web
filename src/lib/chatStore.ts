@@ -1,4 +1,4 @@
-import type { ChatConfirmation } from '../api/agent'
+import type { ChatConfirmation, ConfirmResult } from '../api/agent'
 
 /**
  * 비서 대화 기록. 탭을 옮겼다 돌아와도 이어지게 화면 밖(메모리)에 둔다.
@@ -50,6 +50,21 @@ export function clearSubmitting(promise: Submission): void {
 
 export function currentSubmitting(memberId: number | null): Submission | null {
   return submitting && submitting.memberId === memberId ? submitting.promise : null
+}
+
+/** 확인 카드를 누른 결과. 화면을 떠났다 와도 끝난 카드가 다시 입력 상태로 돌아가지 않게 토큰별로 기억한다 */
+export type CardOutcome = { kind: 'done'; result: ConfirmResult } | { kind: 'closed'; message: string }
+
+let cardOutcomes: { memberId: number | null; byToken: Map<string, CardOutcome> } = { memberId: null, byToken: new Map() }
+
+export function cardOutcomeOf(memberId: number | null, token: string): CardOutcome | undefined {
+  return cardOutcomes.memberId === memberId ? cardOutcomes.byToken.get(token) : undefined
+}
+
+/** 회원이 바뀌었으면 앞 회원 것은 버리고 새로 기억한다 */
+export function saveCardOutcome(memberId: number | null, token: string, outcome: CardOutcome): void {
+  if (cardOutcomes.memberId !== memberId) cardOutcomes = { memberId, byToken: new Map() }
+  cardOutcomes.byToken.set(token, outcome)
 }
 
 export function newMessageId(): number {

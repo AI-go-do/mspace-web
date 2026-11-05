@@ -4,7 +4,7 @@ import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatR
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveChat, setSubmitting, type ChatMessage, type ChatState } from '../lib/chatStore'
+import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, type ChatMessage, type ChatState } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -251,7 +251,8 @@ const CLOSED = new Set(['CONFIRMATION_USED', 'CONFIRMATION_EXPIRED', 'CONFIRMATI
 
 export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number | null }) {
   const now = useNow(5_000)
-  const [state, setState] = useState<CardState>({ kind: 'open' })
+  // 이미 누른 카드면 그 결과로 시작한다(다른 화면에 갔다 와도 입력 칸이 다시 뜨지 않게, 11/5 재웅 피드백)
+  const [state, setState] = useState<CardState>(() => cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
   const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, () => ''))
   const [names, setNames] = useState<Record<number, string>>({})
   // 칸마다 마지막 조회 번호. 입력이 바뀌면 늦게 온 앞 조회 결과는 버린다
@@ -287,10 +288,15 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     if (found.some((ok) => !ok)) return setState({ kind: 'open', error: '없는 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요' })
     try {
       const result = await confirmCard(c.token, c.needsParticipants > 0 ? students : undefined, owner)
+      // 화면을 떠난 뒤에 끝나도 결과가 남게, 먼저 기억해 두고 화면에 반영한다
+      saveCardOutcome(owner, c.token, { kind: 'done', result })
       setState({ kind: 'done', result })
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '잠시 후 다시 시도해 주세요')
-      setState(CLOSED.has(err.code) ? { kind: 'closed', message: err.message } : { kind: 'open', error: err.message })
+      if (CLOSED.has(err.code)) {
+        saveCardOutcome(owner, c.token, { kind: 'closed', message: err.message })
+        setState({ kind: 'closed', message: err.message })
+      } else setState({ kind: 'open', error: err.message })
     }
   }
 
