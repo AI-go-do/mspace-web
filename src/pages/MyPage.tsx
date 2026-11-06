@@ -112,7 +112,8 @@ function MyPageFor({ member }: { member: number | null }) {
   const endMismatch = list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
   // 목록이 최신이면 "이미 끝났어요", 못 받은 옛 목록이면 끝났다고 단정하지 않고 다르다고만 알린다
   const staleEnd = endMismatch && !stale
-  const maybeOther = endMismatch && stale && inUse != null
+  // 옛 목록에서 쓰는 예약이 다르거나, 그 예약이 목록에 아예 없으면 "다르다"고만 알린다
+  const maybeOther = endMismatch && stale && (inUse != null || !list.some((r) => r.id === fromEnd))
   // 연장 응답을 기다리는 사이 다른 알림으로 주소가 바뀌었을 수 있다. setParams의 함수 인자는 그 렌더의 옛 주소를 주므로
   // 지금 주소(BrowserRouter라 window.location이 곧 라우터 주소)를 본다. 마이 탭을 벗어났으면 손대지 않는다
   const onExtended = (fromId: number, newId: number, text: string) => {
@@ -137,7 +138,7 @@ function MyPageFor({ member }: { member: number | null }) {
       {stale && <p role="status" className="card mine-msg muted">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
       {staleEnd && <p role="status" className="card mine-msg muted">그 알림의 예약은 이미 끝났어요.{inUse ? ' 아래는 지금 쓰는 다른 예약이에요.' : ''}</p>}
-      {maybeOther && <p role="status" className="card mine-msg muted">그 알림의 예약과 아래 예약이 달라요. 최신 정보를 받으면 다시 확인할게요.</p>}
+      {maybeOther && <p role="status" className="card mine-msg muted">그 알림의 예약이 표시된 목록과 달라요. 최신 정보를 받으면 다시 확인할게요.</p>}
       {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
         notice={extended && extended.id === inUse.id ? extended.text : null}
         onExtended={(newId, text) => onExtended(inUse.id, newId, text)} />}
