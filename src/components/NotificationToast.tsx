@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { freshNotifications, getMyNotifications, toastTarget, type AppNotification } from '../api/notifications'
+import { bannerHeld, freshNotifications, getMyNotifications, toastTarget, type AppNotification } from '../api/notifications'
 import { useAuth } from '../auth/AuthProvider'
 import { readTokens } from '../auth/tokens'
 import './NotificationToast.css'
@@ -27,6 +27,9 @@ export default function NotificationToast() {
   const inflight = useRef<AbortController | null>(null)
   const onAlerts = useRef(pathname === '/alerts')
   onAlerts.current = pathname === '/alerts'
+  // 예약·입실·퇴실 중에는 띄우지 않고 미뤄 둔다(본 것으로 표시하지 않아 그 화면을 나오면 뜬다)
+  const held = useRef(bannerHeld(pathname))
+  held.current = bannerHeld(pathname)
 
   /** 알림함을 받아 새 알림이 있으면 배너를 띄운다. 알림함 화면에 있을 때는 본 것으로만 표시한다 */
   const check = useCallback(() => {
@@ -43,6 +46,12 @@ export default function NotificationToast() {
       .then((list) => {
         if (abort.signal.aborted || seenStore.memberId !== memberId) return
         const fresh = freshNotifications(list, seenStore.ids)
+        if (held.current && seenStore.ids) {
+          // 미뤄 둔 알림은 본 것으로 표시하지 않는다. 다음 확인(이 화면을 나온 뒤)에서 새것으로 뜬다
+          const freshIds = new Set(fresh.map((n) => n.id))
+          seenStore.ids = new Set(list.filter((n) => !freshIds.has(n.id)).map((n) => n.id))
+          return
+        }
         seenStore.ids = new Set(list.map((n) => n.id))
         // 알림함을 보고 있으면 목록에 바로 보이니 배너는 띄우지 않는다
         if (fresh.length && !onAlerts.current) {
@@ -57,6 +66,13 @@ export default function NotificationToast() {
         if (inflight.current === abort) { inflight.current = null; busy.current = false }
       })
   }, [])
+
+  // 예약·입실·퇴실 화면을 나오면 미뤄 둔 알림을 30초 기다리지 않고 바로 띄운다
+  const wasHeld = useRef(held.current)
+  useEffect(() => {
+    if (wasHeld.current && !held.current) check()
+    wasHeld.current = held.current
+  }, [pathname, check])
 
   useEffect(() => {
     if (status !== 'in') return

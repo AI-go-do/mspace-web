@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoLabel, freshNotifications, notificationAction, toastTarget, withRead, type AppNotification } from './notifications'
+import { agoLabel, bannerHeld, freshNotifications, notificationAction, toastTarget, withRead, type AppNotification } from './notifications'
 
 const n = (kind: string, reservationId: number | null = 12): AppNotification =>
   ({ id: 1, reservationId, kind, title: 't', body: 'b', createdAt: '2026-11-05T14:00:00+09:00', read: false })
@@ -58,5 +58,9 @@ describe('읽음 표시 (core #69)', () => {
   })
   it('관리자 퇴실 처리 알림은 그 예약으로 간다 (core #73)', () => {
     expect(notificationAction(n('FORCED_CHECKOUT'))?.to).toBe('/me/12')
+  })
+  it('예약·지금 바로 쓰기·입실 번호·퇴실 화면에서는 배너를 미뤄 둔다', () => {
+    for (const p of ['/rooms/3', '/now', '/reservations/101', '/me/101/checkout']) expect(bannerHeld(p)).toBe(true)
+    for (const p of ['/', '/me', '/me/101', '/alerts', '/assistant', '/map']) expect(bannerHeld(p)).toBe(false)
   })
 })
