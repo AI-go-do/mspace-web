@@ -7,6 +7,15 @@ import { useNow } from '../lib/useNow'
 import './Alerts.css'
 
 const REFRESH_MS = 30_000
+
+/**
+ * 앱 안에서 뒤로 갈 화면이 있는지. 라우터가 history.state.idx에 앱 안 몇 번째 화면인지 적어 둔다(처음 연 화면은 0).
+ * history.length는 앞으로 갈 기록까지 세서, 주소로 바로 열었다가 돌아온 경우에도 1보다 커진다
+ */
+function hasBackEntry(): boolean {
+  const idx = (window.history.state as { idx?: number } | null)?.idx
+  return typeof idx === 'number' && idx > 0
+}
 const REQUEST_TIMEOUT_MS = 15_000
 
 /**
@@ -60,7 +69,7 @@ export default function Alerts() {
       <header className="alerts-head">
         {/* 알림함은 아래 탭에 없고 홈 종 버튼으로만 들어와서, 돌아갈 길을 위에 둔다 */}
         <button type="button" className="back" aria-label="뒤로"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>
+          onClick={() => (hasBackEntry() ? navigate(-1) : navigate('/'))}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
         </button>
         <div>
