@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { currentMemberId } from '../api/client'
 import { getFriends, type FriendList } from '../api/friends'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
@@ -9,6 +8,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { hasAgreed } from '../content/rules'
 import { timeRange, whenLabel } from '../lib/format'
 import { useIsAdmin } from '../lib/useIsAdmin'
+import { useMemberId } from '../lib/useMemberId'
 import { useNow } from '../lib/useNow'
 import { InUseCard, useMyReservations } from './MyReservations'
 import './Mine.css'
@@ -57,14 +57,25 @@ export default function MyPage() {
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
 
+  // 회원 번호를 아직 모르면(첫 토큰 갱신이 늦거나 실패) 알게 되는 순간 다시 받고, 연결이 돌아오면 못 받은 것만 다시 받는다
+  const member = useMemberId()
   useEffect(() => {
+    if (member === null) return
     let alive = true
-    const member = currentMemberId()
+    let gotSchedule = false
+    let gotFriends = false
     // 줄 메뉴의 한 줄 요약. 못 받아도 메뉴는 그대로 열린다
-    getSchedule(member).then((s) => alive && setSchedule(s)).catch(() => {})
-    getFriends(undefined, member).then((f) => alive && setFriends(f)).catch(() => {})
-    return () => { alive = false }
-  }, [])
+    const load = () => {
+      if (!gotSchedule) getSchedule(member).then((s) => { if (alive) { setSchedule(s); gotSchedule = true } }).catch(() => {})
+      if (!gotFriends) getFriends(undefined, member).then((f) => { if (alive) { setFriends(f); gotFriends = true } }).catch(() => {})
+    }
+    load()
+    window.addEventListener('online', load)
+    return () => {
+      alive = false
+      window.removeEventListener('online', load)
+    }
+  }, [member])
 
   const tryLogout = () => {
     setLogoutError(null)

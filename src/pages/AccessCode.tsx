@@ -191,7 +191,7 @@ export default function AccessCode() {
         <div className="ticket"><div className="ticket-body">
           <p role="alert">{error}</p>
           <button type="button" className="btn-primary" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 시도</button>
-          <Link to="/me" className="link">내 예약 보기</Link>
+          <Link to="/me/reservations" className="link">내 예약 보기</Link>
         </div></div>
       </main>
     )
@@ -200,7 +200,7 @@ export default function AccessCode() {
     return (
       <main className="key-page" aria-busy="true">
         <div className="key-top"><span className="key-sub" role="status">불러오는 중…</span></div>
-        <div className="key-actions"><Link to="/me" className="btn-ghost center-link">내 예약 보기</Link></div>
+        <div className="key-actions"><Link to="/me/reservations" className="btn-ghost center-link">내 예약 보기</Link></div>
       </main>
     )
   }
@@ -287,7 +287,7 @@ export default function AccessCode() {
 
       <div className="key-actions">
         {showCode && <button type="button" className="btn-ghost" onClick={share}>참여자에게 보내기</button>}
-        <button type="button" className="btn-white" onClick={() => navigate('/me')}>내 예약 보기</button>
+        <button type="button" className="btn-white" onClick={() => navigate('/me/reservations')}>내 예약 보기</button>
         {undo && <Link to={`/me/${r.id}`} className="link key-undo">잘못 눌렀어요 · {seoulClockSec(cancelDeadline(r))} 전까지 취소</Link>}
       </div>
     </main>
