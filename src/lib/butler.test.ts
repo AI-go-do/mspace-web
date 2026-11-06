@@ -96,3 +96,22 @@ describe('butlerSuggestion 우선순위', () => {
     expect(butlerSuggestion({ mine: [], rooms: [room(1, [[15, 24]])], schedule }, at('12:00'))).toBeNull()
   })
 })
+
+describe('빈방 지켜보기 (roomFree)', () => {
+  const now = at('14:10')
+  const busy = { ...room(2, [[13, 15]]), occupiedNow: true }
+  const freed = { ...room(2), occupiedNow: false }
+  it('지켜보던 방이 비면 수업 끝 제안보다 먼저, 급한 연장·입실보다는 뒤', () => {
+    expect(butlerSuggestion({ mine: [], rooms: [freed, room(1)], schedule, watched: [2] }, now)).toEqual({ kind: 'roomFree', roomId: 2 })
+    const inUse = mine({ status: 'IN_USE', startAt: at('12:30').toISOString(), endAt: at('14:15').toISOString() })
+    expect(butlerSuggestion({ mine: [inUse], rooms: [freed], schedule, watched: [2] }, now)?.kind).toBe('extend')
+  })
+  it('아직 사용 중이거나 지금 상태를 모르면 말하지 않는다', () => {
+    expect(butlerSuggestion({ mine: [], rooms: [busy], schedule: undefined, watched: [2] }, now)).toBeNull()
+    const unknown = { ...room(2), occupiedNow: undefined }
+    expect(butlerSuggestion({ mine: [], rooms: [unknown], schedule: undefined, watched: [2] }, now)).toBeNull()
+  })
+  it('여러 방이 비면 번호가 작은 방', () => {
+    expect(butlerSuggestion({ mine: [], rooms: [room(4), room(3)], schedule: undefined, watched: [4, 3] }, now)).toEqual({ kind: 'roomFree', roomId: 3 })
+  })
+})

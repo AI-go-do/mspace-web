@@ -16,7 +16,7 @@ export interface SuggestPick {
  * 홈 맨 위 "비서가 먼저" 카드. 스페이시가 먼저 말을 걸고, 누르면 바로 그 일을 하는 화면으로 간다.
  * 글은 두 줄(무슨 일인지 · 왜 지금인지), 오른쪽은 할 일 하나
  */
-export default function ButlerCard({ s, now }: { s: Suggestion; now: Date }) {
+export default function ButlerCard({ s, now, onGo }: { s: Suggestion; now: Date; onGo?: () => void }) {
   const t = now.getTime()
   let to: string
   let state: { suggest: SuggestPick } | undefined
@@ -41,6 +41,14 @@ export default function ButlerCard({ s, now }: { s: Suggestion; now: Date }) {
       action = 'QR 꺼내기'
       break
     }
+    case 'roomFree': {
+      to = `/now?room=${s.roomId}`
+      tone = 'urgent'
+      title = `창작실 ${s.roomId}이 비었어요`
+      sub = '지켜보던 방이에요 · 지금 바로 쓸 수 있어요'
+      action = '지금 바로 쓰기'
+      break
+    }
     case 'afterClass': {
       to = `/rooms/${s.roomId}`
       state = { suggest: { date: s.date, start: s.start, len: s.len } }
@@ -59,7 +67,7 @@ export default function ButlerCard({ s, now }: { s: Suggestion; now: Date }) {
     }
   }
   return (
-    <Link to={to} state={state} className={`butler butler-${tone}`} aria-label={`비서 제안. ${title}. ${sub}. ${action}`}>
+    <Link to={to} state={state} onClick={onGo} className={`butler butler-${tone}`} aria-label={`비서 제안. ${title}. ${sub}. ${action}`}>
       <span className="butler-mascot" aria-hidden="true"><Spacey size={44} label="" /></span>
       <span className="butler-text">
         <span className="butler-eyebrow">비서가 먼저</span>
