@@ -39,7 +39,6 @@ export default function Reserve() {
 
   // 날짜를 빨리 바꾸면 늦게 온 옛 응답이 새 날짜 위에 덮이지 않게 최근 요청만 반영한다
   const loadSeq = useRef(0)
-  const refreshSeq = useRef(0)
   const load = useCallback(() => {
     const seq = ++loadSeq.current
     // 다시 불러오는 동안·실패한 뒤에 옛 시간표를 고를 수 없게 비운다
@@ -73,23 +72,34 @@ export default function Reserve() {
     load()
   }, [load])
 
-  // '지금 시작' 줄이 낡지 않게: 오늘을 보고 칸을 안 골랐을 때만 30초마다 시계와 방 현황을 조용히 다시 받는다(고른 칸은 건드리지 않는다)
+  // '지금 시작' 줄이 낡지 않게: 오늘을 보고 칸을 안 골랐을 때만 30초마다 시계와 방 현황을 조용히 다시 받는다(고른 칸은 건드리지 않는다).
+  // 처음 불러오기가 끝나기 전이나 앞 새로고침이 아직 오는 중이면 그 차례는 건너뛰어 요청이 겹치지 않게 하고, 10초 안에 안 오면 끊는다
+  const roomLoaded = useRef(false)
+  roomLoaded.current = room !== null
   useEffect(() => {
     if (date !== today || pick) return
+    let pending: AbortController | null = null
     const id = setInterval(() => {
-      const seq = loadSeq.current
-      const mine = ++refreshSeq.current // 늦게 온 옛 새로고침이 새것을 덮지 않게 새로고침마다 번호를 준다
       setNow(new Date())
-      getAvailability(date)
+      if (pending || !roomLoaded.current) return
+      const seq = loadSeq.current
+      const ctrl = new AbortController()
+      pending = ctrl
+      const timer = setTimeout(() => ctrl.abort(), 10_000)
+      getAvailability(date, ctrl.signal)
         .then((r) => {
           const found = r.data.rooms.find((x) => x.roomId === roomId)
-          if (found && seq === loadSeq.current && mine === refreshSeq.current) setRoom(found)
+          if (found && !ctrl.signal.aborted && seq === loadSeq.current) setRoom(found)
         })
         .catch(() => {})
+        .finally(() => {
+          clearTimeout(timer)
+          if (pending === ctrl) pending = null
+        })
     }, 30_000)
     return () => {
       clearInterval(id)
-      refreshSeq.current++ // 칸을 고르거나 날짜를 바꾸면 아직 오는 중인 새로고침은 버린다
+      pending?.abort() // 칸을 고르거나 날짜를 바꾸면 오는 중인 새로고침은 버린다
     }
   }, [date, today, pick, roomId])
 
