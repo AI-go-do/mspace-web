@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { currentMemberId } from '../api/client'
 import { getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
 import Spacey from '../components/Spacey'
 import { dayLabel } from '../lib/slots'
@@ -37,6 +38,32 @@ export function deadlineOf(r: { startAt: string; checkinDeadline?: string }, ins
 
 /** 열어 둔 동안 상태(입실·노쇼·취소)가 바뀌면 번호를 고치거나 끈다 */
 const REFRESH_MS = 30_000
+/** 입실할 수 있는 동안은 자주 본다. 키패드로 들어가면 몇 초 안에 화면이 닫히게 */
+export const CHECKIN_REFRESH_MS = 3_000
+/** 답이 오지 않는 요청을 끊는 시간. 끊어야 다음 확인이 돈다 */
+const REQUEST_TIMEOUT_MS = 10_000
+/** 입실을 알린 뒤 내 예약으로 넘어가기까지 */
+const ENTERED_MS = 1_200
+
+/**
+ * 다음 확인까지 기다릴 시간. 대표자의 예약됨(BOOKED) 예약이 입실 가능한 때(시작 10분 전 ~ 입실 마감 + 1분)이고
+ * 화면을 보고 있으면 3초, 아니면 30초. 마감 뒤 1분은 노쇼로 바뀌는 것까지 보려고 둔다
+ */
+export function refreshDelay(
+  r: { status: string; owner: boolean; startAt: string; checkinDeadline?: string } | null,
+  now: number,
+  visible: boolean,
+): number {
+  if (!r || !visible || !r.owner || r.status !== 'BOOKED') return REFRESH_MS
+  const from = Date.parse(r.startAt) - 10 * 60_000
+  const until = deadlineOf(r).getTime() + 60_000
+  return now >= from && now <= until ? CHECKIN_REFRESH_MS : REFRESH_MS
+}
+
+/** 이 화면을 연 동안 예약됨 → 사용 중으로 바뀌었는지(키패드 입실). 처음부터 사용 중이면 아니다 */
+export function justEntered(prev: string | undefined, next: string | undefined): boolean {
+  return prev === 'BOOKED' && next === 'IN_USE'
+}
 
 /** FR-WEB-005 예약 완료 · 입실 번호 화면 (시안 Key). 예약 직후와 내 예약에서 연다 */
 export default function AccessCode() {
@@ -50,51 +77,79 @@ export default function AccessCode() {
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
 
+  const [entered, setEntered] = useState(false)
+
   useEffect(() => {
     let alive = true
     let loaded = false
+    let last: MyReservation | null = null
+    // 이 화면을 연 회원. 다른 탭에서 다른 학생이 로그인하면 그 학생 예약으로 바꿔 보이지 않는다
+    let member = currentMemberId() ?? undefined
     // 요청은 한 번에 하나만 보낸다. 진행 중에 새로고침이 또 오면 끝난 뒤 한 번만 다시 받는다.
     // 그래서 답이 순서대로 오고, 느린 연결에서도 받은 답이 화면에 반영된다
-    let inFlight = false
+    let inFlight: AbortController | null = null
     let again = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let leave: ReturnType<typeof setTimeout> | undefined
+    // 다음 확인은 받은 예약에 맞춰 잡는다(입실 가능한 때는 3초, 아니면 30초)
+    const schedule = () => {
+      clearTimeout(timer)
+      if (!alive || leave) return
+      timer = setTimeout(refresh, refreshDelay(last, Date.now(), document.visibilityState === 'visible'))
+    }
     const refresh = () => {
+      if (!alive || leave) return
       if (inFlight) {
         again = true
         return
       }
-      inFlight = true
-      getMyReservations()
+      member ??= currentMemberId() ?? undefined
+      const abort = new AbortController()
+      inFlight = abort
+      const cut = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
+      getMyReservations(abort.signal, member)
         .then((list) => {
-          if (!alive) return
+          if (!alive || inFlight !== abort) return
           const found = list.find((x) => x.id === id) ?? null
+          const prev = last?.status
+          last = found
           setR(found)
           setError(found ? null : '찾을 수 없는 예약이에요')
           loaded = true
+          // 키패드로 들어갔으면 번호 화면을 닫고 내 예약으로 간다. 잠깐 "입실했어요"를 보여 준 뒤
+          if (justEntered(prev, found?.status)) {
+            setEntered(true)
+            leave = setTimeout(() => navigate('/me', { replace: true }), ENTERED_MS)
+          }
         })
         .catch((e: Error) => {
           // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-          if (alive && !loaded) setError(e.message)
+          if (alive && !loaded && inFlight === abort) setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e.message)
         })
         .finally(() => {
-          inFlight = false
+          clearTimeout(cut)
+          if (inFlight !== abort) return
+          inFlight = null
           if (alive && again) {
             again = false
             refresh()
-          }
+          } else schedule()
         })
     }
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh()
     }
     refresh()
-    const timer = setInterval(refresh, REFRESH_MS)
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       alive = false
-      clearInterval(timer)
+      clearTimeout(timer)
+      clearTimeout(leave)
+      inFlight?.abort()
+      inFlight = null
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [id])
+  }, [id, navigate])
 
   if (error) {
     return (
@@ -170,6 +225,7 @@ export default function AccessCode() {
         </ol>
       </div>
 
+      {entered && <p className="key-toast" role="status">입실했어요. 내 예약으로 넘어가요</p>}
       {shared && <p className="key-toast" role="status">{shared}</p>}
 
       <div className="key-actions">

@@ -65,9 +65,12 @@ export interface MyReservation {
   participants: { name: string; owner: boolean }[]
 }
 
-/** 내 예약 (FR-RSV-006). 끝나지 않은 것이 위(시작 빠른 순), 끝난 것은 최근 순 */
-export function getMyReservations(signal?: AbortSignal): Promise<MyReservation[]> {
-  return api('/api/reservations/me', { signal })
+/**
+ * 내 예약 (FR-RSV-006). 끝나지 않은 것이 위(시작 빠른 순), 끝난 것은 최근 순.
+ * member를 주면 그 회원 토큰으로만 보낸다(다른 탭에서 다른 학생이 로그인하면 SESSION_CHANGED)
+ */
+export function getMyReservations(signal?: AbortSignal, member?: number): Promise<MyReservation[]> {
+  return api('/api/reservations/me', { signal, member })
 }
 
 /** 끝나지 않은 예약(예약됨·사용 중)인지 */
