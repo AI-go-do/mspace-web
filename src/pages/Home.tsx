@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
@@ -8,6 +8,8 @@ import { butlerSuggestion } from '../lib/butler'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import { roomLink } from '../lib/slots'
 import { useCountUp } from '../lib/useCountUp'
+import { useMemberId } from '../lib/useMemberId'
+import { useWatched } from '../lib/watch'
 import { useUnreadCount } from '../lib/useUnreadCount'
 import './Home.css'
 
@@ -39,6 +41,9 @@ export default function Home() {
   // 내 시간표(비서 서버). undefined = 아직 못 받음(비서가 꺼져 있어도 홈은 그대로), null = 아직 안 넣음
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined)
   const unread = useUnreadCount()
+  // 빈방 지켜보기: 사용 중인 방 줄의 눈 표시. 켜 두면 그 방이 비는 순간 비서 카드가 먼저 말을 건다
+  const member = useMemberId()
+  const { watched, toggle, unwatch } = useWatched(member, now)
 
   useEffect(() => {
     let alive = true
@@ -87,8 +92,15 @@ export default function Home() {
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
   const card = mineToday[0]
-  // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 수업 끝 제안 → 시간표 권유). 현황과 내 예약을 받기 전에는 없다
-  const butler = day && mineLoaded ? butlerSuggestion({ mine, rooms, schedule }, now) : null
+  // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 지켜보던 방이 빔 → 수업 끝 제안 → 시간표 권유). 현황과 내 예약을 받기 전에는 없다
+  const butler = day && mineLoaded ? butlerSuggestion({ mine, rooms, schedule, watched }, now) : null
+  // 지켜보던 방이 처음 비는 순간 한 번 진동(앱을 열어 둔 채 기다리는 사람에게). 같은 방은 다시 울리지 않는다
+  const buzzed = useRef<Set<number>>(new Set())
+  useEffect(() => {
+    if (!butler || butler.kind !== 'roomFree' || buzzed.current.has(butler.roomId)) return
+    buzzed.current.add(butler.roomId)
+    try { navigator.vibrate?.([60, 80, 60]) } catch { /* 진동 없는 기기 */ }
+  }, [butler])
 
   return (
     <main>
@@ -129,7 +141,7 @@ export default function Home() {
         </div>
       </header>
 
-      {butler && <ButlerCard key={butler.kind} s={butler} now={now} />}
+      {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
 
       <section className="card today" aria-labelledby="today-title">
         <div className="today-head">
@@ -163,8 +175,10 @@ export default function Home() {
                 .map((m) => ({ from: (Date.parse(m.startAt) - day0) / 3_600_000, to: (Date.parse(m.endAt) - day0) / 3_600_000 }))
               // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
               const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
+              const watching = watched.includes(r.roomId)
               return (
-                <Link key={r.roomId} to={roomLink(r, now)} className="room-row"
+                <span key={r.roomId} className="room-line">
+                <Link to={roomLink(r, now)} className="room-row"
                   aria-label={`창작실 ${r.roomId}, ${status}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">
@@ -177,9 +191,19 @@ export default function Home() {
                       ))}
                       {pct !== null && <i className="now" style={{ left: `${pct}%` }} />}
                     </span>
-                    <span className="room-meta"><b>{status}</b> · {r.minPeople}–{r.maxPeople}명</span>
+                    <span className="room-meta"><b>{status}</b> · {r.minPeople}–{r.maxPeople}명{watching && <> · <span className="watching">비면 알려 줘요</span></>}</span>
                   </span>
                 </Link>
+                {/* 사용 중인 방만: 눈 표시를 켜 두면 비는 순간 비서 카드가 먼저 말을 건다 (링크 안에 버튼을 넣을 수 없어 옆에 둔다) */}
+                {known(r) && !free && (
+                  <button type="button" className={`watch-btn ${watching ? 'on' : ''}`} aria-pressed={watching}
+                    aria-label={`창작실 ${r.roomId} 비면 알려 주기`} onClick={() => toggle(r.roomId)}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                )}
+                </span>
               )
             })}
           </div>
