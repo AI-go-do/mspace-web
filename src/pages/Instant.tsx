@@ -118,6 +118,12 @@ export default function Instant() {
     endsRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [hasRoom, asked, roomId])
 
+  // 함께 쓸 사람·수칙 단계에 있는 동안 고른 방이 사용 중이 되면, 이유가 보이는 방 고르기로 돌아간다(보내는 중이면 결과를 기다린다)
+  const lost = rooms !== null && roomId !== null && room === null
+  useEffect(() => {
+    if (lost && step !== 'pick' && !busy) setStep('pick')
+  }, [lost, step, busy])
+
   /** 지금 시작해서 고를 수 있는 끝 시각이 하나라도 있는지 */
   const canStart = (r: RoomSlots) => instantEnds(r.slots, now).some((e) => e.ok)
   /** 이 방이 몇 시까지 비어 있는지(다음 예약 시작). 오늘 남은 예약이 없으면 null */
@@ -196,7 +202,7 @@ export default function Instant() {
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
         {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
         {rooms && roomId !== null && !room && (
-          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>해 주세요.</p>
+          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 {busy ? '시간을 골라 예약' : <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>}해 주세요.</p>
         )}
         {free.map((r) => {
           const ok = canStart(r)
