@@ -101,12 +101,14 @@ export default function Assistant() {
     setSpeakingId(null)
     primeSpeech()
     setVoiceNote('')
+    // 들은 말은 듣기를 시작한 회원 것만 보낸다(그사이 다른 탭에서 다른 학생이 로그인하면 버린다)
+    const listener = currentMemberId()
     const stop = listenOnce({
       onInterim: (t) => setText(t),
       onFinal: (t) => {
         listeningNow.current = false
         // 화면을 떠나며 멈춘 듣기는 보내지 않는다(학생이 보내기로 한 말이 아니다)
-        if (!mounted.current || left.current) return
+        if (!mounted.current || left.current || currentMemberId() !== listener) return
         readNext.current = true
         void send(t, true)
       },
@@ -195,6 +197,8 @@ export default function Assistant() {
       const memberId = currentMemberId()
       if (memberId === chat.memberId) return
       alive.current?.abort()
+      // 앞 회원이 말하던 중이면 듣기를 멈춘다(onFinal은 회원이 달라 보내지 않는다)
+      stopListen.current?.()
       const next = loadChat(memberId)
       setChat(next)
       setText('')
@@ -410,7 +414,7 @@ function Message({ m, owner, last, busy, ask, speaking, onRead }: {
           </button>
         )}
       </div>
-      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} ask={last ? ask : undefined} />)}
+      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} ask={last ? ask : undefined} busy={busy} />)}
       {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
@@ -463,7 +467,7 @@ type CardState = CardOutcome
 /** 이 코드면 카드를 다시 쓸 수 없다(비서에게 다시 말해야 함) */
 const CLOSED = new Set(['CONFIRMATION_USED', 'CONFIRMATION_EXPIRED', 'CONFIRMATION_NOT_FOUND'])
 
-export function ConfirmCard({ c, owner, ask }: { c: ChatConfirmation; owner: number | null; ask?: Ask }) {
+export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owner: number | null; ask?: Ask; busy?: boolean }) {
   const now = useNow(5_000)
   // 이미 누른 카드면 그 결과로 시작한다(다른 화면에 갔다 와도 입력 칸이 다시 뜨지 않게, 11/5 재웅 피드백)
   const [state, setState] = useState<CardState>(() => cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
@@ -545,7 +549,7 @@ export function ConfirmCard({ c, owner, ask }: { c: ChatConfirmation; owner: num
             ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
             : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
         </div>
-        {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} />}
+        {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
       </>
     )
   }
