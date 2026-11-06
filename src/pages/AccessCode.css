@@ -22,6 +22,8 @@
 .ticket-when { display: flex; flex-direction: column; gap: 2px; }
 .ticket-when .muted { font-size: 12px; }
 .ticket-when b { font-size: 22px; letter-spacing: -0.02em; }
+.code-qr { width: min(72vw, 320px); align-self: center; padding: 12px; background: #fff; border-radius: 16px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.code-qr svg { display: block; width: 100%; height: auto; }
 .code-digits { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .code-digits span {
   height: 68px; border-radius: 14px; color: var(--blue);
