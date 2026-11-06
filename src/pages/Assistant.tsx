@@ -427,7 +427,7 @@ function Message({ m, owner, last, busy, ask, speaking, onRead }: {
         )}
       </div>
       {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} ask={last ? ask : undefined} busy={busy} />)}
-      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} />)}
+      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} ask={last ? ask : undefined} busy={busy} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
           입실 번호 보기 →
@@ -453,16 +453,20 @@ function NextChips({ items, ask, busy }: { items: string[]; ask: Ask; busy?: boo
 }
 
 /** 새로고침 전에 받은 확인 카드. 토큰을 저장하지 않아 다시 누를 수 없다 */
-function PastConfirmCard({ c }: { c: PastCard }) {
+function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: boolean }) {
   const r = c.result
   if (r) {
     return (
-      <div className="bot-card done" role="status">
-        <strong>{r.message}</strong>
-        {r.action === 'CREATE' || r.action === 'START_NOW'
-          ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
-          : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
-      </div>
+      <>
+        <div className="bot-card done" role="status">
+          <strong>{r.message}</strong>
+          {r.action === 'CREATE' || r.action === 'START_NOW'
+            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+        </div>
+        {/* 새로고침 뒤에도 마지막 결과 카드의 다음 말 버튼은 남긴다(글만 저장, 토큰·입실 번호 없음) */}
+        {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
+      </>
     )
   }
   return (
