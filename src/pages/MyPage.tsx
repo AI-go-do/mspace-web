@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
@@ -55,6 +55,7 @@ export default function MyPage() {
 
 function MyPageFor({ member }: { member: number | null }) {
   const { list, error, stale, reload } = useMyReservations()
+  const [params] = useSearchParams()
   const { logout } = useAuth()
   const now = useNow()
   const admin = useIsAdmin()
@@ -90,6 +91,9 @@ function MyPageFor({ member }: { member: number | null }) {
   const active = (list ?? []).filter((r) => isActive(r.status))
   const inUse = active.find((r) => r.status === 'IN_USE')
   const next = active.find((r) => r !== inUse)
+  // "곧 끝나요" 알림에서 왔는데 그 예약이 지금 쓰는 예약이 아니면(이미 끝났거나 다른 예약) 알려 준다
+  const fromEnd = Number(params.get('end'))
+  const staleEnd = list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
   const agreed = hasAgreed()
 
   return (
@@ -105,6 +109,7 @@ function MyPageFor({ member }: { member: number | null }) {
       {error && <p role="alert" className="card mine-msg">내 예약을 못 불러왔어요. {error}</p>}
       {stale && <p role="status" className="card mine-msg muted">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
+      {staleEnd && <p role="status" className="card mine-msg muted">그 알림의 예약은 이미 끝났어요.{inUse ? ' 아래는 지금 쓰는 다른 예약이에요.' : ''}</p>}
       {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
         notice={extended && extended.id === inUse.id ? extended.text : null}
         onExtended={(id, text) => setExtended({ id, text })} />}
