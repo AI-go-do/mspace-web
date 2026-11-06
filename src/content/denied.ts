@@ -16,6 +16,7 @@ const BY_CODE: Record<string, Denied> = {
   PARTICIPANT_TIME_TAKEN: { title: '같은 시간에 다른 방에 있는 사람이 있어요', hint: '그 사람을 빼고 다시 예약해 주세요.', action: '함께 쓸 사람 고치기', next: 'members' },
   HEADCOUNT_OUT_OF_RANGE: { title: '이 방의 인원에 맞지 않아요', action: '함께 쓸 사람 고치기', next: 'members' },
   PARTICIPANT_NOT_FOUND: { title: '찾을 수 없는 학번이 있어요', action: '함께 쓸 사람 고치기', next: 'members' },
+  PARTICIPANT_NOT_FRIEND: { title: '친구가 아닌 사람이 있어요', hint: '서로 친구 요청을 수락한 사람만 함께 넣을 수 있어요. 내 예약 > 친구에서 먼저 친구를 맺어 주세요.', action: '함께 쓸 사람 고치기', next: 'members' },
   PARTICIPANT_DUPLICATE: { title: '같은 사람이 두 번 들어 있어요', action: '함께 쓸 사람 고치기', next: 'members' },
   RESERVATION_INVALID_LENGTH: { title: '한 번에 2시간까지 예약할 수 있어요', hint: '30분 칸으로 최대 4칸까지 고를 수 있어요.', action: '시간 다시 고르기', next: 'time' },
   RESERVATION_NOT_ON_SLOT: { title: '30분 단위로만 예약할 수 있어요', action: '시간 다시 고르기', next: 'time' },
