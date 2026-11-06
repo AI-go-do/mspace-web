@@ -28,8 +28,9 @@ export default function NotificationToast() {
   const busy = useRef(false)
   // 로그아웃·화면이 사라질 때 끊을 진행 중 요청. 늦게 온 응답이 본 목록·배너를 바꾸지 않게
   const inflight = useRef<AbortController | null>(null)
+  // 알림함에 있는지. 화면이 바뀐 뒤(effect)에 갱신한다(render 중 ref 쓰기 금지)
   const onAlerts = useRef(pathname === '/alerts')
-  onAlerts.current = pathname === '/alerts'
+  useEffect(() => { onAlerts.current = pathname === '/alerts' }, [pathname])
   // 예약·입실·퇴실 중에는 띄우지 않고 미뤄 둔다(본 것으로 표시하지 않아 그 화면을 나오면 뜬다). 화면이 바뀐 뒤(effect)에 갱신한다
   const held = useRef(bannerHeld(pathname))
   // 흐름 화면을 나올 때 확인이 이미 진행 중이면, 끝난 뒤 한 번 더 확인한다(그 사이에 온 알림을 놓치지 않게)
