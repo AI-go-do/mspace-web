@@ -39,6 +39,7 @@ export default function Instant() {
     firstAsked.current = asked
     setRoomId(asked)
     setEndAt(null)
+    setStep('pick')
     scrolled.current = false
   }, [asked])
   const [endAt, setEndAt] = useState<string | null>(null)
@@ -193,8 +194,9 @@ export default function Instant() {
         {sample && <p role="status" className="muted">서버에 닿지 않아 예시를 보여 주고 있어요. 지금은 시작할 수 없어요.</p>}
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
-        {rooms && asked !== null && roomId === asked && !room && (
-          <p role="status" className="muted">창작실 {asked}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 <Link to={`/rooms/${asked}`} className="in-link">시간을 골라 예약</Link>해 주세요.</p>
+        {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
+        {rooms && roomId !== null && !room && (
+          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>해 주세요.</p>
         )}
         {free.map((r) => {
           const ok = canStart(r)
