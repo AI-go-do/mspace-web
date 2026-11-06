@@ -7,6 +7,8 @@ import { useNow } from '../lib/useNow'
 import './Alerts.css'
 
 const REFRESH_MS = 30_000
+/** 이 화면에서 읽음으로 바꾼 알림을 서버 값보다 앞세우는 시간. 지나면 서버가 준 읽음 상태를 따른다 */
+const READ_OVERRIDE_MS = 30_000
 
 /**
  * 앱 안에서 뒤로 갈 화면이 있는지. 라우터가 history.state.idx에 앱 안 몇 번째 화면인지 적어 둔다(처음 연 화면은 0).
@@ -33,8 +35,9 @@ export default function Alerts() {
   const now = useNow(30_000)
   const [readingAll, setReadingAll] = useState(false)
   const [readError, setReadError] = useState(false)
-  // 이 화면에서 읽음으로 바꾼 알림. 30초마다 받은 목록이 서버 반영 전 값(안 읽음)이어도 다시 점이 켜지지 않게
-  const readHere = useRef<Set<number>>(new Set())
+  // 이 화면에서 읽음으로 바꾼 알림과 바꾼 시각. 서버 반영 전에 받은 목록(안 읽음)이 점을 다시 켜지 않게 잠깐만 덮어쓴다.
+  // READ_OVERRIDE_MS가 지나면 서버 값을 그대로 믿는다
+  const readHere = useRef<Map<number, number>>(new Map())
 
   const load = useCallback(() => {
     if (busy.current) return
@@ -55,6 +58,8 @@ export default function Alerts() {
           }
         }
         seen.current = new Set(l.map((n) => n.id))
+        const at = Date.now()
+        readHere.current.forEach((t, id) => { if (at - t > READ_OVERRIDE_MS) readHere.current.delete(id) })
         setList(l.map((n) => (!n.read && readHere.current.has(n.id) ? { ...n, read: true } : n)))
         setError(false)
       })
@@ -66,7 +71,7 @@ export default function Alerts() {
   const readOne = useCallback((id: number) => {
     const memberId = currentMemberId()
     if (memberId === null || readHere.current.has(id)) return
-    readHere.current.add(id)
+    readHere.current.set(id, Date.now())
     setList((l) => (l ? withRead(l, id) : l))
     markNotificationRead(id, memberId)
       .then(announceUnreadChanged)
@@ -82,7 +87,8 @@ export default function Alerts() {
     const ids = list.filter((n) => !n.read).map((n) => n.id)
     try {
       await markAllNotificationsRead(memberId)
-      ids.forEach((id) => readHere.current.add(id))
+      const at = Date.now()
+      ids.forEach((id) => readHere.current.set(id, at))
       setList((l) => (l ? l.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)) : l))
       announceUnreadChanged()
     } catch {
