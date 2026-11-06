@@ -194,6 +194,8 @@ export default function Assistant() {
     return () => {
       mounted.current = false
       alive.current?.abort()
+      // 화면을 떠나며 멈출 때 늦게 오는 중간·마지막 결과도 같은 방식으로 버린다
+      session.current?.invalidate()
       stopListen.current?.()
       stopSpeaking()
     }
