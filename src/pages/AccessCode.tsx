@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
@@ -216,7 +217,11 @@ export default function AccessCode() {
         <Spacey size={80} />
         <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
-          {showCode ? '방 앞 키패드에 이 번호를 눌러 주세요' : !r.owner ? '번호는 대표자에게만 보여요' : '끝난 예약이라 번호가 꺼졌어요'}
+          {showCode
+            ? (r.status === 'BOOKED' && r.qrText ? '문 앞 카메라에 QR을 비추거나 키패드에 번호를 눌러 주세요' : '방 앞 키패드에 이 번호를 눌러 주세요')
+            : !r.owner ? '번호는 대표자에게만 보여요'
+            : r.status === 'NO_SHOW' ? '입실 시간이 지나 예약이 풀렸어요'
+            : '끝난 예약이라 번호가 꺼졌어요'}
         </span>
       </div>
 
@@ -229,6 +234,12 @@ export default function AccessCode() {
           </div>
           {showCode && (
             <>
+              {/* 문 앞 웹캠이 읽는 입실 QR. 흰 바탕에 검은 칸, 화면 폭의 60% 넘게. 밝기를 올려 두면 더 잘 읽힌다 */}
+              {r.status === 'BOOKED' && r.qrText && (
+                <div className="code-qr" role="img" aria-label="입실 QR. 문 앞 카메라에 비춰 주세요">
+                  <QRCodeSVG value={r.qrText} size={256} level="M" marginSize={2} bgColor="#ffffff" fgColor="#000000" />
+                </div>
+              )}
               <div className="code-digits" role="img" aria-label={`입실 번호 ${r.accessCode!.split('').join(' ')}`}>
                 {r.accessCode!.split('').map((d, i) => <span key={i}>{d}</span>)}
               </div>
