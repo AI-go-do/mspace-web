@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
+import { AdminPenalties, AdminStats } from './AdminInsights'
 import { AdminReports, ForceCheckoutForm } from './AdminReports'
 import './Admin.css'
 
@@ -7,12 +8,15 @@ import './Admin.css'
 const TABS = [
   { id: 'reports', label: '신고' },
   { id: 'checkout', label: '강제 퇴실' },
+  { id: 'penalties', label: '경고·정지' },
+  { id: 'stats', label: '통계' },
 ] as const
 type Tab = (typeof TABS)[number]['id']
 
 /**
  * 관리자 화면 (FR-WEB-101, FR-RPT-103·104). 링크는 관리자에게만 보이지만, 권한은 core가 막는다(아니면 403 ADMIN_ONLY).
- * 신고: 대기 신고를 증거 사진과 함께 보고 판정. 강제 퇴실: 예약 번호로 사용 중인 예약을 끝낸다
+ * 신고: 대기 신고를 증거 사진과 함께 보고 판정. 강제 퇴실: 예약 번호로 사용 중인 예약을 끝낸다.
+ * 경고·정지: 최근 벌칙 목록. 통계: 이용률·노쇼율·시간대·센서
  */
 export default function Admin() {
   const navigate = useNavigate()
@@ -38,6 +42,8 @@ export default function Admin() {
       </header>
       {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
       {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
+      {tab === 'penalties' && <AdminPenalties />}
+      {tab === 'stats' && <AdminStats />}
     </main>
   )
 }
