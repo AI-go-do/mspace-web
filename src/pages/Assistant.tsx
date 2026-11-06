@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
@@ -34,6 +34,14 @@ export default function Assistant() {
   const [voiceNote, setVoiceNote] = useState('')
   const [speakingId, setSpeakingId] = useState<number | null>(null)
   const stopListen = useRef<(() => void) | null>(null)
+  // 듣는 중에는 손으로 보내기·추천 버튼을 막는다(같은 말이 두 번 가거나 음성 말이 버려지지 않게)
+  const listeningNow = useRef(false)
+  // 화면 전환(ViewTransition) 중에는 useEffect 정리가 늦을 수 있어, 떠난 것을 layout 정리에서 먼저 표시한다
+  const left = useRef(false)
+  useLayoutEffect(() => {
+    left.current = false
+    return () => { left.current = true }
+  }, [])
   const readNext = useRef(false)
   const micOk = useRef(canListen()).current
   const ttsOk = useRef(canSpeak()).current
@@ -96,18 +104,21 @@ export default function Assistant() {
     const stop = listenOnce({
       onInterim: (t) => setText(t),
       onFinal: (t) => {
+        listeningNow.current = false
         // 화면을 떠나며 멈춘 듣기는 보내지 않는다(학생이 보내기로 한 말이 아니다)
-        if (!mounted.current) return
+        if (!mounted.current || left.current) return
         readNext.current = true
-        void send(t)
+        void send(t, true)
       },
       onError: (m) => setVoiceNote(m),
       onEnd: () => {
+        listeningNow.current = false
         stopListen.current = null
         if (mounted.current) setListening(false)
       },
     })
     if (stop) {
+      listeningNow.current = true
       stopListen.current = stop
       setListening(true)
     }
@@ -222,9 +233,9 @@ export default function Assistant() {
   const busy = chat.pending !== null
   const trimmed = text.trim()
 
-  async function send(message: string) {
+  async function send(message: string, fromVoice = false) {
     const msg = message.trim()
-    if (!msg) return
+    if (!msg || (listeningNow.current && !fromVoice)) return
     let owner = currentMemberId()
     // 앱을 열 때 refresh가 잠깐 실패해 회원을 아직 모르면, 먼저 확인한다(모르는 채로 보내지 않는다)
     if (owner === null) {
@@ -317,7 +328,7 @@ export default function Assistant() {
         {chat.messages.map((m, i) => (
           <Message
             key={m.id} m={m} owner={chat.memberId}
-            last={i === chat.messages.length - 1} busy={busy || clearing} ask={ask}
+            last={i === chat.messages.length - 1} busy={busy || clearing || listening} ask={ask}
             speaking={speakingId === m.id} onRead={ttsOk ? () => read(m.id, m.text) : undefined}
           />
         ))}
@@ -335,7 +346,7 @@ export default function Assistant() {
           <button type="button" className="ask-chip back" onClick={() => setMenu(null)}>{BACK_LABEL}</button>
         )}
         {(menu ?? MAIN_PROMPTS).map((c) => (
-          <button key={c.label} type="button" className={`ask-chip ${c.next ? 'more' : ''}`} onClick={() => pick(c)} disabled={busy || clearing}>
+          <button key={c.label} type="button" className={`ask-chip ${c.next ? 'more' : ''}`} onClick={() => pick(c)} disabled={busy || clearing || listening}>
             {c.label}{c.next ? ' ›' : ''}
           </button>
         ))}
@@ -373,7 +384,7 @@ export default function Assistant() {
             </svg>
           </button>
         )}
-        <button type="submit" className="send" disabled={busy || clearing || !trimmed} aria-label="보내기">
+        <button type="submit" className="send" disabled={busy || clearing || listening || !trimmed} aria-label="보내기">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
         </button>
       </form>
