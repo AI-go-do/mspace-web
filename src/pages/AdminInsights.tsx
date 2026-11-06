@@ -40,12 +40,14 @@ export function AdminPenalties() {
     setData(null)
     setError(null)
     const ctrl = new AbortController()
+    // 정리(cleanup)에서만 켠다. 시간 초과로 끊긴 건 오류로 보여 줘야 해서 signal.aborted로 가리지 않는다
+    let stale = false
     const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
     getPenalties(days, ctrl.signal, memberId)
-      .then(setData)
-      .catch((e) => { if (!ctrl.signal.aborted) setError(adminErrorMessage(e)) })
+      .then((d) => { if (!stale) setData(d) })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
       .finally(() => clearTimeout(timer))
-    return () => { clearTimeout(timer); ctrl.abort() }
+    return () => { stale = true; clearTimeout(timer); ctrl.abort() }
   }, [days])
 
   const active = data?.suspensions.filter((s) => s.active) ?? []
@@ -118,14 +120,15 @@ export function AdminStats() {
     setSource(null)
     setError(null)
     const ctrl = new AbortController()
+    let stale = false
     const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
     getUsageStats(from, to, ctrl.signal, memberId)
-      .then(setStats)
-      .catch((e) => { if (!ctrl.signal.aborted) setError(adminErrorMessage(e)) })
+      .then((s) => { if (!stale) setStats(s) })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
       .finally(() => clearTimeout(timer))
     // 만든 곳 건수는 덧붙이는 숫자라, 실패해도 통계는 보여 준다
-    getSourceCounts(from, to, ctrl.signal, memberId).then(setSource).catch(() => undefined)
-    return () => { clearTimeout(timer); ctrl.abort() }
+    getSourceCounts(from, to, ctrl.signal, memberId).then((c) => { if (!stale) setSource(c) }).catch(() => undefined)
+    return () => { stale = true; clearTimeout(timer); ctrl.abort() }
   }, [days])
 
   const t = stats?.total
