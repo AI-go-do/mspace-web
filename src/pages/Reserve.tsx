@@ -74,22 +74,23 @@ export default function Reserve() {
 
   // '지금 시작' 줄이 낡지 않게: 오늘을 보고 칸을 안 골랐을 때만 30초마다 시계와 방 현황을 조용히 다시 받는다(고른 칸은 건드리지 않는다).
   // 처음 불러오기가 끝나기 전이나 앞 새로고침이 아직 오는 중이면 그 차례는 건너뛰어 요청이 겹치지 않게 하고, 10초 안에 안 오면 끊는다
-  const roomLoaded = useRef(false)
-  roomLoaded.current = room !== null
+  const hasRoom = room !== null
   useEffect(() => {
-    if (date !== today || pick) return
+    if (date !== today || pick || !hasRoom) return
     let pending: AbortController | null = null
     const id = setInterval(() => {
       setNow(new Date())
-      if (pending || !roomLoaded.current) return
+      if (pending) return
       const seq = loadSeq.current
       const ctrl = new AbortController()
       pending = ctrl
       const timer = setTimeout(() => ctrl.abort(), 10_000)
       getAvailability(date, ctrl.signal)
         .then((r) => {
-          const found = r.data.rooms.find((x) => x.roomId === roomId)
-          if (found && !ctrl.signal.aborted && seq === loadSeq.current) setRoom(found)
+          if (ctrl.signal.aborted || seq !== loadSeq.current) return
+          const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+          setRoom(found)
+          if (!found) setLoadError('없는 방이에요') // 처음 불러오기와 같게
         })
         .catch(() => {})
         .finally(() => {
@@ -101,7 +102,7 @@ export default function Reserve() {
       clearInterval(id)
       pending?.abort() // 칸을 고르거나 날짜를 바꾸면 오는 중인 새로고침은 버린다
     }
-  }, [date, today, pick, roomId])
+  }, [date, today, pick, roomId, hasRoom])
 
   // 같은 내용으로 다시 보내면 같은 키 → 서버가 예약을 두 번 만들지 않는다
   const idemKey = useRef(newKey())
