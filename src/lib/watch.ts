@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { seoulDate } from './time'
 
 /**
@@ -62,6 +62,15 @@ export function useWatched(member: number | null, now: Date): { watched: number[
       write(member, today, next)
       return { scope, rooms: next }
     })
+  }, [member, today, scope])
+  // 다른 탭에서 바꾸면 이 탭도 따라간다(서로 앞 목록으로 덮어써 지운 방이 되살아나거나 켠 방이 사라지지 않게)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== KEY(member) && e.key !== null) return
+      setState({ scope, rooms: read(member, today) })
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [member, today, scope])
   const toggle = useCallback((roomId: number) => update((rooms) => toggled(rooms, roomId)), [update])
   const unwatch = useCallback((roomId: number) => update((rooms) => rooms.filter((r) => r !== roomId)), [update])
