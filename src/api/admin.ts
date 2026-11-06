@@ -164,6 +164,7 @@ export interface UsageStats {
   byHour: { hour: number; reservations: number; used: number }[]
 }
 
+/** 기간(from~to, YYYY-MM-DD) 이용 통계. 관리자만 (core #74) */
 export function getUsageStats(from: string, to: string, signal?: AbortSignal, member?: number | null): Promise<UsageStats> {
   return api(`/api/stats/usage?from=${from}&to=${to}`, { signal, member })
 }
@@ -171,6 +172,7 @@ export function getUsageStats(from: string, to: string, signal?: AbortSignal, me
 /** GET /api/reservations/stats: 예약을 만든 곳(WEB/AGENT) 건수 (core #45) */
 export interface SourceCounts { from: string; to: string; total: number; web: number; agent: number }
 
+/** 기간 안 예약을 만든 곳별 건수. 관리자만 (core #45) */
 export function getSourceCounts(from: string, to: string, signal?: AbortSignal, member?: number | null): Promise<SourceCounts> {
   return api(`/api/reservations/stats?from=${from}&to=${to}`, { signal, member })
 }
