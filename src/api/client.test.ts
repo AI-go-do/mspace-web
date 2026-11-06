@@ -292,6 +292,17 @@ describe('연결 끊김·응답 늦음 (FR-WEB-006)', () => {
     expect(await p).toMatchObject({ code: 'TIMEOUT' })
   })
 
+  it('머리글은 왔는데 본문이 안 오면 15초에 끊고 TIMEOUT을 던진다', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(async (_p: string, init: RequestInit) => ({
+      ok: true, status: 200,
+      json: () => new Promise((_res, rej) => { init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))) }),
+    }))
+    const p = api('/api/reservations', { method: 'POST', body: '{}' }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(WRITE_TIMEOUT_MS)
+    expect(await p).toMatchObject({ code: 'TIMEOUT' })
+  })
+
   it('조회(GET)와 부른 쪽이 시간을 정한 요청은 끊지 않는다', async () => {
     fetchMock.mockImplementation(async () => json(200, { ok: true }))
     await api('/api/reservations/me')
