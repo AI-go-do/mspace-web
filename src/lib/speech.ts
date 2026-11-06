@@ -179,3 +179,17 @@ export function primeSpeech(w: SpeechWindow | undefined = win()): void {
     w!.speechSynthesis!.speak(u)
   } catch { /* 무시 */ }
 }
+
+/**
+ * 듣기 한 번의 "주인" 확인. 시작한 회원과 지금 회원이 같고, 그 뒤 무효로 하지 않았을 때만 live.
+ * 회원을 모르면(null) 시작하지 않는다(null을 돌려줌). 늦게 오는 중간·마지막 결과를 거르는 데 쓴다.
+ */
+export function listenSession(currentMember: () => number | null): { live(): boolean; invalidate(): void } | null {
+  const owner = currentMember()
+  if (owner === null) return null
+  let valid = true
+  return {
+    live: () => valid && currentMember() === owner,
+    invalidate: () => { valid = false },
+  }
+}

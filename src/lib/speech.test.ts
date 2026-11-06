@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { canListen, canSpeak, listenOnce, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
+import { canListen, canSpeak, listenOnce, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
 
 /** 테스트용 가짜 음성 인식. 만든 것을 last에 둔다 */
 class FakeRecognition implements Recognition {
@@ -140,5 +140,27 @@ describe('읽어 주기', () => {
     const { w } = fakeSynth()
     expect(speak('→ 😊', undefined, w)).toBe(false)
     expect(speak('안녕', undefined, {})).toBe(false)
+  })
+})
+
+describe('듣기 주인 확인', () => {
+  it('회원을 모르면 듣기를 시작하지 않는다(다른 회원으로 보내지지 않게)', () => {
+    expect(listenSession(() => null)).toBeNull()
+  })
+
+  it('듣는 중 다른 회원으로 바뀌면 늦게 온 결과는 버린다', () => {
+    let member: number | null = 1
+    const s = listenSession(() => member)!
+    expect(s.live()).toBe(true)
+    member = 2
+    expect(s.live()).toBe(false)
+    member = 1 // 다시 돌아와도 같은 회원이면 살아 있다
+    expect(s.live()).toBe(true)
+  })
+
+  it('무효로 한 듣기는 회원이 같아도 버린다(멈춘 뒤 늦게 온 중간·마지막 결과)', () => {
+    const s = listenSession(() => 1)!
+    s.invalidate()
+    expect(s.live()).toBe(false)
   })
 })

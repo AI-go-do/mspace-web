@@ -7,7 +7,7 @@ import { findFriend } from '../api/friends'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
-import { canListen, canSpeak, listenOnce, primeSpeech, speak, stopSpeaking } from '../lib/speech'
+import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, stopSpeaking } from '../lib/speech'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -36,6 +36,8 @@ export default function Assistant() {
   const stopListen = useRef<(() => void) | null>(null)
   // 듣는 중에는 손으로 보내기·추천 버튼을 막는다(같은 말이 두 번 가거나 음성 말이 버려지지 않게)
   const listeningNow = useRef(false)
+  // 지금 듣기의 주인 확인. 회원이 바뀌면 무효로 해서 앞 듣기의 늦은 결과(중간·마지막)를 버린다
+  const session = useRef<ReturnType<typeof listenSession>>(null)
   // 화면 전환(ViewTransition) 중에는 useEffect 정리가 늦을 수 있어, 떠난 것을 layout 정리에서 먼저 표시한다
   const left = useRef(false)
   useLayoutEffect(() => {
@@ -101,14 +103,21 @@ export default function Assistant() {
     setSpeakingId(null)
     primeSpeech()
     setVoiceNote('')
-    // 들은 말은 듣기를 시작한 회원 것만 보낸다(그사이 다른 탭에서 다른 학생이 로그인하면 버린다)
-    const listener = currentMemberId()
+    // 들은 말은 듣기를 시작한 회원 것만 보낸다(그사이 다른 탭에서 다른 학생이 로그인하면 버린다).
+    // 회원을 아직 모르면(로그인 확인 실패 등) 듣지 않는다
+    const s = listenSession(currentMemberId)
+    if (!s) {
+      setVoiceNote('로그인 정보를 확인하는 중이에요. 잠시 뒤 다시 눌러 주세요.')
+      return
+    }
+    session.current = s
+    const live = s.live
     const stop = listenOnce({
-      onInterim: (t) => setText(t),
+      onInterim: (t) => { if (live()) setText(t) },
       onFinal: (t) => {
         listeningNow.current = false
         // 화면을 떠나며 멈춘 듣기는 보내지 않는다(학생이 보내기로 한 말이 아니다)
-        if (!mounted.current || left.current || currentMemberId() !== listener) return
+        if (!mounted.current || left.current || !live()) return
         readNext.current = true
         void send(t, true)
       },
@@ -197,7 +206,8 @@ export default function Assistant() {
       const memberId = currentMemberId()
       if (memberId === chat.memberId) return
       alive.current?.abort()
-      // 앞 회원이 말하던 중이면 듣기를 멈춘다(onFinal은 회원이 달라 보내지 않는다)
+      // 앞 회원이 말하던 중이면 그 듣기를 무효로 하고 멈춘다(늦게 오는 중간·마지막 결과 모두 버림)
+      session.current?.invalidate()
       stopListen.current?.()
       const next = loadChat(memberId)
       setChat(next)
