@@ -137,7 +137,8 @@ export default function Instant() {
 
   async function submit(resend?: { body: Parameters<typeof startNow>[0]; key: string }) {
     if (!resend && (!room || !end)) return
-    if (busy || sample) return
+    // 보기용 자료일 때는 새 요청은 막지만, 이미 보낸 것의 다시 시도는 보낸다
+    if (busy || (!resend && sample)) return
     setBusy(true)
     try {
       const sent = resend ?? { body: { roomId: room!.roomId, endAt: end!, participantStudentIds: people.map((p) => p.studentId) }, key: idemKey.current }
