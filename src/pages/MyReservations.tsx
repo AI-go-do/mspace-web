@@ -6,6 +6,7 @@ import { newKey } from '../components/ReserveSteps'
 import { useAuth } from '../auth/AuthProvider'
 import { canContinueAt, minutesLabel, remainLabel, timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
+import { useIsAdmin } from '../lib/useIsAdmin'
 import { useNow } from '../lib/useNow'
 import { useStillHere } from './Alerts'
 import './Mine.css'
@@ -92,6 +93,7 @@ export default function MyReservations() {
   const { list, error, stale, reload } = useMyReservations()
   const { logout } = useAuth()
   const now = useNow()
+  const admin = useIsAdmin()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [logoutError, setLogoutError] = useState<string | null>(null)
   // 연장하면 새 예약(새 id)으로 카드가 바뀌므로, 알림은 카드 밖에 두고 새 예약 id에 붙인다
@@ -167,6 +169,7 @@ export default function MyReservations() {
         <Link to="/rules" className="link">이용 규칙</Link>
         <Link to="/me/schedule" className="link">내 시간표</Link>
         <Link to="/me/friends" className="link">친구</Link>
+        {admin && <Link to="/admin" className="link">관리자</Link>}
         <button type="button" className="link-btn" onClick={tryLogout}>로그아웃</button>
       </div>
       {logoutError && <p role="alert" className="muted mine-msg">{logoutError}</p>}
