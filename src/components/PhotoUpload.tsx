@@ -19,7 +19,12 @@ const COPY: Record<PhotoKind, { title: string; why: string }> = {
  * 입실·퇴실 사진 올리기 (FR-RPT-102). 사진은 브라우저에서 900KB 아래로 자동으로 줄여 보낸다.
  * 학생은 사진을 고르기만 하면 된다. 사진은 30일 뒤 지워진다.
  */
-export default function PhotoUpload({ reservationId, kind }: { reservationId: number; kind: PhotoKind }) {
+export default function PhotoUpload({ reservationId, kind, onBusyChange }: {
+  reservationId: number
+  kind: PhotoKind
+  /** 올리는 동안 부모가 화면을 바꾸지 않게(퇴실하기 등) 알려 준다 */
+  onBusyChange?: (busy: boolean) => void
+}) {
   const fileRef = useRef<HTMLInputElement>(null)
   // 다른 탭에서 다른 학생이 로그인하면 보내지 않게 처음 회원을 잡아 둔다
   const memberRef = useRef<number | null>(currentMemberId())
@@ -35,6 +40,7 @@ export default function PhotoUpload({ reservationId, kind }: { reservationId: nu
     setMsg(null)
     if (!ACCEPT.includes(file.type)) return setMsg('JPG·PNG 사진만 올릴 수 있어요.')
     setBusy(true)
+    onBusyChange?.(true)
     try {
       const small = await shrinkImage(file).catch(() => undefined)
       if (small === undefined) return setMsg('사진을 열지 못했어요. 다른 사진으로 다시 올려 주세요.')
@@ -47,6 +53,7 @@ export default function PhotoUpload({ reservationId, kind }: { reservationId: nu
       else setMsg(photoErrorMessage(err, kind))
     } finally {
       setBusy(false)
+      onBusyChange?.(false)
     }
   }
 

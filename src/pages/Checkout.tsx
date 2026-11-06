@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { ApiError, currentMemberId } from '../api/client'
 import PhotoUpload from '../components/PhotoUpload'
 import { checkoutReservation, getMyReservations } from '../api/reservations'
 import { timeRange } from '../lib/format'
@@ -24,6 +24,8 @@ export default function Checkout() {
   const [checked, setChecked] = useState<boolean[]>(CHECKS.map(() => false))
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 사진을 올리는 중에 퇴실하면 완료 화면으로 바뀌어 결과를 못 보므로 끝날 때까지 기다린다
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [fail, setFail] = useState<string | null>(null)
   // 409 뒤 서버에서 다시 보니 다른 상태(자동 반납 등)면 폼을 닫는다
@@ -130,12 +132,14 @@ export default function Checkout() {
         ))}
         <span className="muted small">다음 사람이 "어질러졌다"고 신고하면 경고가 남을 수 있어요.</span>
       </section>
-      <PhotoUpload key={r.id} reservationId={r.id} kind="CHECK_OUT" />
+      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} />
 
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
 
       <div className="rs-bar">
-        <button type="button" className="btn-primary" disabled={busy} onClick={press}>{busy ? '퇴실하는 중…' : '퇴실하기'}</button>
+        <button type="button" className="btn-primary" disabled={busy || photoBusy} onClick={press}>
+          {busy ? '퇴실하는 중…' : photoBusy ? '사진 올리는 중…' : '퇴실하기'}
+        </button>
       </div>
 
       {asking && (
