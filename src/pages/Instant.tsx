@@ -30,6 +30,17 @@ export default function Instant() {
   // 홈·배치도에서 빈 방을 누르면 ?room=번호로 와서 그 방이 골라진 채로 연다(11/6 스크럼 "즉시 시작이 기본값")
   const asked = Number(useSearchParams()[0].get('room')) || null
   const [roomId, setRoomId] = useState<number | null>(asked)
+  // 화면을 연 채로 주소의 방 번호만 바뀌면 새 방으로 다시 고른다(끝 시각은 지우고, 끝 시각으로 내리기도 다시 한 번)
+  const firstAsked = useRef(asked)
+  // 끝 시각 고르기로 저절로 내린 적이 있는지(방을 고른 채로 왔을 때 한 번만)
+  const scrolled = useRef(false)
+  useEffect(() => {
+    if (firstAsked.current === asked) return
+    firstAsked.current = asked
+    setRoomId(asked)
+    setEndAt(null)
+    scrolled.current = false
+  }, [asked])
   const [endAt, setEndAt] = useState<string | null>(null)
   const [people, setPeople] = useState<FoundMember[]>([])
   const [step, setStep] = useState<Step>('pick')
@@ -96,7 +107,6 @@ export default function Instant() {
 
   // 방을 고른 채로 왔으면, 처음 한 번 끝 시각 고르기를 화면에 올려 바로 누를 수 있게 한다
   const endsRef = useRef<HTMLElement | null>(null)
-  const scrolled = useRef(false)
   const hasRoom = room !== null
   useEffect(() => {
     if (scrolled.current || !hasRoom || asked === null || roomId !== asked) return
