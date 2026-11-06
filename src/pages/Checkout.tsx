@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import PhotoUpload from '../components/PhotoUpload'
 import { checkoutReservation, getMyReservations } from '../api/reservations'
 import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
@@ -13,7 +14,7 @@ const CHECKS = ['쓰레기를 버렸어요', '책상·의자를 정리했어요'
 /**
  * 퇴실 (FR-RSV-008, 시안 Checkout): 정리 체크 → 퇴실하기 → (끝나기 전이면) "조기 퇴실할까요?" 확인 → 완료.
  * 퇴실은 번호를 끄는 것이고 문은 도어락이 잠근다(요구사항 3.2).
- * 퇴실 사진은 v0.3(FR-RPT-101)이라 아직 없다.
+ * 퇴실 사진(FR-RPT-102)은 선택: 정리한 방을 찍어 두는 증거. 안 올려도 퇴실된다.
  */
 export default function Checkout() {
   const id = Number(useParams().id)
@@ -129,6 +130,7 @@ export default function Checkout() {
         ))}
         <span className="muted small">다음 사람이 "어질러졌다"고 신고하면 경고가 남을 수 있어요.</span>
       </section>
+      <PhotoUpload reservationId={r.id} kind="CHECK_OUT" />
 
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
 

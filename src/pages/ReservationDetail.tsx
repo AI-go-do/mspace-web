@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import PhotoUpload from '../components/PhotoUpload'
 import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
@@ -91,6 +92,8 @@ export default function ReservationDetail() {
       {done && <p className="card mine-msg" role="status">예약을 취소했어요. 이 시간은 이제 다른 팀이 예약할 수 있어요.</p>}
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
       {stale && <p className="card mine-msg muted" role="status">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
+
+      {r.status === 'IN_USE' && <PhotoUpload reservationId={r.id} kind="CHECK_IN" />}
 
       {r.owner && active && (
         <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 번호 보기</Link>
