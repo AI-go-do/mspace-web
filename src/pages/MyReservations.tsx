@@ -86,7 +86,7 @@ export function useMyReservations() {
 /**
  * FR-WEB-002 내 예약 (시안 Mine): 사용 중인 예약은 맨 위 카드(남은 시간 + 진행 막대 + 퇴실),
  * 다가오는 예약은 눌러서 상세(취소), 지난 예약은 따로.
- * 입실·퇴실 사진과 "방에 문제가 있나요?"는 v0.3(FR-RPT-101)이라 아직 없다.
+ * 사용 중 카드의 "방에 문제가 있나요?"는 신고 화면(FR-RPT-101)으로 간다.
  */
 export default function MyReservations() {
   const { list, error, stale, reload } = useMyReservations()
@@ -275,6 +275,7 @@ function InUseCard({ r, onChanged, notice, onExtended }: {
       <div className="inuse-links">
         {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
         <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
+        <Link to={`/report?roomId=${r.room.id}`} className="inuse-link">방에 문제가 있나요?</Link>
       </div>
     </section>
   )

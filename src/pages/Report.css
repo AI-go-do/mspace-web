@@ -1,0 +1,54 @@
+/* 방 신고 (FR-RPT-101). 고른 버튼 = 파랑 테두리, 나머지는 tokens.css 색만 */
+.report { min-height: 100dvh; padding-bottom: 160px; word-break: keep-all; }
+.report-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; align-items: center; gap: 8px; }
+.report-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.report-sub { display: block; margin-top: 2px; font-size: 12px; }
+.report-form { display: flex; flex-direction: column; }
+.report-sec { margin: 12px 16px 0; padding: 14px 16px; border: 0; display: flex; flex-direction: column; gap: 10px; }
+.report-sec legend { float: left; width: 100%; padding: 0; margin-bottom: 10px; font-size: 16px; font-weight: 700; }
+.report-rooms { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.report-room {
+  height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.report-room b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.report-room span { font-size: 11px; color: var(--navy-70); }
+.report-room[aria-pressed="true"] { background: var(--grad-blue); border-color: transparent; color: var(--white); box-shadow: var(--shadow-blue); }
+.report-room[aria-pressed="true"] span { color: rgba(255, 255, 255, 0.85); }
+.report-room, .report-kind {
+  min-height: var(--touch); border-radius: 14px; border: 2px solid var(--gray); background: var(--white);
+  color: var(--navy); font: inherit; cursor: pointer;
+}
+.report-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.report-kind { position: relative; padding: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; transition: border-color 0.15s, background 0.15s; }
+.report-kind-icon {
+  width: 36px; height: 36px; margin-bottom: 6px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  color: var(--blue); background: color-mix(in srgb, var(--sky) 22%, var(--white));
+}
+.report-kind[aria-pressed="true"] .report-kind-icon { background: var(--grad-blue); color: var(--white); }
+.report-kind[aria-pressed="true"]::after {
+  content: ''; position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; border-radius: 9px;
+  background: var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+.report-kind b { font-size: 15px; }
+.report-kind .muted { font-size: 12px; line-height: 1.4; }
+.report-kind[aria-pressed="true"] { border-color: var(--blue); background: color-mix(in srgb, var(--sky) 25%, var(--white)); }
+.report-noise {
+  font-size: 14px; padding: 12px; border-radius: 12px; line-height: 1.5;
+  background: color-mix(in srgb, var(--yellow) 18%, var(--white)); border: 1.5px solid color-mix(in srgb, var(--yellow) 60%, var(--white));
+}
+.report-text {
+  width: 100%; box-sizing: border-box; border-radius: 12px; border: 2px solid var(--gray); padding: 10px 12px;
+  font: inherit; font-size: 15px; color: var(--navy); resize: vertical;
+}
+.report-text:focus { outline: none; border-color: var(--blue); }
+.report-count { align-self: flex-end; font-size: 12px; font-variant-numeric: tabular-nums; }
+.report-note { margin: 12px 20px 0; font-size: 13px; line-height: 1.5; }
+.report-done { margin: 96px 16px 0; padding: 32px 22px 22px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; animation: rise-in 0.3s var(--ease-out, ease-out) backwards; }
+.report-done-icon {
+  width: 64px; height: 64px; margin-bottom: 8px; border-radius: 32px; display: flex; align-items: center; justify-content: center;
+  color: var(--white); background: var(--grad-blue); box-shadow: var(--shadow-blue), 0 0 0 8px color-mix(in srgb, var(--sky) 22%, transparent);
+}
+.report-done-title { font-size: 19px; }
+.report-done-body { font-size: 14px; line-height: 1.6; }
+.report-btn { align-self: stretch; margin-top: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none; }
