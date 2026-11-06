@@ -169,10 +169,19 @@ export default function Instant() {
   const title = room ? `창작실 ${room.roomId}` : ''
   const when = end ? `지금–${seoulClock(new Date(end))}` : ''
 
+  // 즉시 시작은 누른 시각이 시작이라 취소(시작 전만, FR-RSV-007)가 안 된다. 잘못 눌러도 노쇼가 되니
+  // 시작 버튼이 있는 화면(방 고르기·함께 쓰는 사람)마다 버튼 가까이에 알린다
+  const warn = (
+    <p className="in-warn">
+      <b>시작하면 취소할 수 없어요.</b> <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+    </p>
+  )
+
   if (step === 'members') {
     return <main className="reserve"><Members title={title} room={room} when={when} people={people} setPeople={setPeople}
       count={count} min={min} max={max} onBack={() => setStep('pick')}
-      onDone={end && !sample ? start : undefined} doneLabel={end && !sample ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…" />
+      onDone={end && !sample ? start : undefined} doneLabel={end && !sample ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…"
+      barNote={end && !sample ? warn : undefined} />
       {denied && <DeniedSheet denied={denied} onClose={() => setDenied(null)} onHome={() => navigate('/')} onNext={followDenied} />}
     </main>
   }
@@ -238,7 +247,7 @@ export default function Instant() {
 
       {room && !busy && <Link to={`/rooms/${room.roomId}`} className="in-later">나중에 쓸 거예요 · 창작실 {room.roomId} 시간 골라 예약하기</Link>}
 
-      {room && !sample && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
+      {room && !sample && warn}
 
       <div className="rs-bar">
         <div className="rs-bar-row">
