@@ -96,6 +96,8 @@ export default function Assistant() {
     const stop = listenOnce({
       onInterim: (t) => setText(t),
       onFinal: (t) => {
+        // 화면을 떠나며 멈춘 듣기는 보내지 않는다(학생이 보내기로 한 말이 아니다)
+        if (!mounted.current) return
         readNext.current = true
         void send(t)
       },
