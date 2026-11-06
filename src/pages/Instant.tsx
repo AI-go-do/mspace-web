@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
@@ -43,7 +43,9 @@ export default function Instant() {
     scrolled.current = false
   }, [asked])
   const [endAt, setEndAt] = useState<string | null>(null)
-  const [people, setPeople] = useState<FoundMember[]>([])
+  // 예약 화면에서 '지금 시작'으로 오면 거기서 고른 함께 쓸 사람을 그대로 이어받는다
+  const carried = (useLocation().state as { people?: FoundMember[] } | null)?.people
+  const [people, setPeople] = useState<FoundMember[]>(() => carried ?? [])
   const [step, setStep] = useState<Step>('pick')
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)

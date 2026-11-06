@@ -72,6 +72,22 @@ export default function Reserve() {
     load()
   }, [load])
 
+  // '지금 시작' 줄이 낡지 않게: 오늘을 보고 칸을 안 골랐을 때만 30초마다 시계와 방 현황을 조용히 다시 받는다(고른 칸은 건드리지 않는다)
+  useEffect(() => {
+    if (date !== today || pick) return
+    const id = setInterval(() => {
+      const seq = loadSeq.current
+      setNow(new Date())
+      getAvailability(date)
+        .then((r) => {
+          const found = r.data.rooms.find((x) => x.roomId === roomId)
+          if (found && seq === loadSeq.current) setRoom(found)
+        })
+        .catch(() => {})
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [date, today, pick, roomId])
+
   // 같은 내용으로 다시 보내면 같은 키 → 서버가 예약을 두 번 만들지 않는다
   const idemKey = useRef(newKey())
   useEffect(() => {
@@ -163,7 +179,7 @@ export default function Reserve() {
           </header>
 
           {canStartNow && (
-            <Link to={startNowLink!} className="card rs-now">
+            <Link to={startNowLink!} state={people.length ? { people } : undefined} className="card rs-now">
               <span className="rs-now-text">
                 <b>지금 비어 있어요</b>
                 <span className="muted">지금 {seoulClock(now)}부터 바로 쓰기 · 끝 시각만 골라요</span>
