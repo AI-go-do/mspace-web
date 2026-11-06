@@ -93,7 +93,7 @@ function MyPageFor({ member }: { member: number | null }) {
   const next = active.find((r) => r !== inUse)
   // "곧 끝나요" 알림에서 왔는데 그 예약이 지금 쓰는 예약이 아니면(이미 끝났거나 다른 예약) 알려 준다
   const fromEnd = Number(params.get('end'))
-  const staleEnd = list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
+  const staleEnd = !stale && list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
   const agreed = hasAgreed()
 
   return (
