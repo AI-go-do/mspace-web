@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
@@ -67,6 +67,7 @@ export default function MyPage() {
 function MyPageFor({ member }: { member: number | null }) {
   const { list, error, stale, reload } = useMyReservations()
   const [params, setParams] = useSearchParams()
+  const { pathname } = useLocation()
   const { logout } = useAuth()
   const now = useNow()
   const admin = useIsAdmin()
@@ -118,7 +119,8 @@ function MyPageFor({ member }: { member: number | null }) {
   // 지금 주소(BrowserRouter라 window.location이 곧 라우터 주소)를 본다. 마이 탭을 벗어났으면 손대지 않는다
   const onExtended = (fromId: number, newId: number, text: string) => {
     setExtended({ id: newId, text })
-    if (!mounted.current) return
+    // 응답 전에 다른 화면으로 옮겼으면(아직 안 사라졌어도) 주소를 바꾸지 않는다
+    if (!mounted.current || window.location.pathname !== pathname) return
     const cleared = searchWithoutEnd(window.location.search, fromId)
     if (cleared) setParams(cleared, { replace: true })
   }
