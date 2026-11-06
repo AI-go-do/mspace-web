@@ -36,7 +36,8 @@ function endSession() {
 
 async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
   const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
+  // 사진을 받을 때는 부른 쪽이 Accept를 정한다(JSON만 받는다고 하면 서버가 406으로 거절)
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
   // 사진(FormData)은 브라우저가 경계(boundary)를 붙인 multipart 머리글을 직접 넣는다
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
@@ -53,7 +54,7 @@ async function toError(res: Response): Promise<ApiError> {
  * member를 주면 그 회원의 토큰으로만 보낸다. refresh로 다른 회원 토큰을 받았으면(같은 브라우저 다른 탭에서
  * 다른 학생이 로그인) 보내지 않고 SESSION_CHANGED를 던진다. 앞 학생의 말을 새 학생 계정으로 보내지 않으려고.
  */
-export async function api<T>(path: string, { member, ...init }: RequestInit & { member?: number | null } = {}): Promise<T> {
+export async function api<T>(path: string, { member, as, ...init }: RequestInit & { member?: number | null; as?: 'json' | 'blob' } = {}): Promise<T> {
   const wrongMember = (t: Tokens | null) => member !== undefined && (t?.memberId ?? null) !== member
   // 로그인 API(/api/auth/)는 토큰 없이 부른다
   const isAuth = path.startsWith('/api/auth/')
@@ -78,7 +79,9 @@ export async function api<T>(path: string, { member, ...init }: RequestInit & { 
   }
   if (res.status === 401 && !isAuth && started === generation) endSession()
   if (!res.ok) throw await toError(res)
-  return res.status === 204 ? (undefined as T) : res.json()
+  if (res.status === 204) return undefined as T
+  // 사진처럼 JSON이 아닌 응답(관리자 증거 사진)은 Blob으로 받는다. 이미지 태그는 Bearer 머리글을 못 붙여서
+  return (as === 'blob' ? res.blob() : res.json()) as Promise<T>
 }
 
 // ---- 자동 로그인 (FR-AUTH-002) ----

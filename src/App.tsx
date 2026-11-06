@@ -5,6 +5,7 @@ import Confetti from './components/Confetti'
 import NotificationToast from './components/NotificationToast'
 import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
+import Admin from './pages/Admin'
 import Assistant from './pages/Assistant'
 import Checkout from './pages/Checkout'
 import Home from './pages/Home'
@@ -28,7 +29,7 @@ const auth = (page: ReactNode) => <RequireAuth>{page}</RequireAuth>
 export default function App() {
   const { pathname } = useLocation()
   // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
-  const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''}`}>
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/assistant" element={auth(<Assistant />)} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/report" element={auth(<Report />)} />
+          <Route path="/admin" element={auth(<Admin />)} />
           <Route path="/now" element={auth(<Instant />)} />
           <Route path="/alerts" element={auth(<Alerts />)} />
           <Route path="*" element={<Placeholder title="없는 화면" message="주소가 바뀌었거나 없는 화면이에요." />} />
