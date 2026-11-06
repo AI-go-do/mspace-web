@@ -167,7 +167,7 @@ export default function Instant() {
     const d = denied
     setDenied(null)
     if (!d) return
-    if (d.next === 'mine') return navigate('/me')
+    if (d.next === 'mine') return navigate('/me/reservations')
     if (d.next === 'members') return setStep('members')
     if (d.next === 'retry') return submit(d.unsure ? lastSent.current ?? undefined : undefined)
     setStep('pick')

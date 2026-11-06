@@ -10,8 +10,9 @@ const TABS: { to: string; label: string; icon: ReactNode }[] = [
     icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3" /><path d="M12 21v-5h9" /></>,
   },
   {
-    to: '/me', label: '내 예약',
-    icon: <><rect x="4" y="4" width="16" height="17" rx="3" /><path d="M8 2v4M16 2v4M4 10h16" /></>,
+    // 마이: 내 예약·시간표·친구·이용 규칙·로그아웃을 한 곳에(11/6 재웅)
+    to: '/me', label: '마이',
+    icon: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   },
   { to: '/assistant', label: '비서', icon: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /> },
 ]

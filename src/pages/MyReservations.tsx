@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { continueReservation, getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
-import { newKey } from '../components/ReserveSteps'
-import { useAuth } from '../auth/AuthProvider'
+import { BackIcon, newKey } from '../components/ReserveSteps'
 import { canContinueAt, minutesLabel, remainLabel, timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
-import { useIsAdmin } from '../lib/useIsAdmin'
 import { useNow } from '../lib/useNow'
 import { useStillHere } from './Alerts'
 import './Mine.css'
@@ -85,25 +83,18 @@ export function useMyReservations() {
 }
 
 /**
- * FR-WEB-002 내 예약 (시안 Mine): 사용 중인 예약은 맨 위 카드(남은 시간 + 진행 막대 + 퇴실),
+ * FR-WEB-002 내 예약 목록 (시안 Mine, 마이 탭 > 내 예약): 사용 중인 예약은 맨 위 카드(남은 시간 + 진행 막대 + 퇴실),
  * 다가오는 예약은 눌러서 상세(취소), 지난 예약은 따로.
  * 사용 중 카드의 "방에 문제가 있나요?"는 신고 화면(FR-RPT-101)으로 간다.
+ * 이용 규칙·시간표·친구·관리자·로그아웃은 마이 탭(MyPage)으로 옮겼다(11/6 재웅)
  */
 export default function MyReservations() {
   const { list, error, stale, reload } = useMyReservations()
-  const { logout } = useAuth()
+  const navigate = useNavigate()
   const now = useNow()
-  const admin = useIsAdmin()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
-  const [logoutError, setLogoutError] = useState<string | null>(null)
   // 연장하면 새 예약(새 id)으로 카드가 바뀌므로, 알림은 카드 밖에 두고 새 예약 id에 붙인다
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
-
-  // 서버가 로그아웃에 실패하면 쿠키가 남아 새로고침하면 다시 로그인되므로, 알리고 다시 누르게 한다
-  const tryLogout = () => {
-    setLogoutError(null)
-    logout().catch(() => setLogoutError('로그아웃하지 못했어요. 잠시 후 다시 눌러 주세요.'))
-  }
 
   const active = (list ?? []).filter((r) => isActive(r.status))
   const past = (list ?? []).filter((r) => !isActive(r.status))
@@ -113,7 +104,10 @@ export default function MyReservations() {
   return (
     <main className="mine">
       <header className="mine-head">
-        <h1>내 예약</h1>
+        <div className="mine-title">
+          <button type="button" className="back" aria-label="뒤로" onClick={() => navigate('/me')}><BackIcon /></button>
+          <h1>내 예약</h1>
+        </div>
         <div className="seg-tabs" role="group" aria-label="보기">
           <button type="button" aria-pressed={tab === 'upcoming'} onClick={() => setTab('upcoming')}>다가오는</button>
           <button type="button" aria-pressed={tab === 'past'} onClick={() => setTab('past')}>지난</button>
@@ -165,14 +159,6 @@ export default function MyReservations() {
         </>
       )}
 
-      <div className="mine-foot">
-        <Link to="/rules" className="link">이용 규칙</Link>
-        <Link to="/me/schedule" className="link">내 시간표</Link>
-        <Link to="/me/friends" className="link">친구</Link>
-        {admin && <Link to="/admin" className="link">관리자</Link>}
-        <button type="button" className="link-btn" onClick={tryLogout}>로그아웃</button>
-      </div>
-      {logoutError && <p role="alert" className="muted mine-msg">{logoutError}</p>}
     </main>
   )
 }
@@ -184,7 +170,7 @@ const CONTINUE_STEPS = [30, 60, 90, 120]
  * 지금 사용 중 카드 (입실하면 이 창으로 바뀐다): 방·시간·인원, 1초마다 줄어드는 남은 시간, 끝나는 시각, 진행 막대,
  * 대표자 버튼 — 퇴실하기 · 연장하기(끝나기 10분 전부터) · 아직 있어요(예약당 1번)
  */
-function InUseCard({ r, onChanged, notice, onExtended }: {
+export function InUseCard({ r, onChanged, notice, onExtended }: {
   r: MyReservation
   onChanged: () => void
   /** 연장 직후 새 카드에 남길 알림 (카드가 바뀌어도 사라지지 않게 부모가 들고 있다) */
