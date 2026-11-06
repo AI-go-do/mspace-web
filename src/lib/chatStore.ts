@@ -18,6 +18,10 @@ export interface ChatMessage {
   accessCodeCards?: { reservationId: number }[]
   /** 새로고침 전에 받은 확인 카드. 토큰이 없어 다시 누를 수 없다 */
   pastCards?: PastCard[]
+  /** 답 아래 "다음 말" 버튼(서버 suggestions). 마지막 답에만 그린다 */
+  suggestions?: string[]
+  /** 화면 신호(서버 hints) */
+  hints?: string[]
 }
 
 /** 저장소에서 되살린 확인 카드. 눌러서 끝난 카드면 결과(입실 번호 빼고)를 함께 둔다 */
