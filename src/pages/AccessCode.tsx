@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { currentMemberId } from '../api/client'
+import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
 import Spacey from '../components/Spacey'
 import { dayLabel } from '../lib/slots'
@@ -109,7 +109,12 @@ export default function AccessCode() {
       }
       member ??= currentMemberId()
       if (member === null) {
-        schedule()
+        // 시작 때 refresh가 네트워크로 실패해 토큰이 없으면 쿠키로 다시 받아 본다(연결이 돌아오면 이어서 열린다).
+        // 받은 회원으로 고정한 뒤에만 예약을 조회한다. refresh 401이면 client가 로그인을 끝내 로그인 화면으로 간다
+        refreshTokens()
+          .then((t) => { if (alive) member = t.memberId ?? null })
+          .catch(() => undefined)
+          .finally(() => { if (alive && member !== null) refresh(); else schedule() })
         return
       }
       const abort = new AbortController()
@@ -131,8 +136,16 @@ export default function AccessCode() {
           }
         })
         .catch((e: Error) => {
+          if (!alive || inFlight !== abort) return
+          // 다른 탭에서 다른 학생이 로그인했으면 앞 학생의 번호를 지우고 화면을 떠난다
+          if (e instanceof ApiError && e.code === 'SESSION_CHANGED') {
+            last = null
+            setR(null)
+            leave = setTimeout(() => navigate('/me', { replace: true }), 0)
+            return
+          }
           // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-          if (alive && !loaded && inFlight === abort) setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e.message)
+          if (!loaded) setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e.message)
         })
         .finally(() => {
           clearTimeout(cut)
