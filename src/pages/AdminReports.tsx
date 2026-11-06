@@ -126,12 +126,14 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
     const memberId = currentMemberId()
     if (memberId === null) return
     const ctrl = new AbortController()
+    // 정리(cleanup)에서만 켠다. 시간 초과로 끊긴 건 오류로 보여 줘야 해서 signal.aborted로 가리지 않는다
+    let stale = false
     const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
     getEvidence(reportId, ctrl.signal, memberId)
-      .then(setEv)
-      .catch((e) => { if (!ctrl.signal.aborted) setError(adminErrorMessage(e)) })
+      .then((v) => { if (!stale) setEv(v) })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
       .finally(() => clearTimeout(timer))
-    return () => { clearTimeout(timer); ctrl.abort() }
+    return () => { stale = true; clearTimeout(timer); ctrl.abort() }
   }, [reportId])
 
   if (error) return <p role="alert" className="admin-msg err">증거를 못 불러왔어요. {error}</p>
@@ -177,12 +179,14 @@ function Photo({ photo, empty }: { photo: EvidencePhoto | null; empty: string })
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 30_000)
     let objectUrl: string | null = null
+    let stale = false
     setFailed(false)
     getPhotoBlob(url, ctrl.signal, memberId)
-      .then((b) => { objectUrl = URL.createObjectURL(b); setSrc(objectUrl) })
-      .catch(() => { if (!ctrl.signal.aborted) setFailed(true) })
+      .then((b) => { if (stale) return; objectUrl = URL.createObjectURL(b); setSrc(objectUrl) })
+      .catch(() => { if (!stale) setFailed(true) })
       .finally(() => clearTimeout(timer))
     return () => {
+      stale = true
       clearTimeout(timer)
       ctrl.abort()
       if (objectUrl) URL.revokeObjectURL(objectUrl)
