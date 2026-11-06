@@ -41,9 +41,6 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
   // 다른 탭에서 다른 학생이 로그인하면 보내지 않게 처음 회원을 잡아 둔다
   const memberRef = useRef<number | null>(currentMemberId())
   const [busy, setBusy] = useState(false)
-  // 이미 열린 사진 선택 창에서 고른 경우도 막으려고 최신 값을 ref로 본다
-  const disabledRef = useRef(disabled)
-  disabledRef.current = disabled
   const [done, setDone] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const copy = COPY[kind]
@@ -51,7 +48,8 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // 같은 사진을 다시 골라도 다시 읽게
-    if (!file || busy || disabledRef.current) return
+    // onChange는 렌더마다 새 pick으로 바뀌므로, 이미 열린 선택 창에서 고른 경우도 최신 disabled를 본다
+    if (!file || busy || disabled) return
     setMsg(null)
     if (!ACCEPT.includes(file.type)) return setMsg('JPG·PNG 사진만 올릴 수 있어요.')
     setBusy(true)
