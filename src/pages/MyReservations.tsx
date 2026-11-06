@@ -94,6 +94,8 @@ export default function MyReservations() {
   const now = useNow()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
   const [logoutError, setLogoutError] = useState<string | null>(null)
+  // 연장하면 새 예약(새 id)으로 카드가 바뀌므로, 알림은 카드 밖에 두고 새 예약 id에 붙인다
+  const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
 
   // 서버가 로그아웃에 실패하면 쿠키가 남아 새로고침하면 다시 로그인되므로, 알리고 다시 누르게 한다
   const tryLogout = () => {
@@ -122,7 +124,9 @@ export default function MyReservations() {
 
       {list && tab === 'upcoming' && (
         <>
-          {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload} />}
+          {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
+            notice={extended && extended.id === inUse.id ? extended.text : null}
+            onExtended={(id, text) => setExtended({ id, text })} />}
           {upcoming.map((r) => (
             <Link key={r.id} to={`/me/${r.id}`} className="card mine-item">
               <span className="mine-item-text">
@@ -176,7 +180,13 @@ const CONTINUE_STEPS = [30, 60, 90, 120]
  * 지금 사용 중 카드 (입실하면 이 창으로 바뀐다): 방·시간·인원, 1초마다 줄어드는 남은 시간, 끝나는 시각, 진행 막대,
  * 대표자 버튼 — 퇴실하기 · 연장하기(끝나기 10분 전부터) · 아직 있어요(예약당 1번)
  */
-function InUseCard({ r, onChanged }: { r: MyReservation; onChanged: () => void }) {
+function InUseCard({ r, onChanged, notice, onExtended }: {
+  r: MyReservation
+  onChanged: () => void
+  /** 연장 직후 새 카드에 남길 알림 (카드가 바뀌어도 사라지지 않게 부모가 들고 있다) */
+  notice: string | null
+  onExtended: (newId: number, text: string) => void
+}) {
   const now = useNow(1_000)
   const start = Date.parse(r.startAt)
   const end = Date.parse(r.endAt)
@@ -199,7 +209,7 @@ function InUseCard({ r, onChanged }: { r: MyReservation; onChanged: () => void }
       const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current)
       key.current = newKey()
       setPicking(false)
-      setNote(`${seoulClock(new Date(res.endAt))}까지 연장했어요. 번호가 새로 나왔어요.`)
+      onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 번호가 새로 나왔어요.`)
       onChanged()
     } catch (e) {
       setNote(e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요')
@@ -251,7 +261,8 @@ function InUseCard({ r, onChanged }: { r: MyReservation; onChanged: () => void }
               ))}
             </div>
           )}
-          {note && <p className="inuse-note" role="status">{note}</p>}
+          {notice && <p className="inuse-note" role="status">{notice}</p>}
+          {note && <p className="inuse-note" role="alert">{note}</p>}
           {still.state.kind === 'done' && <p className="inuse-note" role="status">{still.state.message}</p>}
           {still.state.kind === 'error' && <p className="inuse-note" role="alert">{still.state.message}</p>}
         </>
