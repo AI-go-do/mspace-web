@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
-import { createReservation } from '../api/reservations'
+import { createReservation, type NewReservation } from '../api/reservations'
 import { getAvailability, type RoomSlots, type Slot } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
@@ -123,19 +123,26 @@ export default function Reserve() {
   const clock = pick ? `${slotClock(pick.start)} – ${slotClockAcross(pick.start + pick.len)}` : '시작 칸을 눌러 주세요'
   const range = pick ? `${clock} · ${minutesLabel(pick.len * 30)}` : clock
 
-  async function submit() {
-    if (!pick || !room || busy) return
+  // 마지막으로 보낸 내용과 멱등 키. 연결이 끊겨 "됐는지 모름"일 때 다시 시도는 이걸 그대로 보낸다
+  // (시트가 떠 있는 동안 고른 것이 바뀌어 키가 새로 나도, 같은 예약이 두 번 생기지 않게)
+  const lastSent = useRef<{ body: NewReservation; key: string } | null>(null)
+
+  async function submit(resend?: { body: NewReservation; key: string }) {
+    if (!resend && (!pick || !room)) return
+    if (busy) return
     setBusy(true)
     try {
-      const created = await createReservation(
-        {
+      const sent = resend ?? {
+        body: {
           roomId,
-          startAt: slots[pick.start].startAt,
-          endAt: slots[pick.start + pick.len - 1].endAt,
+          startAt: slots[pick!.start].startAt,
+          endAt: slots[pick!.start + pick!.len - 1].endAt,
           participantStudentIds: people.map((p) => p.studentId),
         },
-        idemKey.current,
-      )
+        key: idemKey.current,
+      }
+      lastSent.current = sent
+      const created = await createReservation(sent.body, sent.key)
       celebrate()
       navigate(`/reservations/${created.id}`, { state: { created } })
     } catch (e) {
@@ -161,7 +168,7 @@ export default function Reserve() {
     if (!d) return
     if (d.next === 'mine') return navigate('/me')
     if (d.next === 'members') return setStep('members')
-    if (d.next === 'retry') return submit()
+    if (d.next === 'retry') return submit(d.unsure ? lastSent.current ?? undefined : undefined)
     setStep('time')
     setPick(null)
     setNow(new Date())

@@ -7,6 +7,20 @@ export interface Denied {
   hint?: string
   action: string
   next: NextStep
+  /** 서버에서 처리됐는지 모를 때(연결 끊김·응답 늦음). 시트가 [홈으로] 대신 [내 예약 확인]을 보여 준다 */
+  unsure?: boolean
+}
+
+/**
+ * 연결이 끊기거나 응답이 늦은 경우. 서버에는 예약이 들어갔을 수 있어서 "못 했어요"라고 단정하지 않는다
+ * (믿고 떠나면 즉시 시작 예약이 노쇼가 될 수 있다). 다시 시도는 같은 멱등 키로 보내 두 번 생기지 않는다
+ */
+const UNSURE: Denied = {
+  title: '예약이 됐는지 확인하지 못했어요',
+  hint: '연결이 끊겼거나 응답이 늦어요. 서버에는 들어갔을 수도 있어요. 같은 내용으로 다시 보내도 두 번 예약되지 않아요.',
+  action: '같은 내용으로 다시 시도',
+  next: 'retry',
+  unsure: true,
 }
 
 const BY_CODE: Record<string, Denied> = {
@@ -24,6 +38,8 @@ const BY_CODE: Record<string, Denied> = {
   RESERVATION_NOT_ON_SLOT: { title: '30분 단위로만 예약할 수 있어요', action: '시간 다시 고르기', next: 'time' },
   RESERVATION_IN_PAST: { title: '이미 지난 시간이에요', hint: '지금 이후의 칸을 골라 주세요.', action: '시간 다시 고르기', next: 'time' },
   RESERVATION_OUT_OF_RANGE: { title: '7일 뒤까지만 예약할 수 있어요', hint: '오늘부터 7일 안의 날짜를 골라 주세요.', action: '날짜 다시 고르기', next: 'date' },
+  NETWORK: UNSURE,
+  TIMEOUT: UNSURE,
 }
 
 /** 모르는 code면 서버 메시지를 그대로 보여 주고 다시 시도하게 한다 */
@@ -33,6 +49,8 @@ export function deniedFor(code: string): Denied {
 
 /** 확인 카드처럼 한 줄로만 보여 줄 때. 아는 code면 제목+할 일, 모르면 서버 메시지 */
 export function deniedLine(code: string, fallback: string): string {
+  // 확인 카드는 예약·취소·퇴실을 다 하므로 예약이라고 하지 않는다
+  if (code === 'NETWORK' || code === 'TIMEOUT') return '처리됐는지 확인하지 못했어요. 내 예약에서 확인한 뒤 다시 눌러 주세요.'
   const d = BY_CODE[code]
   if (!d) return fallback
   return d.hint ? `${d.title}. ${d.hint}` : d.title

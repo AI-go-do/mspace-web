@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { currentMemberId } from '../api/client'
 import { filterFriends, friendErrorMessage, getFriends, requestFriend, type Friend } from '../api/friends'
 import type { FoundMember } from '../api/members'
@@ -62,6 +63,9 @@ export function RulesAgree(props: { sub: string; noShowAt: string; instant?: boo
 /** 예약이 안 될 때 아래 시트 (FR-WEB-006, 시안 Denied) */
 export function DeniedSheet(props: { denied: Denied & { message: string }; onClose: () => void; onHome: () => void; onNext: () => void }) {
   const { denied, onClose, onHome, onNext } = props
+  const navigate = useNavigate()
+  // 처리됐는지 모를 때: 홈으로 떠나지 말고 내 예약에서 바로 확인하게 한다
+  const onMine = () => navigate('/me')
   return (
     <div className="sheet-wrap">
       <div className="sheet-dim" onClick={onClose} aria-hidden="true" />
@@ -72,7 +76,9 @@ export function DeniedSheet(props: { denied: Denied & { message: string }; onClo
         <h2 id="denied-title">{denied.title}</h2>
         <p className="muted">{denied.hint ?? denied.message}</p>
         <div className="sheet-actions">
-          <button type="button" className="btn-line" onClick={onHome}>홈으로</button>
+          {denied.unsure
+            ? <button type="button" className="btn-line" onClick={onMine}>내 예약 확인</button>
+            : <button type="button" className="btn-line" onClick={onHome}>홈으로</button>}
           <button type="button" className="btn-primary" autoFocus onClick={onNext}>{denied.action}</button>
         </div>
       </div>
