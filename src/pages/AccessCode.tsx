@@ -136,7 +136,7 @@ export default function AccessCode() {
 
   return (
     <main className="key-page">
-      <div className="key-top">
+      <div className={`key-top ${justCreated && r.status === 'BOOKED' ? 'done' : ''}`}>
         <Spacey size={80} />
         <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
@@ -144,7 +144,8 @@ export default function AccessCode() {
         </span>
       </div>
 
-      <div className="ticket">
+      {/* 방금 예약했으면 표가 인쇄되듯 위에서부터 펼쳐진다 */}
+      <div className={`ticket ${justCreated ? 'fresh' : ''}`}>
         <div className="ticket-body">
           <div className="ticket-when">
             <span className="muted">{when}</span>

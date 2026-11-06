@@ -1,41 +1,64 @@
 /* PWA 화면 시안 Key.dc.html과 같은 값 */
-.key-page { min-height: 100dvh; background: var(--blue); color: var(--navy); padding-bottom: 120px; }
-.key-top { padding: 56px 24px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--white); text-align: center; }
-.key-title { font-size: 28px; font-weight: 700; }
+.key-page {
+  min-height: 100dvh; color: var(--navy); padding-bottom: 120px;
+  background: radial-gradient(90% 40% at 50% 0%, color-mix(in srgb, var(--sky) 40%, transparent), transparent 70%), var(--grad-blue);
+}
+.key-top { position: relative; padding: 52px 24px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--white); text-align: center; }
+.key-title { font-size: 30px; font-weight: 700; }
+.key-top svg { filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.22)); animation: bob 3s ease-in-out infinite; }
+/* 방금 예약: 스페이시 뒤로 빛 고리가 한 번 퍼진다 */
+.key-top.done::before {
+  content: ''; position: absolute; top: 52px; left: 50%; width: 80px; height: 80px; margin-left: -40px; border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7); animation: ring-out 1.1s 0.15s var(--ease-out) both; pointer-events: none;
+}
 .key-sub { font-size: 14px; opacity: 0.8; }
-.ticket { margin: 32px 16px 0; background: var(--white); border-radius: 16px; overflow: hidden; }
+.ticket {
+  margin: 28px 16px 0; background: var(--white); border-radius: 24px; overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 28px 50px -18px rgba(5, 20, 50, 0.55);
+}
+.ticket.fresh { animation: print 0.75s 0.1s var(--ease-out) backwards; }
+.ticket.fresh .code-digits span { animation-delay: calc(0.55s + var(--d, 0s)); }
 .ticket-body { padding: 24px 20px; display: flex; flex-direction: column; gap: 16px; }
 .ticket-when { display: flex; flex-direction: column; gap: 2px; }
 .ticket-when .muted { font-size: 12px; }
-.ticket-when b { font-size: 22px; }
+.ticket-when b { font-size: 22px; letter-spacing: -0.02em; }
 .code-digits { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .code-digits span {
-  height: 64px; border-radius: 12px; background: var(--gray);
-  display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700;
+  height: 68px; border-radius: 14px; color: var(--blue);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 4%, var(--white)), color-mix(in srgb, var(--blue) 9%, var(--white)));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 12%, transparent), inset 0 -3px 0 color-mix(in srgb, var(--blue) 10%, transparent);
+  display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.deadline { align-self: center; font-size: 14px; font-weight: 700; background: var(--yellow); padding: 8px 14px; border-radius: 12px; text-align: center; }
+.deadline {
+  align-self: center; font-size: 14px; font-weight: 700; background: var(--yellow); padding: 9px 16px; border-radius: 20px; text-align: center;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--yellow) 90%, var(--navy));
+}
 .deadline.calm { background: var(--gray); }
-.ticket-cut { position: relative; height: 0; border-top: 1.5px dashed var(--gray); margin: 0 16px; }
+.ticket-cut { position: relative; height: 0; border-top: 1.5px dashed var(--taken); margin: 0 16px; }
+/* 양옆 홈: 화면 가운데 높이의 배경색(파랑 명암의 중간 = --blue)과 같게 */
 .ticket-cut span { position: absolute; top: -12px; width: 24px; height: 24px; border-radius: 12px; background: var(--blue); }
 .ticket-cut span:first-child { left: -28px; }
 .ticket-cut span:last-child { right: -28px; }
 .steps { margin: 0; padding: 20px; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-.steps li { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 12px; line-height: 1.5; }
+.steps li { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--navy-70); }
 .steps li span {
-  width: 28px; height: 28px; border-radius: 14px; background: var(--gray);
+  width: 28px; height: 28px; border-radius: 14px; color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 10%, var(--white));
   font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
 }
-.key-toast { margin: 12px 16px 0; padding: 10px 12px; border-radius: 12px; background: var(--white); font-size: 14px; text-align: center; }
+.key-toast { margin: 12px 16px 0; padding: 10px 12px; border-radius: 14px; box-shadow: var(--shadow-1); animation: rise-in 0.3s var(--ease-out) backwards; background: var(--white); font-size: 14px; text-align: center; }
 .key-actions {
   position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 480px;
   padding: 0 16px max(32px, env(safe-area-inset-bottom)); display: flex; gap: 8px;
 }
 .btn-ghost {
-  flex: 1; height: 56px; border-radius: 16px; border: 1.5px solid rgba(255, 255, 255, 0.6); background: transparent;
+  flex: 1; height: 56px; border-radius: 16px; border: 0; background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   color: var(--white); font-size: 16px; font-weight: 500; cursor: pointer;
 }
 .btn-white {
   flex: 1; height: 56px; border-radius: 16px; border: 0; background: var(--white); color: var(--blue);
+  box-shadow: 0 12px 26px -12px rgba(0, 0, 0, 0.45);
   font-size: 16px; font-weight: 700; cursor: pointer;
 }
 .link { color: var(--blue); font-weight: 700; min-height: var(--touch); display: inline-flex; align-items: center; }

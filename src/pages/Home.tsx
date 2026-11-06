@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
+import { useCountUp } from '../lib/useCountUp'
 import './Home.css'
 
 /**
@@ -65,6 +66,7 @@ export default function Home() {
    */
   const known = (r: RoomSlots) => r.occupiedNow !== undefined && nowPercent(r.slots, now) !== null
   const freeCount = rooms.filter((r) => known(r) && isFreeNow(r.slots, now, r.occupiedNow)).length
+  const freeShown = useCountUp(day ? freeCount : null)
   // 오늘 끝나지 않은 내 예약 → 막대를 노랑으로, 아래 카드로
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
@@ -93,7 +95,9 @@ export default function Home() {
           <span className="home-sub">지금 {seoulClock(now)} · 비어 있는 방</span>
           <span className="home-count">
             <span className="dot-sky" aria-hidden="true" />
-            {day ? `${rooms.length}개 중 ${freeCount}개` : '불러오는 중'}
+            {day
+              ? <span><span aria-hidden="true">{rooms.length}개 중 <b className="count-num">{freeShown}</b>개</span><span className="sr-only">{rooms.length}개 중 {freeCount}개</span></span>
+              : '불러오는 중'}
             {sample && <span className="sample">예시</span>}
           </span>
           <div className="chips">
@@ -122,6 +126,12 @@ export default function Home() {
         <div className="workshop">3D프린터 공작실</div>
         <div className="floor">
           <div className="rooms">
+            {/* 처음 받는 동안 방 다섯 줄 자리를 미리 그려 둔다(화면이 튀지 않게) */}
+            {!day && !error && Array.from({ length: 5 }, (_, i) => (
+              <span key={i} className="room-row skeleton" aria-hidden="true">
+                <span className="room-no" /><span className="room-body"><span className="bar" /><span className="sk-line" /></span>
+              </span>
+            ))}
             {rooms.map((r) => {
               const pct = nowPercent(r.slots, now)
               const free = known(r) && isFreeNow(r.slots, now, r.occupiedNow)

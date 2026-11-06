@@ -20,6 +20,11 @@
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 @keyframes dot-wave { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes shine { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+@keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(40px, 24px) scale(1.15); } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes print { from { clip-path: inset(0 0 100% 0 round 24px); transform: translateY(-14px); } to { clip-path: inset(0 0 0 0 round 24px); transform: none; } }
+@keyframes ring-out { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(2.4); } }
+@keyframes caret { 50% { opacity: 0; } }
 @keyframes digit-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
 
 /* 1. 화면이 바뀔 때: 서서히 나타나고, 첫 카드들은 살짝 아래에서 떠오름 */
@@ -63,12 +68,12 @@
 .alert .dot { animation: pulse 1.6s ease-in-out infinite; }
 
 /* 7. 입실 번호: 숫자가 하나씩 나타남 */
-.code-digits span { animation: digit-in 0.32s var(--ease-spring) backwards; }
-.code-digits span:nth-child(2) { animation-delay: 0.05s; }
-.code-digits span:nth-child(3) { animation-delay: 0.1s; }
-.code-digits span:nth-child(4) { animation-delay: 0.15s; }
-.code-digits span:nth-child(5) { animation-delay: 0.2s; }
-.code-digits span:nth-child(6) { animation-delay: 0.25s; }
+.code-digits span { animation: digit-in 0.32s var(--ease-spring) backwards; animation-delay: var(--d, 0s); }
+.code-digits span:nth-child(2) { --d: 0.05s; }
+.code-digits span:nth-child(3) { --d: 0.1s; }
+.code-digits span:nth-child(4) { --d: 0.15s; }
+.code-digits span:nth-child(5) { --d: 0.2s; }
+.code-digits span:nth-child(6) { --d: 0.25s; }
 
 /* 8. 비서: 말풍선이 떠오르고, 기다리는 동안 점 세 개가 물결침. 스페이시는 로그인에서 살짝 둥실 */
 .bubble { animation: rise-in 0.24s var(--ease-out) backwards; }
