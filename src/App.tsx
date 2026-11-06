@@ -1,6 +1,7 @@
 import { ViewTransition, type ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
+import Confetti from './components/Confetti'
 import NotificationToast from './components/NotificationToast'
 import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
@@ -52,6 +53,7 @@ export default function App() {
         </ViewTransition>
         {!fullScreen && <TabBar />}
         {pathname !== '/login' && <NotificationToast />}
+        <Confetti />
       </div>
     </AuthProvider>
   )
