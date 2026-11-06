@@ -1,24 +1,48 @@
+/* 아래 탭: 화면 위에 떠 있는 유리 막대. 전체 높이(아래 여백 포함)는 예전과 같은 84px 안에 둔다
+   (.app의 padding-bottom 84px, 배치도 아래 막대 bottom: 84px이 이 높이를 기준으로 한다) */
 .tabbar {
   position: fixed;
   left: 50%;
-  bottom: 0;
+  /* 막대 전체를 홈 표시줄(아래 안전 여백) 위에 두고, 그만큼 높이를 줄여 위 끝을 84px 안에 맞춘다
+     (배치도 아래 막대·비서 입력칸이 bottom: 84px 기준). 여백 0 → 64px, 34px(아이폰) → 50px.
+     줄어도 탭 하나는 50 - 6 = 44px로 누르는 곳 최소 크기를 지킨다 */
+  bottom: max(10px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
-  height: 84px;
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  width: calc(100% - 24px);
+  max-width: 456px;
+  height: clamp(50px, calc(84px - max(10px, env(safe-area-inset-bottom))), 64px);
+  padding: 3px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  background: var(--white);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--white) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-2);
+  z-index: 5;
 }
+.tab-glow {
+  position: absolute; top: 3px; bottom: 3px; left: 3px;
+  width: calc((100% - 6px) / 4);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--blue) 9%, var(--white));
+  transform: translateX(calc(var(--i, 0) * 100%));
+  transition: transform 0.42s var(--ease-spring), opacity 0.2s;
+}
+.tab-glow[data-on='false'] { opacity: 0; }
 .tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 2px;
   min-height: var(--touch);
-  font-size: 12px;
+  border-radius: 18px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--navy-70);
 }
 .tab.active { color: var(--blue); font-weight: 700; }
+.tab.active svg { stroke-width: 2.3; }
