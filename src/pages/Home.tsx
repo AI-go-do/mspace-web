@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
+import { roomLink } from '../lib/slots'
 import { useCountUp } from '../lib/useCountUp'
 import './Home.css'
 
@@ -119,7 +120,7 @@ export default function Home() {
             <span><i className="lg lg-mine" />내 예약</span>
           </span>
         </div>
-        <span className="guide">실제 배치 순서예요. 방을 누르면 바로 시간을 골라요.</span>
+        <span className="guide">실제 배치 순서예요. 빈 방을 누르면 지금 바로 쓰고, 사용 중인 방은 시간을 골라 예약해요.</span>
 
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
 
@@ -143,7 +144,7 @@ export default function Home() {
               // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
               const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
               return (
-                <Link key={r.roomId} to={`/rooms/${r.roomId}`} className="room-row"
+                <Link key={r.roomId} to={roomLink(r, now)} className="room-row"
                   aria-label={`창작실 ${r.roomId}, ${status}, ${r.minPeople}–${r.maxPeople}명, ${schedule}`}>
                   <span className={`room-no ${free ? 'free' : ''}`}>{r.roomId}</span>
                   <span className="room-body">

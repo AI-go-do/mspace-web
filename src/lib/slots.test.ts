@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, dayLabel, freeNextDaySlots, instantEnds, lengthLabel, nextDayReach, nextTakenAt, slotClockAcross, tapSlot, weekChips } from './slots'
+import { addDays, dayLabel, freeNextDaySlots, instantEnds, lengthLabel, nextDayReach, nextTakenAt, roomLink, slotClockAcross, tapSlot, weekChips } from './slots'
 
 const allFree = Array(48).fill(true)
 
@@ -93,5 +93,28 @@ describe('자정 넘김', () => {
     expect(freeNextDaySlots('2026-11-11')[2]).toEqual({ startAt: '2026-11-11T01:00:00+09:00', endAt: '2026-11-11T01:30:00+09:00', available: true })
     expect(slotClockAcross(48)).toBe('24:00')
     expect(slotClockAcross(50)).toBe('다음 날 01:00')
+  })
+})
+
+describe('roomLink 방을 눌렀을 때', () => {
+  const day = (taken: number[] = []) =>
+    Array.from({ length: 48 }, (_, i) => {
+      const s = new Date(Date.UTC(2026, 10, 2, 15, 0) + i * 30 * 60_000) // 서울 11/3 00:00부터
+      return { startAt: s.toISOString(), endAt: new Date(s.getTime() + 30 * 60_000).toISOString(), available: !taken.includes(i) }
+    })
+  const seoul = (h: number, m: number) => new Date(Date.UTC(2026, 10, 2, 15 + h, m))
+
+  it('지금 비어 있으면 그 방을 고른 지금 바로 쓰기로 간다', () => {
+    expect(roomLink({ roomId: 3, occupiedNow: false, slots: day() }, seoul(15, 32))).toBe('/now?room=3')
+  })
+  it('사용 중이면 그 방 시간 고르기로 간다', () => {
+    expect(roomLink({ roomId: 3, occupiedNow: true, slots: day() }, seoul(15, 32))).toBe('/rooms/3')
+  })
+  it('비어 있어도 바로 다음 칸이 예약돼 고를 끝이 없으면 시간 고르기로 간다', () => {
+    // 정각 15:00에 막 비었는데 15:00 칸(30)이 이미 다음 사람 예약
+    expect(roomLink({ roomId: 2, occupiedNow: false, slots: day([30]) }, seoul(15, 0))).toBe('/rooms/2')
+  })
+  it('지금 사용 여부를 모르면 시간 고르기로 간다', () => {
+    expect(roomLink({ roomId: 1, slots: day() }, seoul(15, 32))).toBe('/rooms/1')
   })
 })

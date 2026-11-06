@@ -28,3 +28,9 @@
 .in-warn { margin: 12px 16px 0; border-radius: 16px; background: var(--yellow); padding: 12px 14px; font-size: 14px; line-height: 1.5; }
 .people-chip:disabled { opacity: 0.5; cursor: default; }
 .in-rooms h2 .sample { margin-left: 8px; vertical-align: middle; }
+/* 지금 말고 나중에: 같은 방 시간 고르기로(즉시 시작이 기본값이라 예약은 이 줄로 간다) */
+.in-later {
+  display: flex; align-items: center; justify-content: center; min-height: var(--touch); margin: 8px 16px 0;
+  font-size: 14px; font-weight: 600; color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
+}
+.in-link { color: var(--blue); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
