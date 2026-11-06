@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { seoulDate } from './time'
 
 /**
@@ -19,7 +19,7 @@ function read(member: number | null, today: string): number[] {
     if (!raw) return []
     const parsed = JSON.parse(raw) as Partial<WatchList>
     if (parsed.date !== today || !Array.isArray(parsed.rooms)) return []
-    return parsed.rooms.filter((n): n is number => Number.isInteger(n))
+    return parsed.rooms.filter((n): n is number => Number.isInteger(n) && n > 0)
   } catch {
     return []
   }
@@ -46,12 +46,19 @@ export function toggled(rooms: number[], roomId: number): number[] {
 export function useWatched(member: number | null, now: Date): { watched: number[]; toggle: (roomId: number) => void; unwatch: (roomId: number) => void } {
   const today = seoulDate(now)
   const [watched, setWatched] = useState<number[]>(() => read(member, today))
-  useEffect(() => { setWatched(read(member, today)) }, [member, today])
+  // 지금 목록은 화면 상태가 기준이다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 연달아 눌러도 앞 변경을 잃지 않게 ref로 최신 값을 든다
+  const current = useRef(watched)
+  useEffect(() => {
+    const next = read(member, today)
+    current.current = next
+    setWatched(next)
+  }, [member, today])
   const save = useCallback((next: number[]) => {
+    current.current = next
     setWatched(next)
     write(member, today, next)
   }, [member, today])
-  const toggle = useCallback((roomId: number) => save(toggled(read(member, today), roomId)), [member, today, save])
-  const unwatch = useCallback((roomId: number) => save(read(member, today).filter((r) => r !== roomId)), [member, today, save])
+  const toggle = useCallback((roomId: number) => save(toggled(current.current, roomId)), [save])
+  const unwatch = useCallback((roomId: number) => save(current.current.filter((r) => r !== roomId)), [save])
   return { watched, toggle, unwatch }
 }
