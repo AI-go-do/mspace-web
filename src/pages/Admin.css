@@ -126,6 +126,7 @@
 .stat-dl dt { color: var(--navy-70); }
 .stat-dl dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stat-table summary { cursor: pointer; font-size: 13px; color: var(--blue); font-weight: 700; min-height: var(--touch); display: flex; align-items: center; }
+.stat-table { max-width: 100%; overflow-x: auto; }
 .stat-table table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .stat-table th, .stat-table td { padding: 6px 4px; text-align: right; border-top: 1px solid var(--line); }
 .stat-table th:first-child, .stat-table td:first-child { text-align: left; }
@@ -138,3 +139,6 @@
 .pen-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .pen-tag { align-self: flex-start; padding: 2px 8px; border-radius: 8px; background: var(--gray); font-weight: 700; color: var(--navy); }
 .pen-tag.on { background: var(--yellow); }
+
+/* 회원이 바뀌면 다시 그리는 탭 내용 묶음. 모양에는 영향 없게 */
+.admin-panel { display: contents; }

@@ -2,6 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
 import { AdminPenalties, AdminStats } from './AdminInsights'
 import { AdminReports, ForceCheckoutForm } from './AdminReports'
+import { useMemberId } from '../lib/useMemberId'
 import './Admin.css'
 
 /** 관리자 화면 탭. 주소 ?tab=으로 남겨 새로고침해도 같은 탭 */
@@ -21,6 +22,8 @@ type Tab = (typeof TABS)[number]['id']
 export default function Admin() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  // 회원이 바뀌면 탭 내용을 통째로 새로 그린다(앞 회원이 받은 목록·통계와 진행 중 요청을 버림)
+  const member = useMemberId()
   const tab: Tab = TABS.some((t) => t.id === params.get('tab')) ? (params.get('tab') as Tab) : 'reports'
 
   return (
@@ -40,10 +43,12 @@ export default function Admin() {
           ))}
         </div>
       </header>
-      {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
-      {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
-      {tab === 'penalties' && <AdminPenalties />}
-      {tab === 'stats' && <AdminStats />}
+      <div key={member ?? 'none'} className="admin-panel">
+        {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
+        {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
+        {tab === 'penalties' && <AdminPenalties />}
+        {tab === 'stats' && <AdminStats />}
+      </div>
     </main>
   )
 }
