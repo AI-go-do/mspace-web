@@ -88,6 +88,14 @@ export function toastTarget(n: AppNotification): string {
   return notificationAction(n)?.to ?? '/alerts'
 }
 
+/**
+ * 배너를 미뤄 둘 화면. 예약·지금 바로 쓰기·입실 번호·퇴실 화면은 위쪽 머리글에 [뒤로]·날짜 칩이 있어
+ * 배너가 가리고, 잘못 누르면 고른 시간·사람을 잃고 떠난다(UX 점검 11/6). 이 화면을 나오면 그때 띄운다
+ */
+export function bannerHeld(pathname: string): boolean {
+  return pathname === '/now' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+}
+
 /** 처음 받은 목록 뒤로 새로 생긴 알림만 (최신 것이 앞). seen이 null이면 첫 조회라 아무것도 새것으로 보지 않는다 */
 export function freshNotifications(list: AppNotification[], seen: ReadonlySet<number> | null): AppNotification[] {
   if (!seen) return []
