@@ -74,6 +74,11 @@ export interface MyReservation {
   accessCode: string | null
   /** 입실 마감 (core #54, DB 값 그대로). 예전 core에는 없어서 선택 값 → 없으면 화면이 계산 */
   checkinDeadline?: string
+  /**
+   * 이 시각 전까지 대표자가 취소할 수 있다 (core #84). 미리 예약은 시작, 지금 바로 쓰기는 누른 뒤 5분(설정값).
+   * 예전 core에는 없어서 선택 값 → 없으면 시작 시각
+   */
+  cancelableUntil?: string
   /** 이름은 가려서 온다(김*영) */
   participants: { name: string; owner: boolean }[]
   /**
@@ -106,7 +111,20 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   NO_SHOW: '노쇼로 풀림',
 }
 
-/** 시작 전 취소 (FR-RSV-007). 대표자만, 시작 전 BOOKED만 */
+/** 지금 바로 쓰기를 잘못 눌렀을 때 취소할 수 있는 분 (core mspace.reservation.instant-cancel.minutes 기본값, 안내 문구용) */
+export const INSTANT_CANCEL_MINUTES = 5
+
+/** 취소 마감: 서버 값(cancelableUntil)이 있으면 그것, 없으면 시작 시각 */
+export function cancelDeadline(r: Pick<MyReservation, 'startAt' | 'cancelableUntil'>): Date {
+  return new Date(r.cancelableUntil ?? r.startAt)
+}
+
+/** 대표자이고 BOOKED이고 취소 마감 전이면 취소 버튼을 보인다 (FR-RSV-007, 즉시 시작은 누른 뒤 5분) */
+export function canCancel(r: Pick<MyReservation, 'owner' | 'status' | 'startAt' | 'cancelableUntil'>, now: number): boolean {
+  return r.owner && r.status === 'BOOKED' && now < cancelDeadline(r).getTime()
+}
+
+/** 시작 전 취소 (FR-RSV-007). 대표자만, BOOKED이고 취소 마감(cancelableUntil) 전만 */
 export function cancelReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
   return api(`/api/reservations/${id}/cancel`, { method: 'POST' })
 }

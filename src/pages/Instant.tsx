@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
-import { startNow } from '../api/reservations'
+import { INSTANT_CANCEL_MINUTES, startNow } from '../api/reservations'
 import { getAvailability, type RoomSlots } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
@@ -169,11 +169,11 @@ export default function Instant() {
   const title = room ? `창작실 ${room.roomId}` : ''
   const when = end ? `지금–${seoulClock(new Date(end))}` : ''
 
-  // 즉시 시작은 누른 시각이 시작이라 취소(시작 전만, FR-RSV-007)가 안 된다. 잘못 눌러도 노쇼가 되니
+  // 즉시 시작은 누른 뒤 몇 분 안에만 취소된다(FR-RSV-007, core #84). 그 뒤 입실 안 하면 노쇼라
   // 시작 버튼이 있는 화면(방 고르기·함께 쓰는 사람)마다 버튼 가까이에 알린다
   const warn = (
     <p className="in-warn">
-      <b>시작하면 취소할 수 없어요.</b> <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+      잘못 눌렀다면 <b>{INSTANT_CANCEL_MINUTES}분 안</b>에 내 예약에서 취소할 수 있어요. <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
     </p>
   )
 
