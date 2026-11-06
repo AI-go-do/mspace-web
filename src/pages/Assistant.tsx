@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
-import { findMember } from '../api/members'
+import { findFriend } from '../api/friends'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
@@ -330,7 +330,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
   const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
 
-  /** 학번으로 사람을 찾아 이름을 보여 준다. 찾았고 그사이 입력이 안 바뀌었을 때만 true */
+  /** 학번을 내 친구 중에서 찾아 이름을 보여 준다(친구만 참여자로 넣을 수 있음, core #68). 찾았고 그사이 입력이 안 바뀌었을 때만 true */
   async function lookup(i: number, sid = ids[i].trim()): Promise<boolean> {
     if (!sid) return false
     const seq = (lookups.current[i] ?? 0) + 1
@@ -338,12 +338,13 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     let name: string
     let ok = false
     try {
-      const m = await findMember(sid)
-      // 본인 학번을 참여자로 넣으면 서버가 거절한다(PARTICIPANT_DUPLICATE). 보내기 전에 알려 준다
-      name = m.me ? '본인 학번이에요. 함께 쓸 다른 사람을 적어 주세요' : m.name
-      ok = !m.me
-    } catch {
-      name = '없는 학번이에요'
+      const m = await findFriend(sid, owner ?? undefined)
+      name = m.name
+      ok = true
+    } catch (e) {
+      name = e instanceof ApiError && e.code === 'NOT_FRIEND'
+        ? '친구 목록에 없는 학번이에요. 내 예약 > 친구에서 먼저 친구를 맺어 주세요'
+        : '학번을 확인하지 못했어요. 잠시 후 다시 눌러 주세요'
     }
     // 기다리는 사이 학번이 바뀌었으면 이 결과는 버리고 실패로 본다(보이는 학번과 다른 학번을 보내지 않게)
     if (lookups.current[i] !== seq) return false
@@ -360,7 +361,7 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     // 지금 적힌 학번을 모두 다시 찾아, 실제로 있는 사람일 때만 보낸다(잘못 친 학번으로 남이 참여자로 들어가지 않게)
     const found = await Promise.all(students.map((sid, i) => lookup(i, sid)))
     if (found.some((ok) => !ok)) {
-      const error = '없는 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요'
+      const error = '친구가 아닌 학번이 있거나 학번이 바뀌었어요. 확인하고 다시 눌러 주세요'
       // 다시 누를 수 있는 오류도 기억해서, 다시 그려진 카드에 같은 안내가 보이게 한다
       saveCardOutcome(owner, c.token, { kind: 'open', error })
       return setState({ kind: 'open', error })

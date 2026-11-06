@@ -9,6 +9,7 @@ import Admin from './pages/Admin'
 import Assistant from './pages/Assistant'
 import Checkout from './pages/Checkout'
 import Home from './pages/Home'
+import Friends from './pages/Friends'
 import Instant from './pages/Instant'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/map" element={auth(<MapPage />)} />
           <Route path="/me" element={auth(<MyReservations />)} />
           <Route path="/me/schedule" element={auth(<Schedule />)} />
+          <Route path="/me/friends" element={auth(<Friends />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Assistant />)} />
