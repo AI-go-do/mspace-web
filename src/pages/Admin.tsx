@@ -1,22 +1,29 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
+import { AdminPenalties, AdminStats } from './AdminInsights'
 import { AdminReports, ForceCheckoutForm } from './AdminReports'
+import { useMemberId } from '../lib/useMemberId'
 import './Admin.css'
 
 /** 관리자 화면 탭. 주소 ?tab=으로 남겨 새로고침해도 같은 탭 */
 const TABS = [
   { id: 'reports', label: '신고' },
   { id: 'checkout', label: '강제 퇴실' },
+  { id: 'penalties', label: '경고·정지' },
+  { id: 'stats', label: '통계' },
 ] as const
 type Tab = (typeof TABS)[number]['id']
 
 /**
  * 관리자 화면 (FR-WEB-101, FR-RPT-103·104). 링크는 관리자에게만 보이지만, 권한은 core가 막는다(아니면 403 ADMIN_ONLY).
- * 신고: 대기 신고를 증거 사진과 함께 보고 판정. 강제 퇴실: 예약 번호로 사용 중인 예약을 끝낸다
+ * 신고: 대기 신고를 증거 사진과 함께 보고 판정. 강제 퇴실: 예약 번호로 사용 중인 예약을 끝낸다.
+ * 경고·정지: 최근 벌칙 목록. 통계: 이용률·노쇼율·시간대·센서
  */
 export default function Admin() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  // 회원이 바뀌면 탭 내용을 통째로 새로 그린다(앞 회원이 받은 목록·통계와 진행 중 요청을 버림)
+  const member = useMemberId()
   const tab: Tab = TABS.some((t) => t.id === params.get('tab')) ? (params.get('tab') as Tab) : 'reports'
 
   return (
@@ -36,8 +43,12 @@ export default function Admin() {
           ))}
         </div>
       </header>
-      {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
-      {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
+      <div key={member ?? 'none'} className="admin-panel">
+        {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
+        {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
+        {tab === 'penalties' && <AdminPenalties />}
+        {tab === 'stats' && <AdminStats />}
+      </div>
     </main>
   )
 }

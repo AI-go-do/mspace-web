@@ -91,3 +91,100 @@ export const JUDGE_OPTIONS: { verdict: Exclude<ReportVerdict, 'OPEN'>; label: st
 export function stillInRoom(previous: Evidence['previous']): boolean {
   return !!previous && !!previous.checkedInAt && !previous.checkedOutAt
 }
+
+// ---- 경고·정지 목록 (core #75) ----
+
+export interface PenaltyMember {
+  id: number
+  studentId: string
+  name: string
+}
+
+/** 경고. reason: VIOLATION(사실 판정, 이용한 방) · FALSE_REPORT(허위 신고) */
+export interface Warning {
+  id: number
+  member: PenaltyMember
+  reason: 'VIOLATION' | 'FALSE_REPORT' | (string & {})
+  reportId: number
+  reservationId: number | null
+  createdAt: string
+}
+
+/** 정지. scope: USE(예약·참여) · REPORT(신고만). reason: NO_SHOW · WARNINGS · FALSE_REPORT */
+export interface Suspension {
+  scope: 'USE' | 'REPORT' | (string & {})
+  id: number
+  member: PenaltyMember
+  reason: 'NO_SHOW' | 'WARNINGS' | 'FALSE_REPORT' | (string & {})
+  startsAt: string
+  endsAt: string
+  active: boolean
+}
+
+export interface Penalties {
+  days: number
+  warnings: Warning[]
+  suspensions: Suspension[]
+}
+
+/** 최근 days일(1–365, 기본 30) 경고와 그 사이 끝났거나 진행 중인 정지. 관리자 화면이라 학번·이름이 그대로 온다 */
+export function getPenalties(days: number, signal?: AbortSignal, member?: number | null): Promise<Penalties> {
+  return api(`/api/penalties?days=${days}`, { signal, member })
+}
+
+export const WARNING_REASON: Record<string, string> = { VIOLATION: '이용 위반', FALSE_REPORT: '허위 신고' }
+export const SUSPENSION_REASON: Record<string, string> = { NO_SHOW: '노쇼 누적', WARNINGS: '위반 경고 누적', FALSE_REPORT: '허위 신고 누적' }
+export const SUSPENSION_SCOPE: Record<string, string> = { USE: '예약·참여 정지', REPORT: '신고 정지' }
+
+// ---- 이용 통계 (core #74, #45) ----
+
+export interface Usage {
+  /** 전체(total)면 null */
+  roomId: number | null
+  roomName: string | null
+  reservations: { total: number; canceled: number; pending: number; noShow: number; used: number; forced: number; awayReleased: number; autoCheckedOut: number }
+  /** 0–1. 분모가 0이면 null */
+  rates: { noShow: number | null; actualUse: number | null; utilization: number | null }
+  minutes: { booked: number; used: number; avgUsed: number | null }
+  shortUses: number
+  uniqueUsers: number
+  sensor: {
+    co2Readings: number; co2AvgPpm: number | null; co2MaxPpm: number | null; co2OverRate: number | null; thresholdPpm: number
+    ventilationAlerts: number; occupiedMinutes: number; occupiedWithoutReservationMinutes: number
+  }
+}
+
+/** GET /api/stats/usage. 날짜는 서울 기준, to 포함, 최대 92일 */
+export interface UsageStats {
+  from: string
+  to: string
+  days: number
+  total: Usage
+  rooms: Usage[]
+  byHour: { hour: number; reservations: number; used: number }[]
+}
+
+/** 기간(from~to, YYYY-MM-DD) 이용 통계. 관리자만 (core #74) */
+export function getUsageStats(from: string, to: string, signal?: AbortSignal, member?: number | null): Promise<UsageStats> {
+  return api(`/api/stats/usage?from=${from}&to=${to}`, { signal, member })
+}
+
+/** GET /api/reservations/stats: 예약을 만든 곳(WEB/AGENT) 건수 (core #45) */
+export interface SourceCounts { from: string; to: string; total: number; web: number; agent: number }
+
+/** 기간 안 예약을 만든 곳별 건수. 관리자만 (core #45) */
+export function getSourceCounts(from: string, to: string, signal?: AbortSignal, member?: number | null): Promise<SourceCounts> {
+  return api(`/api/reservations/stats?from=${from}&to=${to}`, { signal, member })
+}
+
+/** 0–1 비율 → "42%". 모르면(null) "—" */
+export function pct(rate: number | null | undefined): string {
+  return rate == null ? '—' : `${Math.round(rate * 100)}%`
+}
+
+/** 서울 날짜 문자열(YYYY-MM-DD)에서 n일 전 */
+export function daysBefore(date: string, n: number): string {
+  const d = new Date(`${date}T12:00:00+09:00`)
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}

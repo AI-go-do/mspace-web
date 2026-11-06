@@ -17,17 +17,32 @@ const LEGACY_KEY = 'mspace.tokens'
 const LAST_EMAIL = 'mspace.lastEmail'
 
 let memory: Tokens | null = null
+/** 로그인한 회원이 바뀔 때(다른 회원 토큰으로 바뀜·로그아웃) 부르는 함수들 */
+const memberListeners = new Set<() => void>()
 
 export function readTokens(): Tokens | null {
   return memory
 }
 
+/** 회원 번호가 달라졌으면 구독한 화면에 알린다 */
+function setMemory(next: Tokens | null): void {
+  const before = memory?.memberId ?? null
+  memory = next
+  if ((next?.memberId ?? null) !== before) memberListeners.forEach((fn) => fn())
+}
+
 export function saveTokens(t: Tokens): void {
-  memory = t
+  setMemory(t)
 }
 
 export function clearTokens(): void {
-  memory = null
+  setMemory(null)
+}
+
+/** 로그인한 회원이 바뀌면 fn을 부른다. 돌려준 함수로 구독을 끝낸다 */
+export function onMemberChange(fn: () => void): () => void {
+  memberListeners.add(fn)
+  return () => { memberListeners.delete(fn) }
 }
 
 /** 예전 버전이 브라우저 저장소에 남긴 토큰을 지운다(앱을 열 때 한 번) */
