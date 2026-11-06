@@ -5,7 +5,7 @@ import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
 import { findFriend } from '../api/friends'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
+import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -125,6 +125,11 @@ export default function Assistant() {
       document.removeEventListener('visibilitychange', check)
     }
   }, [chat.memberId])
+
+  // 같은 회원이 다른 탭에서 대화를 이어 가거나 지우면 이 화면도 저장소 기록으로 다시 그린다
+  useEffect(() => watchChat(() => {
+    if (mounted.current) setChat(loadChat(currentMemberId()))
+  }), [])
 
   // 기다린 시간 표시
   useEffect(() => {
