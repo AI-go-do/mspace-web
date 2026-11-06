@@ -135,9 +135,16 @@ jobs:
           ADDR=$( (grep -E '^BIND_ADDR=' ".env.$T" || true) | tail -n 1 | cut -d= -f2- | tr -d "\"' \r"); case "$ADDR" in ""|0.0.0.0) ADDR=127.0.0.1;; esac
           [[ "$PORT" =~ ^[0-9]+$ ]] || { echo ".env.$T의 PORT 값이 숫자가 아님: '$PORT'"; exit 1; }
           $C pull web gateway                   # 이미지를 모두 받은 뒤에만 교체(받기 실패 시 아무것도 안 바뀜)
-          $C up -d --no-deps web                     # 다른 서비스(DB·core 등)는 건드리지 않는다
-          # 입구 API 게이트웨이(gateway)는 설정이나 이미지가 바뀌었을 때만 다시 만든다(바뀐 게 없으면 그대로)
-          $C up -d --no-deps gateway
+          # 무중단 교체(infra scripts/rollout.sh): 새 컨테이너를 옆에 하나 더 띄워 health 확인 → 옛 것을 끈다.
+          # 새 것이 안 뜨면 새 것만 지우고 실패로 끝나서 옛 것이 계속 서비스한다. 바뀐 게 없는 서비스는 건너뛴다
+          # infra에 아직 rollout.sh가 없으면(합쳐지기 전) 예전처럼 다시 만든다
+          if [ -x scripts/rollout.sh ]; then
+            scripts/rollout.sh "$T" web gateway
+          else
+            $C up -d --no-deps web                     # 다른 서비스(DB·core 등)는 건드리지 않는다
+            # 입구 API 게이트웨이(gateway)는 설정이나 이미지가 바뀌었을 때만 다시 만든다(바뀐 게 없으면 그대로)
+            $C up -d --no-deps gateway
+          fi
           for i in $(seq 1 15); do                             # 최대 30초 동안 입구(게이트웨이)를 거쳐 화면이 나오는지 확인
             curl -fsS --max-time 5 "$ADDR:$PORT/" | grep -q "<title>M-space" && { echo "배포 성공 ($T)"; exit 0; }
             sleep 2
