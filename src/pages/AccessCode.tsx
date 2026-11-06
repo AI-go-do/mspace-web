@@ -4,9 +4,11 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { cancelDeadline, canCancel, getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
 import Spacey from '../components/Spacey'
+import { celebrate } from '../lib/celebrate'
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulClockSec, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
+import { useWakeLock } from '../lib/useWakeLock'
 import './AccessCode.css'
 
 interface NavState {
@@ -46,8 +48,28 @@ export const CHECKIN_REFRESH_MS = 3_000
 const REQUEST_TIMEOUT_MS = 10_000
 /** 서버에 닿지 못했을 때. 브라우저 문구("Failed to fetch")를 그대로 내지 않는다 */
 const OFFLINE = '연결이 끊겼어요. 와이파이를 확인하고 다시 시도해 주세요'
-/** 입실을 알린 뒤 내 예약으로 넘어가기까지 */
-const ENTERED_MS = 1_200
+/** "문이 열렸어요"를 보여 준 뒤 내 예약으로 넘어가기까지(QR이 접히고 폭죽이 떨어지는 동안) */
+const ENTERED_MS = 2_600
+
+/** 남은 시간 "7:42" (한 시간 넘으면 "1:07:42") */
+export function mmss(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = String(total % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
+}
+
+/**
+ * 입실 마감 안내 한 줄. 입실할 수 있는 때(시작 10분 전부터)는 1초마다 줄어드는 카운트다운,
+ * 아직 멀었으면 마감 시각, 지났으면 지났다고(곧 서버가 노쇼로 바꾸고 화면이 닫힌다)
+ */
+export function deadlineText(deadline: Date, startAt: string, now: number): string {
+  const left = deadline.getTime() - now
+  if (left <= 0) return '입실 마감이 지났어요'
+  if (now >= Date.parse(startAt) - 10 * 60_000) return `입실 마감까지 ${mmss(left)}`
+  return `${seoulClock(deadline)}까지 입실하지 않으면 방이 풀려요`
+}
 
 /**
  * 다음 확인까지 기다릴 시간. 대표자의 예약됨(BOOKED) 예약이 입실 가능한 때(시작 10분 전 ~ 입실 마감 + 1분)이고
@@ -81,14 +103,16 @@ export default function AccessCode() {
   // 번호는 지금 로그인한 회원의 예약 목록에서 확인한 것만 보여 준다.
   // 화면 이동 기록(state)은 다른 계정이 남긴 것일 수 있어 번호 표시에 쓰지 않는다
   const [r, setR] = useState<MyReservation | null>(null)
-  // 지금 바로 쓰기 취소 버튼(누른 뒤 5분)이 마감에 맞춰 사라지게 자주 다시 그린다
-  const now = useNow(5_000)
+  // 입실할 수 있는 동안은 마감 카운트다운이 1초마다 줄어든다. 그 밖에는 취소 버튼(누른 뒤 5분)이 마감에 맞춰 사라질 만큼만
+  const now = useNow(r?.status === 'BOOKED' && r.owner ? 1_000 : 5_000)
   const [error, setError] = useState<string | null>(null)
   // [다시 시도]를 누르면 1 올려서 처음부터 다시 받는다
   const [attempt, setAttempt] = useState(0)
   const [shared, setShared] = useState<string | null>(null)
 
   const [entered, setEntered] = useState(false)
+  // 문 앞에서 QR을 보여 주는 동안은 폰 화면이 꺼지지 않게(번호를 다 누를 때까지도)
+  useWakeLock(!!r && r.owner && r.status === 'BOOKED' && !!r.accessCode)
 
   useEffect(() => {
     let alive = true
@@ -140,9 +164,11 @@ export default function AccessCode() {
           setR(found)
           setError(found ? null : '찾을 수 없는 예약이에요')
           loaded = true
-          // 키패드로 들어갔으면 번호 화면을 닫고 내 예약으로 간다. 잠깐 "입실했어요"를 보여 준 뒤
+          // 문 앞 카메라가 QR을 읽거나 키패드로 들어갔으면: QR이 접히며 "문이 열렸어요"와 폭죽, 그 뒤 내 예약으로
           if (justEntered(prev, found?.status)) {
             setEntered(true)
+            celebrate()
+            try { navigator.vibrate?.([40, 60, 40]) } catch { /* 진동 없는 기기 */ }
             leave = setTimeout(() => navigate('/me', { replace: true }), ENTERED_MS)
           }
         })
@@ -212,7 +238,7 @@ export default function AccessCode() {
   const roomName = `창작실 ${r.room.id}`
   const active = isActive(r.status)
   const showCode = r.owner && active && !!r.accessCode
-  const deadline = seoulClock(deadlineOf(r, state.instant))
+  const deadline = deadlineOf(r, state.instant)
   // 지금 바로 쓰기를 잘못 눌렀으면 여기서 바로 취소하러 간다 (시작 후에도 취소되는 예약만, core #84)
   const undo = canCancel(r, now.getTime()) && cancelDeadline(r).getTime() > Date.parse(r.startAt)
 
@@ -241,8 +267,9 @@ export default function AccessCode() {
         <Spacey size={80} />
         <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
-          {showCode
-            ? (r.status === 'BOOKED' && r.qrText ? '문 앞 카메라에 QR을 비추거나 키패드에 번호를 눌러 주세요' : '방 앞 키패드에 이 번호를 눌러 주세요')
+          {entered ? '입실했어요. 내 예약으로 넘어가요'
+            : showCode
+            ? (r.status === 'BOOKED' && r.qrText ? '문 앞 카메라에 QR을 비추거나 키패드에 번호를 눌러 주세요 · 화면이 꺼지지 않아요' : '방 앞 키패드에 이 번호를 눌러 주세요')
             : !r.owner ? '번호는 대표자에게만 보여요'
             : r.status === 'NO_SHOW' ? '입실 시간이 지나 예약이 풀렸어요'
             : '끝난 예약이라 번호가 꺼졌어요'}
@@ -250,13 +277,21 @@ export default function AccessCode() {
       </div>
 
       {/* 방금 예약했으면 표가 인쇄되듯 위에서부터 펼쳐진다 */}
-      <div className={`ticket ${justCreated ? 'fresh' : ''}`}>
+      <div className={`ticket ${justCreated ? 'fresh' : ''} ${entered ? 'opened' : ''}`}>
         <div className="ticket-body">
+          {/* 입실되는 순간: QR이 세로로 접히고 그 자리에 열린 문 */}
+          {entered && (
+            <div className="door-open" role="status">
+              <span className="door-icon" aria-hidden="true">🔓</span>
+              <b>문이 열렸어요</b>
+              <span>{roomName} · {seoulClock(new Date(r.endAt))}까지</span>
+            </div>
+          )}
           <div className="ticket-when">
             <span className="muted">{when}</span>
             <b>{roomName} · {time}</b>
           </div>
-          {showCode && (
+          {(showCode || entered) && (
             <>
               {/* 문 앞 웹캠이 읽는 입실 QR. 흰 바탕에 검은 칸, 화면 폭의 60% 넘게. 밝기를 올려 두면 더 잘 읽힌다 */}
               {r.status === 'BOOKED' && r.qrText && (
@@ -268,7 +303,11 @@ export default function AccessCode() {
                 {r.accessCode!.split('').map((d, i) => <span key={i}>{d}</span>)}
               </div>
               {r.status === 'BOOKED'
-                ? <span className="deadline">{deadline}까지 입실하지 않으면 방이 풀려요</span>
+                ? <>
+                    {/* 1초마다 바뀌는 카운트다운은 읽어 주지 않고(aria-live off), 마감이 지난 순간만 따로 알린다 */}
+                    <span className="deadline" aria-live="off">{deadlineText(deadline, r.startAt, now.getTime())}</span>
+                    {now.getTime() > deadline.getTime() && <span className="sr-only" role="status">입실 마감이 지났어요</span>}
+                  </>
                 : <span className="deadline calm">입실했어요. 잠깐 나갔다 와도 같은 번호로 열려요</span>}
             </>
           )}
@@ -282,7 +321,6 @@ export default function AccessCode() {
         </ol>
       </div>
 
-      {entered && <p className="key-toast" role="status">입실했어요. 내 예약으로 넘어가요</p>}
       {shared && <p className="key-toast" role="status">{shared}</p>}
 
       <div className="key-actions">
