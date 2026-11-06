@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
+import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
-import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState } from '../lib/chatStore'
+import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
@@ -23,6 +23,8 @@ export default function Assistant() {
   const [chat, setChat] = useState<ChatState>(() => loadChat(currentMemberId()))
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
+  // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
+  const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
@@ -84,6 +86,16 @@ export default function Assistant() {
     )
     // 접수 중이던 기록만 남고 요청은 없다(예: 새로고침 직전): 다시 보내게 푼다
     else if (p) update((s) => ({ ...s, pending: null }))
+    // 떠나기 전에 누른 "새 대화"가 아직 안 끝났다: 끝나면 저장소(비워졌거나 그대로)를 다시 읽는다
+    const clearingNow = currentClearing(memberId)
+    if (clearingNow) {
+      const reload = () => {
+        if (!mounted.current) return
+        setChat(loadChat(currentMemberId()))
+        setClearing(false)
+      }
+      clearingNow.then(reload, reload)
+    }
     return () => {
       mounted.current = false
       alive.current?.abort()
@@ -97,8 +109,11 @@ export default function Assistant() {
       const memberId = currentMemberId()
       if (memberId === chat.memberId) return
       alive.current?.abort()
-      setChat(loadChat(memberId))
+      const next = loadChat(memberId)
+      setChat(next)
       setText('')
+      // 이 탭에 저장해 둔 그 회원 대화에 기다리던 답이 있으면 이어서 조회한다
+      if (next.pending?.jobId) void follow(next.pending.jobId, next.pending.startedAt, next.pending.pollAfterMs, memberId)
     }
     check()
     const t = setInterval(check, 1000)
@@ -142,7 +157,7 @@ export default function Assistant() {
     // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
     const stored = loadChat(owner)
     if (stored !== chat) setChat(stored)
-    if (!msg || stored.pending !== null || msg.length > MAX_CHARS) return
+    if (!msg || stored.pending !== null || clearing || currentClearing(owner) || msg.length > MAX_CHARS) return
     const history = historyOf(stored.messages)
     const startedAt = Date.now()
     update((s) => ({
@@ -166,6 +181,29 @@ export default function Assistant() {
     }
   }
 
+  /** "새 대화": 서버가 기억한 대화를 먼저 지우고, 성공하면 화면과 이 탭 저장소도 비운다 */
+  async function startOver() {
+    const owner = currentMemberId()
+    // 화면에 보이는 대화가 지금 로그인한 회원 것일 때만 지운다(회원이 막 바뀌어 앞 회원 대화가 보이는 순간 등)
+    if (owner === null || chat.memberId !== owner || chat.pending !== null || clearing || currentClearing(owner)) return
+    setClearing(true)
+    // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
+    const cleared = clearChatHistory(owner).then(() => clearChatOf(owner))
+    rememberClearing(owner, cleared)
+    try {
+      await cleared
+      if (currentMemberId() !== owner) return
+      if (mounted.current) {
+        setChat(loadChat(owner))
+        setText('')
+      }
+    } catch (e) {
+      addError(e instanceof ApiError ? e.message : '대화를 지우지 못했어요. 잠시 뒤 다시 눌러 주세요.', owner)
+    } finally {
+      if (mounted.current) setClearing(false)
+    }
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault()
     void send(text)
@@ -179,6 +217,11 @@ export default function Assistant() {
           <h1>비서 스페이시</h1>
           <p className="muted">빈 방 찾기·예약·취소를 말로 할 수 있어요</p>
         </div>
+        {chat.messages.length > 0 && (
+          <button type="button" className="chat-reset" onClick={() => void startOver()} disabled={busy || clearing}>
+            {clearing ? '지우는 중…' : '새 대화'}
+          </button>
+        )}
       </header>
 
       <div className="chat-list" aria-live="polite">
@@ -187,7 +230,7 @@ export default function Assistant() {
             안녕하세요, 스페이시예요. 무엇을 도와드릴까요?
             <div className="ask-chips">
               {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy}>{ex}</button>
+                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy || clearing}>{ex}</button>
               ))}
             </div>
           </div>
@@ -218,7 +261,7 @@ export default function Assistant() {
             }
           }}
         />
-        <button type="submit" className="send" disabled={busy || !trimmed} aria-label="보내기">
+        <button type="submit" className="send" disabled={busy || clearing || !trimmed} aria-label="보내기">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
         </button>
       </form>
@@ -226,18 +269,42 @@ export default function Assistant() {
   )
 }
 
+/** 말풍선 하나와 거기 붙은 확인 카드·입실 번호 카드·지난 카드 */
 function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
   if (m.role === 'user') return <div className="bubble me">{m.text}</div>
   return (
     <>
       <div className={`bubble bot ${m.error ? 'err' : ''}`} role={m.error ? 'alert' : undefined}>{m.text}</div>
       {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} />)}
+      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
           입실 번호 보기 →
         </Link>
       ))}
     </>
+  )
+}
+
+/** 새로고침 전에 받은 확인 카드. 토큰을 저장하지 않아 다시 누를 수 없다 */
+function PastConfirmCard({ c }: { c: PastCard }) {
+  const r = c.result
+  if (r) {
+    return (
+      <div className="bot-card done" role="status">
+        <strong>{r.message}</strong>
+        {r.action === 'CREATE'
+          ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+          : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+      </div>
+    )
+  }
+  return (
+    <div className="bot-card past">
+      <p className="card-label">지난 확인 카드</p>
+      <strong className="card-summary">{c.summary}</strong>
+      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 스페이시에게 말해 주세요.</p>
+    </div>
   )
 }
 

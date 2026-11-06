@@ -166,6 +166,34 @@ export interface ConfirmResult {
   message: string
 }
 
+/**
+ * "새 대화": 서버가 기억한 앞선 대화(24시간)를 지운다. 204.
+ * 답을 만드는 중이면 409 CHAT_IN_PROGRESS(끝나면서 옛 대화를 다시 저장하기 때문)
+ */
+export async function clearChatHistory(member?: number | null, timeoutMs = CLEAR_TIMEOUT_MS): Promise<void> {
+  // 응답이 끝내 안 오면 "지우는 중"이 풀리지 않아 보내기가 계속 막히므로 기한을 둔다
+  const d = deadline(timeoutMs)
+  // 401 뒤 토큰을 새로 받는 동안은 api가 이 signal을 보지 않는다. 그래서 기한이 되면 기다림만 따로 끝낸다
+  // (함께 쓰는 refresh는 끊지 않는다). 기한이 지난 뒤에는 signal이 이미 끊겨 있어 DELETE가 나가지 않는다
+  const request = api<void>('/api/agent/chat/history', { method: 'DELETE', signal: d.signal, member })
+  request.catch(() => undefined)
+  const expired = new Promise<never>((_, reject) => {
+    d.signal.addEventListener('abort', () => reject(abortError()), { once: true })
+  })
+  expired.catch(() => undefined)
+  try {
+    await Promise.race([request, expired])
+  } catch (e) {
+    if (d.timedOut()) throw new ApiError(0, 'CLEAR_TIMEOUT', '대화를 지우는 데 너무 오래 걸려요. 잠시 뒤 다시 눌러 주세요.')
+    throw e
+  } finally {
+    d.done()
+  }
+}
+
+/** 대화 지우기(DELETE)를 기다리는 최대 시간 */
+export const CLEAR_TIMEOUT_MS = 15_000
+
 /** 예약 만들기 카드만 참여자 학번을 보낸다. 취소·퇴실은 본문 없음 */
 export function confirmCard(token: string, participantStudentIds?: string[], member?: number | null): Promise<ConfirmResult> {
   return api(`/api/agent/confirmations/${encodeURIComponent(token)}`, {

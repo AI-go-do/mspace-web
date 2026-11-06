@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
 import { clearSubmitting, currentSubmitting, historyOf, setSubmitting } from '../lib/chatStore'
-import { MAX_WAIT_MS, confirmCard, submitChat, waitForChat } from './agent'
+import { MAX_WAIT_MS, clearChatHistory, confirmCard, submitChat, waitForChat } from './agent'
 import { ApiError } from './client'
 
 const json = (status: number, body: unknown) =>
@@ -63,6 +63,31 @@ describe('비서 채팅: 접수 → 결과 조회 (docs api 7장)', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('CHAT_TIMEOUT')
     expect(t).toBeLessThanOrEqual(MAX_WAIT_MS)
+  })
+
+  it('대화 지우기(DELETE)가 기한까지 안 끝나면 요청을 끊고 CLEAR_TIMEOUT(지우는 중이 풀리게)', async () => {
+    let aborted = false
+    fetchMock.mockImplementation((_p: string, init: RequestInit) => new Promise((_, reject) => {
+      init.signal?.addEventListener('abort', () => { aborted = true; reject(new DOMException('aborted', 'AbortError')) })
+    }))
+    const err = await clearChatHistory(undefined, 20).catch((e) => e)
+    expect(aborted).toBe(true)
+    expect(err).toMatchObject({ code: 'CLEAR_TIMEOUT' })
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE')
+  })
+
+  it('대화 지우기: 401 뒤 토큰을 새로 받는 중에 기한이 지나도 바로 CLEAR_TIMEOUT, 그 뒤 DELETE를 다시 보내지 않는다', async () => {
+    let finishRefresh!: (r: Response) => void
+    fetchMock.mockImplementation((p: string) => {
+      if (p === '/api/auth/refresh') return new Promise<Response>((r) => { finishRefresh = r })
+      return Promise.resolve(json(401, { code: 'TOKEN_EXPIRED', message: '만료' }))
+    })
+    const err = await clearChatHistory(undefined, 30).catch((e) => e)
+    expect(err).toMatchObject({ code: 'CLEAR_TIMEOUT' })
+    // refresh가 늦게 끝나도(여기선 서버 오류) 끊긴 DELETE는 다시 나가지 않는다
+    finishRefresh(json(500, { code: 'INTERNAL', message: '오류' }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(fetchMock.mock.calls.filter(([p]) => p === '/api/agent/chat/history')).toHaveLength(1)
   })
 
   it('조회 요청이 기한까지 안 끝나면 그 요청을 끊고 CHAT_TIMEOUT', async () => {
