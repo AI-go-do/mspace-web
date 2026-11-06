@@ -50,7 +50,7 @@ export default function ReservationDetail() {
 
   const head = (
     <header className="sub-head">
-      <button type="button" className="back" aria-label="뒤로" onClick={() => navigate('/me')}>
+      <button type="button" className="back" aria-label="뒤로" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/me/reservations'))}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
       </button>
       <h1>예약 상세</h1>

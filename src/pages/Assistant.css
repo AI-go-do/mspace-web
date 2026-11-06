@@ -52,10 +52,10 @@
 }
 .link { color: var(--blue); font-weight: 700; min-height: 44px; display: inline-flex; align-items: center; }
 
+.chat-dock { position: sticky; bottom: 84px; background: var(--gray); padding-top: 6px; }
 .chat-input {
-  position: sticky; bottom: 84px;
   display: flex; gap: 8px; align-items: flex-end;
-  padding: 8px 0 12px; background: var(--gray);
+  padding: 8px 0 12px;
 }
 .chat-input textarea {
   flex: 1; min-height: 48px; max-height: 120px; resize: none;
@@ -70,3 +70,37 @@
 .send:disabled { background: var(--white); color: var(--navy-70); cursor: default; }
 /* 닫힌 확인 카드에서 결과를 볼 곳으로 */
 .card-link { align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--blue); }
+
+/* 추천 말 (클릭만으로 이어 가기). 한 줄로 두고 옆으로 밀어 본다 */
+.chat-tip { margin: 6px 0 0; font-size: 13px; }
+.prompt-bar {
+  display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.prompt-bar::-webkit-scrollbar { display: none; }
+.prompt-bar .ask-chip { flex: none; white-space: nowrap; }
+.ask-chip.more { border-color: var(--sky); color: var(--blue); font-weight: 700; }
+.ask-chip.back { border-color: var(--gray); color: var(--navy-70); font-weight: 700; }
+.next-chips { align-self: flex-start; max-width: 85%; margin-top: 0; }
+.next-chips .ask-chip { border-color: var(--sky); color: var(--blue); }
+
+/* 음성 (Web Speech API) */
+.mic {
+  width: 48px; height: 48px; flex: none; border: 1.5px solid var(--white); border-radius: 50%;
+  background: var(--white); color: var(--blue); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.mic:disabled { color: var(--navy-70); opacity: .6; cursor: default; }
+.mic.on { background: var(--blue); color: var(--white); animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(10, 77, 162, .35); }
+  50% { box-shadow: 0 0 0 8px rgba(10, 77, 162, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .mic.on { animation: none; } }
+.voice-note { margin: 4px 0 0; font-size: 13px; color: var(--navy-70); }
+.voice-note.err { color: var(--navy); background: rgba(255, 197, 61, .25); border-radius: 8px; padding: 6px 8px; }
+.read-btn {
+  display: block; margin-top: 6px; padding: 0; border: 0; background: none;
+  color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; min-height: 28px;
+}
+.read-btn.on { color: var(--navy); }
