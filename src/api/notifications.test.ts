@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoLabel, freshNotifications, notificationAction, toastTarget, type AppNotification } from './notifications'
+import { agoLabel, freshNotifications, notificationAction, toastTarget, withRead, type AppNotification } from './notifications'
 
 const n = (kind: string, reservationId: number | null = 12): AppNotification =>
   ({ id: 1, reservationId, kind, title: 't', body: 'b', createdAt: '2026-11-05T14:00:00+09:00', read: false })
@@ -43,5 +43,20 @@ describe('앱 안 알림 배너', () => {
     expect(toastTarget(at(1, 'AWAY_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/alerts')
     expect(toastTarget(at(1, 'START_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/reservations/5')
     expect(toastTarget({ ...at(1, 'END_SOON', '2026-11-05T10:00:00+09:00'), reservationId: null })).toBe('/alerts')
+  })
+})
+
+describe('읽음 표시 (core #69)', () => {
+  const list = [{ ...n('START_SOON'), id: 1 }, { ...n('END_SOON'), id: 2 }, { ...n('AWAY_SOON'), id: 3, read: true }]
+  it('하나만 읽음으로 바꾸고 나머지는 그대로 둔다', () => {
+    const next = withRead(list, 2)
+    expect(next.map((x) => x.read)).toEqual([false, true, true])
+    expect(next[0]).toBe(list[0])
+  })
+  it('id가 null이면 전부 읽음', () => {
+    expect(withRead(list, null).every((x) => x.read)).toBe(true)
+  })
+  it('관리자 퇴실 처리 알림은 그 예약으로 간다 (core #73)', () => {
+    expect(notificationAction(n('FORCED_CHECKOUT'))?.to).toBe('/me/12')
   })
 })

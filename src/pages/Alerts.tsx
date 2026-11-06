@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { agoLabel, getMyNotifications, notificationAction, type AppNotification } from '../api/notifications'
+import { agoLabel, announceUnreadChanged, getMyNotifications, markAllNotificationsRead, markNotificationRead, notificationAction, withRead, type AppNotification } from '../api/notifications'
 import { stillHere } from '../api/reservations'
 import { ApiError, currentMemberId } from '../api/client'
 import { useNow } from '../lib/useNow'
@@ -20,7 +20,7 @@ const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * 알림함 (FR-NTF-103). 입실·종료·노쇼 직전·자리 비움 알림을 최근 것부터 보여 준다.
- * 화면이 열려 있는 동안 30초마다 다시 받는다. 읽음 표시 API는 아직 없어 서버의 read 값만 보여 준다
+ * 화면이 열려 있는 동안 30초마다 다시 받는다. 알림의 버튼을 누르면 그 알림을, "모두 읽음"을 누르면 전부 읽음으로 바꾼다(core #69)
  */
 export default function Alerts() {
   const navigate = useNavigate()
@@ -31,6 +31,10 @@ export default function Alerts() {
   const seen = useRef<Set<number> | null>(null)
   const [announce, setAnnounce] = useState('')
   const now = useNow(30_000)
+  const [readingAll, setReadingAll] = useState(false)
+  const [readError, setReadError] = useState(false)
+  // 이 화면에서 읽음으로 바꾼 알림. 30초마다 받은 목록이 서버 반영 전 값(안 읽음)이어도 다시 점이 켜지지 않게
+  const readHere = useRef<Set<number>>(new Set())
 
   const load = useCallback(() => {
     if (busy.current) return
@@ -51,12 +55,44 @@ export default function Alerts() {
           }
         }
         seen.current = new Set(l.map((n) => n.id))
-        setList(l)
+        setList(l.map((n) => (!n.read && readHere.current.has(n.id) ? { ...n, read: true } : n)))
         setError(false)
       })
       .catch(() => setError(true))
       .finally(() => { clearTimeout(timer); busy.current = false })
   }, [])
+
+  /** 알림 하나 읽음. 화면을 먼저 바꾸고 서버에 알린다. 실패해도 갈 곳으로는 그대로 간다(다음 조회 때 점이 다시 보임) */
+  const readOne = useCallback((id: number) => {
+    const memberId = currentMemberId()
+    if (memberId === null || readHere.current.has(id)) return
+    readHere.current.add(id)
+    setList((l) => (l ? withRead(l, id) : l))
+    markNotificationRead(id, memberId)
+      .then(announceUnreadChanged)
+      .catch(() => { readHere.current.delete(id) })
+  }, [])
+
+  /** 지금 보이는 알림 모두 읽음. 보내는 동안 버튼을 막는다 */
+  async function readAll() {
+    const memberId = currentMemberId()
+    if (memberId === null || readingAll || !list) return
+    setReadingAll(true)
+    setReadError(false)
+    const ids = list.filter((n) => !n.read).map((n) => n.id)
+    try {
+      await markAllNotificationsRead(memberId)
+      ids.forEach((id) => readHere.current.add(id))
+      setList((l) => (l ? l.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)) : l))
+      announceUnreadChanged()
+    } catch {
+      setReadError(true)
+    } finally {
+      setReadingAll(false)
+    }
+  }
+
+  const unread = list?.filter((n) => !n.read).length ?? 0
 
   useEffect(() => {
     load()
@@ -76,7 +112,13 @@ export default function Alerts() {
           <h1>알림</h1>
           <span className="muted alerts-sub">입실·종료 10분 전, 자리 비움을 알려 드려요</span>
         </div>
+        {unread > 0 && (
+          <button type="button" className="link-btn alerts-readall" disabled={readingAll} onClick={() => void readAll()}>
+            {readingAll ? '읽는 중…' : `모두 읽음 (${unread})`}
+          </button>
+        )}
       </header>
+      {readError && <p role="alert" className="alerts-msg">읽음으로 바꾸지 못했어요. 잠시 후 다시 눌러 주세요.</p>}
       <p className="sr-only" aria-live="polite">{announce}</p>
 
       {error && (
@@ -122,8 +164,8 @@ export default function Alerts() {
                 </div>
                 <p className="alert-body">{n.body}</p>
                 {n.kind === 'AWAY_SOON' && n.reservationId != null
-                  ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} />
-                  : act && <Link to={act.to} className="alert-link">{act.label}</Link>}
+                  ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} onUse={() => readOne(n.id)} />
+                  : act && <Link to={act.to} className="alert-link" onClick={() => readOne(n.id)}>{act.label}</Link>}
               </li>
             )
           })}
@@ -167,7 +209,7 @@ export function useStillHere(reservationId: number) {
 }
 
 /** 자리 비움 알림의 두 버튼 (FR-NTF-103, FR-DEV-103): "아직 있어요"(예약당 1번) · "퇴실할게요"(퇴실 화면으로) */
-function AwayActions({ reservationId, checkoutTo }: { reservationId: number; checkoutTo?: string }) {
+function AwayActions({ reservationId, checkoutTo, onUse }: { reservationId: number; checkoutTo?: string; onUse: () => void }) {
   const { state, press } = useStillHere(reservationId)
 
   return (
@@ -175,12 +217,12 @@ function AwayActions({ reservationId, checkoutTo }: { reservationId: number; che
       {state.kind === 'done'
         ? <p className="alert-note" role="status">{state.message}</p>
         : (
-          <button type="button" className="btn-primary alert-btn" disabled={state.kind === 'sending'} onClick={() => void press()}>
+          <button type="button" className="btn-primary alert-btn" disabled={state.kind === 'sending'} onClick={() => { onUse(); void press() }}>
             {state.kind === 'sending' ? '알리는 중…' : '아직 있어요'}
           </button>
         )}
       {state.kind === 'error' && <p className="alert-note err" role="alert">{state.message}</p>}
-      {checkoutTo && <Link to={checkoutTo} className="btn-line alert-btn">퇴실할게요</Link>}
+      {checkoutTo && <Link to={checkoutTo} className="btn-line alert-btn" onClick={onUse}>퇴실할게요</Link>}
     </div>
   )
 }

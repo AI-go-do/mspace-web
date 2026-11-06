@@ -5,6 +5,7 @@ import { getAvailability, type DayAvailability, type RoomSlots } from '../api/ro
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import { roomLink } from '../lib/slots'
 import { useCountUp } from '../lib/useCountUp'
+import { useUnreadCount } from '../lib/useUnreadCount'
 import './Home.css'
 
 /**
@@ -30,6 +31,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [mine, setMine] = useState<MyReservation[]>([])
+  const unread = useUnreadCount()
 
   useEffect(() => {
     let alive = true
@@ -85,11 +87,12 @@ export default function Home() {
         </svg>
         <div className="home-top">
           <span className="home-brand">M-space</span>
-          <Link to="/alerts" className="icon-btn" aria-label="알림">
+          <Link to="/alerts" className="icon-btn" aria-label={unread ? `알림, 안 읽은 알림 ${unread}개` : '알림'}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
+            {!!unread && <span className="bell-badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
           </Link>
         </div>
         <div className="home-now">
