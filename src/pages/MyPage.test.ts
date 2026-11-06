@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MyReservation } from '../api/reservations'
-import { friendsLine, reservationsLine, scheduleLine } from './MyPage'
+import { friendsLine, reservationsLine, scheduleLine, searchWithoutEnd } from './MyPage'
 
 const r = (p: Partial<MyReservation>): MyReservation => ({
   id: 1, room: { id: 3, name: '창작실 3' }, startAt: '2026-11-06T14:00:00+09:00', endAt: '2026-11-06T16:00:00+09:00',
@@ -33,5 +33,19 @@ describe('마이 탭 줄 메뉴 한 줄 요약', () => {
     expect(friendsLine(f(4, 1))).toBe('친구 4 · 받은 요청 1')
     expect(friendsLine(f(0, 0))).toBe('친구 0')
     expect(friendsLine(null)).toBe('')
+  })
+})
+
+describe('연장한 뒤 알림 주소 정리', () => {
+  it('연장한 그 예약의 알림 주소면 end만 뺀다', () => {
+    expect(searchWithoutEnd('?end=12&x=1', 12)?.toString()).toBe('x=1')
+  })
+
+  it('연장을 기다리는 사이 다른 알림(end=13)으로 바뀌었으면 그대로 둔다', () => {
+    expect(searchWithoutEnd('?end=13', 12)).toBeNull()
+  })
+
+  it('end가 없으면 그대로 둔다', () => {
+    expect(searchWithoutEnd('', 12)).toBeNull()
   })
 })

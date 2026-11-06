@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
 import { isActive, type MyReservation } from '../api/reservations'
@@ -42,6 +42,17 @@ export function friendsLine(f: FriendList | null): string {
 }
 
 /**
+ * 연장하면 새 예약 번호가 나와 알림 주소의 `?end=`와 달라진다(그대로 두면 "이미 끝났어요"가 잘못 뜬다).
+ * 지금 주소의 end가 연장한 그 예약일 때만 end를 뺀 주소를 돌려주고, 다른 알림으로 바뀌었으면 null(그대로 둔다)
+ */
+export function searchWithoutEnd(search: string, extendedId: number): URLSearchParams | null {
+  const params = new URLSearchParams(search)
+  if (params.get('end') !== String(extendedId)) return null
+  params.delete('end')
+  return params
+}
+
+/**
  * 마이 탭 (11/6 재웅: 내 예약에 로그아웃·시간표·친구가 섞여 있으니 마이페이지로 묶자).
  * 위에서 아래로: 머리글(스페이시·내 정보·수칙 동의) → 사용 중/다가오는 예약 1장 → 줄 메뉴(내 예약·내 시간표·친구·이용 규칙) → 관리자 → 로그아웃.
  * 이름·학번은 넣지 않는다(토큰에 회원 번호만 있고, 공용 폰에서 남의 이름이 보일 수 있어서).
@@ -63,6 +74,11 @@ function MyPageFor({ member }: { member: number | null }) {
   const [friends, setFriends] = useState<FriendList | null>(null)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   // 회원 번호를 아직 모르면(첫 토큰 갱신이 늦거나 실패) 알게 되는 순간(새 key로 다시 그려짐) 받고, 연결이 돌아오면 못 받은 것만 다시 받는다
   useEffect(() => {
@@ -97,16 +113,13 @@ function MyPageFor({ member }: { member: number | null }) {
   // 목록이 최신이면 "이미 끝났어요", 못 받은 옛 목록이면 끝났다고 단정하지 않고 다르다고만 알린다
   const staleEnd = endMismatch && !stale
   const maybeOther = endMismatch && stale && inUse != null
-  // 연장하면 새 예약 번호가 나와 알림의 번호와 달라진다. 알림 받은 그 예약을 연장했으면 주소의 end를 지운다
-  // (그사이 다른 알림으로 주소가 바뀌었으면 그대로 둔다)
+  // 연장 응답을 기다리는 사이 다른 알림으로 주소가 바뀌었을 수 있다. setParams의 함수 인자는 그 렌더의 옛 주소를 주므로
+  // 지금 주소(BrowserRouter라 window.location이 곧 라우터 주소)를 본다. 마이 탭을 벗어났으면 손대지 않는다
   const onExtended = (fromId: number, newId: number, text: string) => {
     setExtended({ id: newId, text })
-    setParams((p) => {
-      if (p.get('end') !== String(fromId)) return p
-      const nextParams = new URLSearchParams(p)
-      nextParams.delete('end')
-      return nextParams
-    }, { replace: true })
+    if (!mounted.current) return
+    const cleared = searchWithoutEnd(window.location.search, fromId)
+    if (cleared) setParams(cleared, { replace: true })
   }
   const agreed = hasAgreed()
 
