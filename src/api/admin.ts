@@ -46,6 +46,7 @@ export interface Evidence {
   note: string | null
 }
 
+/** 신고 하나의 증거(앞 사람 퇴실 사진·신고자 입실 사진). 관리자만 (core #76) */
 export function getEvidence(reportId: number, signal?: AbortSignal, member?: number | null): Promise<Evidence> {
   return api(`/api/reports/${reportId}/evidence`, { signal, member })
 }
