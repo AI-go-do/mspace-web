@@ -4,6 +4,7 @@ import { agoLabel, announceUnreadChanged, getMyNotifications, markAllNotificatio
 import { stillHere } from '../api/reservations'
 import { ApiError, currentMemberId } from '../api/client'
 import { useNow } from '../lib/useNow'
+import { useUnreadCount } from '../lib/useUnreadCount'
 import './Alerts.css'
 
 const REFRESH_MS = 30_000
@@ -98,7 +99,9 @@ export default function Alerts() {
     }
   }
 
-  const unread = list?.filter((n) => !n.read).length ?? 0
+  // 받은 목록(최근 것만)에는 없는 예전 안 읽은 알림도 있을 수 있어서, 서버가 센 안 읽은 수와 큰 쪽을 쓴다
+  const serverUnread = useUnreadCount()
+  const unread = Math.max(list?.filter((n) => !n.read).length ?? 0, serverUnread ?? 0)
 
   useEffect(() => {
     load()
