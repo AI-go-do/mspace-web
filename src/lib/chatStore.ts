@@ -18,12 +18,16 @@ export interface ChatMessage {
   accessCodeCards?: { reservationId: number }[]
   /** 새로고침 전에 받은 확인 카드. 토큰이 없어 다시 누를 수 없다 */
   pastCards?: PastCard[]
+  /** 답 아래 "다음 말" 버튼(서버 suggestions). 마지막 답에만 그린다 */
+  suggestions?: string[]
+  /** 화면 신호(서버 hints) */
+  hints?: string[]
 }
 
 /** 저장소에서 되살린 확인 카드. 눌러서 끝난 카드면 결과(입실 번호 빼고)를 함께 둔다 */
 export interface PastCard {
   summary: string
-  result?: Pick<ConfirmResult, 'action' | 'reservationId' | 'message'>
+  result?: Pick<ConfirmResult, 'action' | 'reservationId' | 'message' | 'suggestions'>
 }
 
 export interface ChatState {
@@ -156,7 +160,8 @@ export function toSaved(s: ChatState, outcomes: Map<string, CardOutcome>, now: n
     const past = confirmations.map((c): PastCard => {
       const o = outcomes.get(c.token)
       return o?.kind === 'done'
-        ? { summary: c.summary, result: { action: o.result.action, reservationId: o.result.reservationId, message: o.result.message } }
+        ? { summary: c.summary, result: { action: o.result.action, reservationId: o.result.reservationId, message: o.result.message,
+            ...(o.result.suggestions?.length ? { suggestions: o.result.suggestions } : {}) } }
         : { summary: c.summary }
     })
     return { ...rest, pastCards: [...(m.pastCards ?? []), ...past] }
@@ -187,6 +192,7 @@ function isPastCard(c: unknown): c is PastCard {
   if (result === undefined) return true
   return !!result && typeof result === 'object'
     && typeof result.action === 'string' && typeof result.reservationId === 'number' && typeof result.message === 'string'
+    && (result.suggestions === undefined || (Array.isArray(result.suggestions) && result.suggestions.every((t) => typeof t === 'string')))
 }
 
 // 로그아웃·refresh 실패: 화면 기록과 저장소를 비운다(같은 기기의 다음 사람이 보지 않게)

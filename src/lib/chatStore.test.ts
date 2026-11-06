@@ -58,6 +58,26 @@ describe('새로고침·다시 열어도 대화 유지(브라우저 저장소)',
     expect(saved?.messages[1].confirmations).toBeUndefined()
   })
 
+  it('결과 카드의 다음 말 버튼은 저장했다가 되살리고, 토큰·입실 번호는 여전히 뺀다', () => {
+    const withNext: ConfirmResult = { ...result, suggestions: ['내 예약 보여 줘', '사용 규칙 알려 줘'] }
+    const saved = toSaved({
+      memberId: 1, pending: null,
+      messages: [{ id: 2, role: 'assistant', text: '이렇게 예약할까요?', confirmations: [card] }],
+    }, new Map([['secret-token', { kind: 'done', result: withNext }]]), 1000)
+    const raw = JSON.stringify(saved)
+    expect(raw).not.toContain('secret-token')
+    expect(raw).not.toContain('123456')
+    const back = restoreChat(JSON.parse(raw), 1, 2000)
+    expect(back?.messages[0].pastCards?.[0].result?.suggestions).toEqual(['내 예약 보여 줘', '사용 규칙 알려 줘'])
+  })
+
+  it('저장된 다음 말이 글 목록이 아니면 그 기록은 버린다', () => {
+    const bad = { memberId: 1, savedAt: 1000, pending: null, messages: [
+      { id: 2, role: 'assistant', text: '예약했어요', pastCards: [{ summary: 's', result: { action: 'CREATE', reservationId: 9, message: 'm', suggestions: [1] } }] },
+    ] }
+    expect(restoreChat(bad, 1, 2000)?.messages).toEqual([])
+  })
+
   it('접수 중(번호를 아직 못 받음)은 저장하지 않고, 받은 번호는 저장한다', () => {
     const base = { memberId: 1, messages: [{ id: 1, role: 'user' as const, text: '안녕' }] }
     expect(toSaved({ ...base, pending: { jobId: '', startedAt: 5 } }, new Map(), 10)?.pending).toBeNull()

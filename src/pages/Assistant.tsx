@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { clearChatHistory, confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
+import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
 import { findFriend } from '../api/friends'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
+import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
+import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, stopSpeaking } from '../lib/speech'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
 
 /** 서버 기준(1,000자)과 같게 */
 const MAX_CHARS = 1000
-const EXAMPLES = ['오늘 지금 빈 방 있어?', '내일 오후 2시에 3명 예약해 줘', '내 예약 보여 줘']
+
+/** 버튼 글을 보내는 함수. 확인 카드·말풍선 아래 버튼이 같이 쓴다 */
+type Ask = (message: string) => void
 
 /**
  * 비서 스페이시 (FR-AGT-101, docs api 7장).
@@ -23,6 +27,26 @@ export default function Assistant() {
   const [chat, setChat] = useState<ChatState>(() => loadChat(currentMemberId()))
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
+  // 추천 메뉴에서 펼친 단계(방 예약 → 언제). null이면 처음 메뉴
+  const [menu, setMenu] = useState<PromptChip[] | null>(null)
+  // 음성: 듣는 중이면 멈추는 함수. 마이크로 보낸 말의 답은 소리로 읽어 준다
+  const [listening, setListening] = useState(false)
+  const [voiceNote, setVoiceNote] = useState('')
+  const [speakingId, setSpeakingId] = useState<number | null>(null)
+  const stopListen = useRef<(() => void) | null>(null)
+  // 듣는 중에는 손으로 보내기·추천 버튼을 막는다(같은 말이 두 번 가거나 음성 말이 버려지지 않게)
+  const listeningNow = useRef(false)
+  // 지금 듣기의 주인 확인. 회원이 바뀌면 무효로 해서 앞 듣기의 늦은 결과(중간·마지막)를 버린다
+  const session = useRef<ReturnType<typeof listenSession>>(null)
+  // 화면 전환(ViewTransition) 중에는 useEffect 정리가 늦을 수 있어, 떠난 것을 layout 정리에서 먼저 표시한다
+  const left = useRef(false)
+  useLayoutEffect(() => {
+    left.current = false
+    return () => { left.current = true }
+  }, [])
+  const readNext = useRef(false)
+  const micOk = useRef(canListen()).current
+  const ttsOk = useRef(canSpeak()).current
   // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
   const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
@@ -43,17 +67,87 @@ export default function Assistant() {
   }
 
   function addReply(result: ChatResult, owner: number | null) {
+    const id = newMessageId()
     update((s) => ({
       ...s,
       pending: null,
       messages: [...s.messages, {
-        id: newMessageId(), role: 'assistant', text: result.reply,
+        id, role: 'assistant', text: result.reply,
         confirmations: result.confirmations, accessCodeCards: result.accessCodeCards,
+        suggestions: result.suggestions ?? [], hints: result.hints ?? [],
       }],
     }), owner)
+    // 마이크로 물었으면 답도 소리로. 화면을 떠났거나 그사이 회원이 바뀌었으면 읽지 않는다(앞 회원 답을 소리로 내지 않게)
+    const readIt = readNext.current
+    readNext.current = false
+    if (readIt && mounted.current && ttsOk && owner === currentMemberId()) read(id, result.reply)
+  }
+
+  function read(id: number, text: string) {
+    if (speakingId === id) {
+      stopSpeaking()
+      setSpeakingId(null)
+      return
+    }
+    if (speak(text, () => { if (mounted.current) setSpeakingId((cur) => (cur === id ? null : cur)) })) setSpeakingId(id)
+  }
+
+  /** 마이크: 한 번 말하면 글로 바꿔 바로 보낸다. 듣는 중에 누르면 지금까지 들린 말로 끝낸다 */
+  function toggleMic() {
+    if (listening) {
+      stopListen.current?.()
+      return
+    }
+    stopSpeaking()
+    setSpeakingId(null)
+    primeSpeech()
+    setVoiceNote('')
+    // 들은 말은 듣기를 시작한 회원 것만 보낸다(그사이 다른 탭에서 다른 학생이 로그인하면 버린다).
+    // 회원을 아직 모르면(로그인 확인 실패 등) 듣지 않는다
+    const s = listenSession(currentMemberId)
+    if (!s) {
+      setVoiceNote('로그인 정보를 확인하는 중이에요. 잠시 뒤 다시 눌러 주세요.')
+      return
+    }
+    session.current = s
+    const live = s.live
+    const stop = listenOnce({
+      onInterim: (t) => { if (live()) setText(t) },
+      onFinal: (t) => {
+        listeningNow.current = false
+        // 화면을 떠나며 멈춘 듣기는 보내지 않는다(학생이 보내기로 한 말이 아니다)
+        if (!mounted.current || left.current || !live()) return
+        readNext.current = true
+        void send(t, true)
+      },
+      onError: (m) => setVoiceNote(m),
+      onEnd: () => {
+        listeningNow.current = false
+        stopListen.current = null
+        if (mounted.current) setListening(false)
+      },
+    })
+    if (stop) {
+      listeningNow.current = true
+      stopListen.current = stop
+      setListening(true)
+    }
+  }
+
+  /** 추천 버튼: 다음 단계가 있으면 펼치고, 아니면 그 말을 보낸다 */
+  function pick(c: PromptChip) {
+    if (c.next) return setMenu(c.next)
+    setMenu(null)
+    if (c.message) void send(c.message)
+  }
+
+  const ask: Ask = (m) => {
+    setMenu(null)
+    void send(m)
   }
 
   function addError(message: string, owner: number | null) {
+    readNext.current = false
     update((s) => ({ ...s, pending: null, messages: [...s.messages, { id: newMessageId(), role: 'assistant', text: message, error: true }] }), owner)
   }
 
@@ -99,6 +193,10 @@ export default function Assistant() {
     return () => {
       mounted.current = false
       alive.current?.abort()
+      // 화면을 떠나며 멈출 때 늦게 오는 중간·마지막 결과도 같은 방식으로 버린다
+      session.current?.invalidate()
+      stopListen.current?.()
+      stopSpeaking()
     }
   }, [])
 
@@ -109,6 +207,9 @@ export default function Assistant() {
       const memberId = currentMemberId()
       if (memberId === chat.memberId) return
       alive.current?.abort()
+      // 앞 회원이 말하던 중이면 그 듣기를 무효로 하고 멈춘다(늦게 오는 중간·마지막 결과 모두 버림)
+      session.current?.invalidate()
+      stopListen.current?.()
       const next = loadChat(memberId)
       setChat(next)
       setText('')
@@ -147,9 +248,9 @@ export default function Assistant() {
   const busy = chat.pending !== null
   const trimmed = text.trim()
 
-  async function send(message: string) {
+  async function send(message: string, fromVoice = false) {
     const msg = message.trim()
-    if (!msg) return
+    if (!msg || (listeningNow.current && !fromVoice)) return
     let owner = currentMemberId()
     // 앱을 열 때 refresh가 잠깐 실패해 회원을 아직 모르면, 먼저 확인한다(모르는 채로 보내지 않는다)
     if (owner === null) {
@@ -162,7 +263,10 @@ export default function Assistant() {
     // 앞 대화는 지금 로그인한 회원의 저장된 기록에서 만든다(화면에 남은 예전 회원 기록을 보내지 않게)
     const stored = loadChat(owner)
     if (stored !== chat) setChat(stored)
-    if (!msg || stored.pending !== null || clearing || currentClearing(owner) || msg.length > MAX_CHARS) return
+    if (!msg || stored.pending !== null || clearing || currentClearing(owner) || msg.length > MAX_CHARS) {
+      readNext.current = false
+      return
+    }
     const history = historyOf(stored.messages)
     const startedAt = Date.now()
     update((s) => ({
@@ -232,15 +336,17 @@ export default function Assistant() {
       <div className="chat-list" aria-live="polite">
         {chat.messages.length === 0 && (
           <div className="bubble bot">
-            안녕하세요, 스페이시예요. 무엇을 도와드릴까요?
-            <div className="ask-chips">
-              {EXAMPLES.map((ex) => (
-                <button key={ex} type="button" className="ask-chip" onClick={() => void send(ex)} disabled={busy || clearing}>{ex}</button>
-              ))}
-            </div>
+            안녕하세요, 스페이시예요. 아래 버튼을 누르거나{micOk ? ' 마이크로 말해' : ' 글로 적어'} 주세요.
+            <p className="muted chat-tip">누르기만 해도 빈 방 찾기 → 확인 카드 → [확인]까지 이어져요.</p>
           </div>
         )}
-        {chat.messages.map((m) => <Message key={m.id} m={m} owner={chat.memberId} />)}
+        {chat.messages.map((m, i) => (
+          <Message
+            key={m.id} m={m} owner={chat.memberId}
+            last={i === chat.messages.length - 1} busy={busy || clearing || listening} ask={ask}
+            speaking={speakingId === m.id} onRead={ttsOk ? () => read(m.id, m.text) : undefined}
+          />
+        ))}
         {busy && (
           <div className="bubble bot thinking" role="status">
             생각하는 중<span className="typing" aria-hidden="true"><i /><i /><i /></span>{waitingSec >= 3 && <span className="muted"> {waitingSec}초</span>}
@@ -249,6 +355,22 @@ export default function Assistant() {
         <div ref={listEnd} />
       </div>
 
+      <div className="chat-dock">
+      <nav className="prompt-bar" aria-label="추천 말">
+        {menu && (
+          <button type="button" className="ask-chip back" onClick={() => setMenu(null)}>{BACK_LABEL}</button>
+        )}
+        {(menu ?? MAIN_PROMPTS).map((c) => (
+          <button key={c.label} type="button" className={`ask-chip ${c.next ? 'more' : ''}`} onClick={() => pick(c)} disabled={busy || clearing || listening}>
+            {c.label}{c.next ? ' ›' : ''}
+          </button>
+        ))}
+      </nav>
+      {(listening || voiceNote) && (
+        <p className={`voice-note ${voiceNote ? 'err' : ''}`} role="status">
+          {voiceNote || '듣고 있어요… 말이 끝나면 바로 보내요. 이름·학번은 말하지 마세요.'}
+        </p>
+      )}
       <form className="chat-input" onSubmit={onSubmit}>
         <label htmlFor="chat-text" className="sr-only">비서에게 할 말</label>
         <textarea
@@ -266,42 +388,84 @@ export default function Assistant() {
             }
           }}
         />
-        <button type="submit" className="send" disabled={busy || clearing || !trimmed} aria-label="보내기">
+        {micOk && (
+          <button
+            type="button" className={`mic ${listening ? 'on' : ''}`} onClick={toggleMic}
+            disabled={(busy || clearing) && !listening}
+            aria-label={listening ? '듣기 멈추기' : '말로 하기'} aria-pressed={listening}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor" />
+            </svg>
+          </button>
+        )}
+        <button type="submit" className="send" disabled={busy || clearing || listening || !trimmed} aria-label="보내기">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
         </button>
       </form>
+      </div>
     </main>
   )
 }
 
 /** 말풍선 하나와 거기 붙은 확인 카드·입실 번호 카드·지난 카드 */
-function Message({ m, owner }: { m: ChatMessage; owner: number | null }) {
+function Message({ m, owner, last, busy, ask, speaking, onRead }: {
+  m: ChatMessage; owner: number | null; last: boolean; busy: boolean; ask: Ask; speaking: boolean; onRead?: () => void
+}) {
   if (m.role === 'user') return <div className="bubble me">{m.text}</div>
+  // 다음 말 버튼은 마지막 답에만(앞 답의 버튼은 지금 상황과 안 맞을 수 있다)
+  const chips = last && !m.error ? (m.suggestions ?? []) : []
   return (
     <>
-      <div className={`bubble bot ${m.error ? 'err' : ''}`} role={m.error ? 'alert' : undefined}>{m.text}</div>
-      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} />)}
-      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} />)}
+      <div className={`bubble bot ${m.error ? 'err' : ''}`} role={m.error ? 'alert' : undefined}>
+        {m.text}
+        {onRead && !m.error && (
+          <button type="button" className={`read-btn ${speaking ? 'on' : ''}`} onClick={onRead} aria-label={speaking ? '읽기 멈추기' : '소리로 듣기'}>
+            {speaking ? '■ 멈춤' : '🔊 듣기'}
+          </button>
+        )}
+      </div>
+      {m.confirmations?.map((c) => <ConfirmCard key={c.token} c={c} owner={owner} ask={last ? ask : undefined} busy={busy} />)}
+      {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} ask={last ? ask : undefined} busy={busy} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
           입실 번호 보기 →
         </Link>
       ))}
+      {last && m.hints?.includes(HINT_OPEN_SCHEDULE) && (
+        <Link to="/me/schedule" className="bot-card link-card">내 시간표 넣기 →</Link>
+      )}
+      {chips.length > 0 && <NextChips items={chips} ask={ask} busy={busy} />}
     </>
   )
 }
 
+/** 답 아래 "다음 말" 버튼. 누르면 그 글을 그대로 보낸다 */
+function NextChips({ items, ask, busy }: { items: string[]; ask: Ask; busy?: boolean }) {
+  return (
+    <div className="ask-chips next-chips" aria-label="다음 말">
+      {items.map((t) => (
+        <button key={t} type="button" className="ask-chip" onClick={() => ask(t)} disabled={busy}>{t}</button>
+      ))}
+    </div>
+  )
+}
+
 /** 새로고침 전에 받은 확인 카드. 토큰을 저장하지 않아 다시 누를 수 없다 */
-function PastConfirmCard({ c }: { c: PastCard }) {
+function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: boolean }) {
   const r = c.result
   if (r) {
     return (
-      <div className="bot-card done" role="status">
-        <strong>{r.message}</strong>
-        {r.action === 'CREATE'
-          ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
-          : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
-      </div>
+      <>
+        <div className="bot-card done" role="status">
+          <strong>{r.message}</strong>
+          {r.action === 'CREATE' || r.action === 'START_NOW'
+            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+        </div>
+        {/* 새로고침 뒤에도 마지막 결과 카드의 다음 말 버튼은 남긴다(글만 저장, 토큰·입실 번호 없음) */}
+        {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
+      </>
     )
   }
   return (
@@ -318,7 +482,7 @@ type CardState = CardOutcome
 /** 이 코드면 카드를 다시 쓸 수 없다(비서에게 다시 말해야 함) */
 const CLOSED = new Set(['CONFIRMATION_USED', 'CONFIRMATION_EXPIRED', 'CONFIRMATION_NOT_FOUND'])
 
-export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number | null }) {
+export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owner: number | null; ask?: Ask; busy?: boolean }) {
   const now = useNow(5_000)
   // 이미 누른 카드면 그 결과로 시작한다(다른 화면에 갔다 와도 입력 칸이 다시 뜨지 않게, 11/5 재웅 피드백)
   const [state, setState] = useState<CardState>(() => cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
@@ -393,12 +557,15 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
   if (state.kind === 'done') {
     const r = state.result
     return (
-      <div className="bot-card done" role="status">
-        <strong>{r.message}</strong>
-        {r.action === 'CREATE'
-          ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
-          : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
-      </div>
+      <>
+        <div className="bot-card done" role="status">
+          <strong>{r.message}</strong>
+          {r.action === 'CREATE' || r.action === 'START_NOW'
+            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+        </div>
+        {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
+      </>
     )
   }
 
