@@ -39,17 +39,29 @@ export default function Alerts() {
   // 이 화면에서 읽음으로 바꾼 알림과 바꾼 시각. 서버 반영 전에 받은 목록(안 읽음)이 점을 다시 켜지 않게 잠깐만 덮어쓴다.
   // READ_OVERRIDE_MS가 지나면 서버 값을 그대로 믿는다
   const readHere = useRef<Map<number, number>>(new Map())
+  // 지금 보이는 목록이 누구의 것인지. 다른 탭에서 다른 회원으로 바뀌면 앞 사람 목록을 지우고 다시 받으며, 그 전까지 읽음 버튼을 막는다
+  const [owner, setOwner] = useState<number | null>(null)
+  const ownerRef = useRef<number | null>(null)
 
   const load = useCallback(() => {
     if (busy.current) return
     // 이 화면을 연 회원의 알림만 받는다. 다른 탭에서 다른 회원으로 바뀌면 api가 요청을 막는다. 토큰이 아직 없으면 다음 확인을 기다린다
     const memberId = currentMemberId()
     if (memberId === null) return
+    if (ownerRef.current !== null && ownerRef.current !== memberId) {
+      ownerRef.current = null
+      setOwner(null)
+      setList(null)
+      seen.current = null
+      readHere.current.clear()
+    }
     busy.current = true
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)
     getMyNotifications(abort.signal, memberId)
       .then((l) => {
+        // 기다리는 사이 회원이 바뀌었으면 이 목록은 버린다(다음 조회가 새 회원 것을 받는다)
+        if (currentMemberId() !== memberId) return
         if (seen.current) {
           const fresh = l.filter((n) => !seen.current!.has(n.id)).length
           if (fresh) {
@@ -62,6 +74,8 @@ export default function Alerts() {
         const at = Date.now()
         readHere.current.forEach((t, id) => { if (at - t > READ_OVERRIDE_MS) readHere.current.delete(id) })
         setList(l.map((n) => (!n.read && readHere.current.has(n.id) ? { ...n, read: true } : n)))
+        ownerRef.current = memberId
+        setOwner(memberId)
         setError(false)
       })
       .catch(() => setError(true))
@@ -71,7 +85,7 @@ export default function Alerts() {
   /** 알림 하나 읽음. 화면을 먼저 바꾸고 서버에 알린다. 실패해도 갈 곳으로는 그대로 간다(다음 조회 때 점이 다시 보임) */
   const readOne = useCallback((id: number) => {
     const memberId = currentMemberId()
-    if (memberId === null || readHere.current.has(id)) return
+    if (memberId === null || memberId !== ownerRef.current || readHere.current.has(id)) return
     readHere.current.set(id, Date.now())
     setList((l) => (l ? withRead(l, id) : l))
     markNotificationRead(id, memberId)
@@ -82,7 +96,7 @@ export default function Alerts() {
   /** 지금 보이는 알림 모두 읽음. 보내는 동안 버튼을 막는다 */
   async function readAll() {
     const memberId = currentMemberId()
-    if (memberId === null || readingAll || !list) return
+    if (memberId === null || memberId !== ownerRef.current || readingAll || !list) return
     setReadingAll(true)
     setReadError(false)
     const ids = list.filter((n) => !n.read).map((n) => n.id)
@@ -100,8 +114,12 @@ export default function Alerts() {
   }
 
   // 받은 목록(최근 것만)에는 없는 예전 안 읽은 알림도 있을 수 있어서, 서버가 센 안 읽은 수와 큰 쪽을 쓴다
+  // 목록 주인이 지금 회원일 때만 센다(바뀐 직후 새 회원 숫자로 앞 사람 목록에 버튼을 띄우지 않게)
   const serverUnread = useUnreadCount()
-  const unread = Math.max(list?.filter((n) => !n.read).length ?? 0, serverUnread ?? 0)
+  const mine = owner !== null && owner === currentMemberId()
+  // 앞 회원 목록은 보이지 않게(다음 조회가 새 회원 것을 받을 때까지 불러오는 중으로)
+  const shown = mine ? list : null
+  const unread = mine ? Math.max(list?.filter((n) => !n.read).length ?? 0, serverUnread ?? 0) : 0
 
   useEffect(() => {
     load()
@@ -122,7 +140,7 @@ export default function Alerts() {
           <span className="muted alerts-sub">입실·종료 10분 전, 자리 비움을 알려 드려요</span>
         </div>
         {unread > 0 && (
-          <button type="button" className="link-btn alerts-readall" disabled={readingAll} onClick={() => void readAll()}>
+          <button type="button" className="link-btn alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()}>
             {readingAll ? '읽는 중…' : `모두 읽음 (${unread})`}
           </button>
         )}
@@ -132,13 +150,13 @@ export default function Alerts() {
 
       {error && (
         <p role="alert" className="alerts-msg">
-          {list ? '새 알림을 못 받아왔어요. 잠시 뒤 다시 받아요.' : '알림을 못 불러왔어요.'}
+          {shown ? '새 알림을 못 받아왔어요. 잠시 뒤 다시 받아요.' : '알림을 못 불러왔어요.'}
           <button type="button" className="link-btn" onClick={load}>다시 받기</button>
         </p>
       )}
 
       {/* 처음 받는 동안 알림 카드 세 장 자리를 미리 그려 둔다(화면이 튀지 않게) */}
-      {list === null && !error && (
+      {shown === null && !error && (
         <ul className="alerts-list" aria-busy="true" aria-label="알림 불러오는 중">
           {[0, 1, 2].map((i) => (
             <li key={i} className="card alert alert-skeleton" aria-hidden="true">
@@ -148,7 +166,7 @@ export default function Alerts() {
         </ul>
       )}
 
-      {list?.length === 0 && (
+      {shown?.length === 0 && (
         <div className="card alerts-empty">
           <span className="alerts-empty-icon" aria-hidden="true">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -160,9 +178,9 @@ export default function Alerts() {
         </div>
       )}
 
-      {!!list?.length && (
+      {!!shown?.length && (
         <ul className="alerts-list">
-          {list.map((n) => {
+          {shown.map((n) => {
             const act = notificationAction(n)
             return (
               <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''}`}>
