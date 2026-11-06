@@ -26,6 +26,7 @@
 .end-chips button[aria-pressed='true'] { background: var(--grad-blue); border-color: transparent; color: var(--white); font-weight: 700; box-shadow: var(--shadow-blue); animation: pop 0.26s var(--ease-spring); }
 .end-chips button:disabled { background: var(--gray); color: rgba(21, 35, 61, 0.35); cursor: default; }
 .in-warn { margin: 12px 16px 0; border-radius: 16px; background: var(--yellow); padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+.rs-bar .in-warn { margin: 0 0 8px; font-size: 13px; }
 .people-chip:disabled { opacity: 0.5; cursor: default; }
 .in-rooms h2 .sample { margin-left: 8px; vertical-align: middle; }
 /* 지금 말고 나중에: 같은 방 시간 고르기로(즉시 시작이 기본값이라 예약은 이 줄로 간다) */

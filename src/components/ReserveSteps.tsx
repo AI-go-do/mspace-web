@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { currentMemberId } from '../api/client'
 import { filterFriends, friendErrorMessage, getFriends, requestFriend, type Friend } from '../api/friends'
 import type { FoundMember } from '../api/members'
@@ -102,8 +102,10 @@ export function Members(props: {
   /** onDone이 예약을 보내는 중이면 true: 버튼·뒤로·사람 넣고 빼기를 막는다 */
   busy?: boolean
   busyLabel?: string
+  /** 아래 버튼 바로 위에 늘 보이는 안내 (예: 즉시 시작은 취소가 안 된다는 경고) */
+  barNote?: ReactNode
 }) {
-  const { title, room, when, people, setPeople, count, min, max, onBack, onDone, doneLabel, busy = false, busyLabel } = props
+  const { title, room, when, people, setPeople, count, min, max, onBack, onDone, doneLabel, busy = false, busyLabel, barNote } = props
   const [query, setQuery] = useState('')
   const [friends, setFriends] = useState<Friend[] | null>(null)
   // 이미 친구 요청을 보낸 학번. 같은 사람에게 또 보내지 않고 "수락 기다리는 중"으로 보여 준다
@@ -247,6 +249,7 @@ export function Members(props: {
       </div>
 
       <div className="rs-bar">
+        {barNote}
         {!countOk && (
           <p className="count-hint" role="status">
             {count < min ? <><b>{min - count}명</b> 더 추가하면 예약할 수 있어요</> : <>최대 {max}명이에요. <b>{count - max}명</b>을 빼 주세요</>}
