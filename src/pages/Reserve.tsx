@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { minutesLabel } from '../lib/format'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
@@ -10,7 +10,7 @@ import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../component
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
 import { seoulClock, seoulDate } from '../lib/time'
-import { addDays, dayLabel, DAY_SLOTS, freeNextDaySlots, lengthLabel, MAX_SLOTS, nextDayReach, slotClock, slotClockAcross, tapSlot, weekChips, type Pick } from '../lib/slots'
+import { addDays, dayLabel, DAY_SLOTS, freeNextDaySlots, lengthLabel, MAX_SLOTS, nextDayReach, roomLink, slotClock, slotClockAcross, tapSlot, weekChips, type Pick } from '../lib/slots'
 import './Reserve.css'
 
 type Step = 'time' | 'members' | 'rules'
@@ -137,6 +137,9 @@ export default function Reserve() {
   }
 
   const title = `창작실 ${roomId}`
+  // 수연 피드백(11/6): 지금 바로 쓰기가 예약 화면과 떨어져 있어 불편 → 오늘 이 방이 지금 비어 있으면 시간표 위에 바로 시작 줄을 둔다
+  const startNowLink = room && date === today && !pick ? roomLink(room, now) : null
+  const canStartNow = !!startNowLink && startNowLink.startsWith('/now')
   const when = pick ? `${date === today ? '오늘' : dayLabel(date)} ${range}` : ''
 
   return (
@@ -158,6 +161,16 @@ export default function Reserve() {
               ))}
             </div>
           </header>
+
+          {canStartNow && (
+            <Link to={startNowLink!} className="card rs-now">
+              <span className="rs-now-text">
+                <b>지금 비어 있어요</b>
+                <span className="muted">지금 {seoulClock(now)}부터 바로 쓰기 · 끝 시각만 골라요</span>
+              </span>
+              <span className="rs-now-go">지금 시작</span>
+            </Link>
+          )}
 
           <section className="card rs-grid-card" aria-labelledby="grid-title">
             <div className="rs-grid-head">
