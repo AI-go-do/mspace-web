@@ -111,9 +111,6 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   NO_SHOW: '노쇼로 풀림',
 }
 
-/** 지금 바로 쓰기를 잘못 눌렀을 때 취소할 수 있는 분 (core mspace.reservation.instant-cancel.minutes 기본값, 안내 문구용) */
-export const INSTANT_CANCEL_MINUTES = 5
-
 /** 취소 마감: 서버 값(cancelableUntil)이 있으면 그것, 없으면 시작 시각 */
 export function cancelDeadline(r: Pick<MyReservation, 'startAt' | 'cancelableUntil'>): Date {
   return new Date(r.cancelableUntil ?? r.startAt)

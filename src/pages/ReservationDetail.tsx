@@ -4,7 +4,7 @@ import { ApiError, currentMemberId } from '../api/client'
 import PhotoUpload from '../components/PhotoUpload'
 import { cancelDeadline, cancelReservation, canCancel as canCancelAt, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
-import { seoulClock } from '../lib/time'
+import { seoulClock, seoulClockSec } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import { deadlineOf } from './AccessCode'
 import { useMyReservations } from './MyReservations'
@@ -112,7 +112,7 @@ export default function ReservationDetail() {
       {canCancel && (
         <div className="detail-cancel">
           <span className="muted small">{cancelAfterStart
-            ? `잘못 눌렀다면 ${seoulClock(cancelDeadline(r))} 전까지 취소할 수 있어요`
+            ? `잘못 눌렀다면 ${seoulClockSec(cancelDeadline(r))} 전까지 취소할 수 있어요`
             : `시작(${seoulClock(new Date(r.startAt))}) 전까지 대표자만 취소할 수 있어요`}</span>
           <button type="button" className="btn-line" onClick={() => setAsking(true)}>예약 취소</button>
         </div>

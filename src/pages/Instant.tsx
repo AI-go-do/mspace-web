@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
-import { INSTANT_CANCEL_MINUTES, startNow } from '../api/reservations'
+import { startNow } from '../api/reservations'
 import { getAvailability, type RoomSlots } from '../api/rooms'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
@@ -173,7 +173,7 @@ export default function Instant() {
   // 시작 버튼이 있는 화면(방 고르기·함께 쓰는 사람)마다 버튼 가까이에 알린다
   const warn = (
     <p className="in-warn">
-      잘못 눌렀다면 <b>{INSTANT_CANCEL_MINUTES}분 안</b>에 내 예약에서 취소할 수 있어요. <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+      잘못 눌렀다면 다음 화면에서 취소할 수 있는 마감 시각을 알려 드려요. <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
     </p>
   )
 

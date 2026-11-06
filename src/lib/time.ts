@@ -20,6 +20,13 @@ export function seoulClock(d = new Date()): string {
   }).format(d)
 }
 
+/** 초까지 (취소 마감처럼 분 안에서 끝나는 시각용). 예: 10:05:50 */
+export function seoulClockSec(d = new Date()): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(d)
+}
+
 /**
  * 30분 칸 목록 → 예약된 구간 막대.
  * 서버의 available=false는 '예약됨'과 '지난 칸'을 함께 뜻해서, 지금 이후 칸만 예약으로 본다.
