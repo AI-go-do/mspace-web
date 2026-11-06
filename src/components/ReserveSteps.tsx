@@ -65,7 +65,7 @@ export function DeniedSheet(props: { denied: Denied & { message: string }; onClo
   const { denied, onClose, onHome, onNext } = props
   const navigate = useNavigate()
   // 처리됐는지 모를 때: 홈으로 떠나지 말고 내 예약에서 바로 확인하게 한다
-  const onMine = () => navigate('/me')
+  const onMine = () => navigate('/me/reservations')
   return (
     <div className="sheet-wrap">
       <div className="sheet-dim" onClick={onClose} aria-hidden="true" />

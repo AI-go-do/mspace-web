@@ -74,7 +74,7 @@ export default function Report() {
               ? '소음은 관리자가 바로 확인할 수 있게 전해요. 판정·경고 대상은 아니에요.'
               : '관리자가 사진과 기록을 보고 판정하면 알림으로 알려 드려요. 사실이면 앞 사용자에게 경고가 가요.'}
           </span>
-          <Link to="/me" className="btn-primary report-btn">내 예약으로</Link>
+          <Link to="/me/reservations" className="btn-primary report-btn">내 예약으로</Link>
         </section>
       </main>
     )

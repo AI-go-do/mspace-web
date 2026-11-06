@@ -13,6 +13,7 @@ import Friends from './pages/Friends'
 import Instant from './pages/Instant'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
+import MyPage from './pages/MyPage'
 import MyReservations from './pages/MyReservations'
 import Alerts from './pages/Alerts'
 import Placeholder from './pages/Placeholder'
@@ -43,7 +44,8 @@ export default function App() {
           <Route path="/rooms/:roomId" element={auth(<Reserve />)} />
           <Route path="/reservations/:id" element={auth(<AccessCode />)} />
           <Route path="/map" element={auth(<MapPage />)} />
-          <Route path="/me" element={auth(<MyReservations />)} />
+          <Route path="/me" element={auth(<MyPage />)} />
+          <Route path="/me/reservations" element={auth(<MyReservations />)} />
           <Route path="/me/schedule" element={auth(<Schedule />)} />
           <Route path="/me/friends" element={auth(<Friends />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
