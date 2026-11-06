@@ -113,6 +113,10 @@ export default function ReservationDetail() {
           <button type="button" className="btn-line" onClick={() => setAsking(true)}>예약 취소</button>
         </div>
       )}
+      {/* 시작 시각이 지난 BOOKED(즉시 시작 포함)는 취소 버튼이 없다. 왜 없는지와 노쇼 마감을 알린다 */}
+      {r.owner && r.status === 'BOOKED' && !canCancel && (
+        <p className="muted small detail-note">시작한 예약은 취소할 수 없어요. {seoulClock(deadlineOf(r))}까지 키패드로 입실하지 않으면 노쇼로 기록돼요.</p>
+      )}
       {!r.owner && active && <p className="muted small detail-note">참여자는 보기만 할 수 있어요. 취소·퇴실은 대표자가 해요.</p>}
 
       {asking && (

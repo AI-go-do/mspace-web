@@ -238,7 +238,12 @@ export default function Instant() {
 
       {room && !busy && <Link to={`/rooms/${room.roomId}`} className="in-later">나중에 쓸 거예요 · 창작실 {room.roomId} 시간 골라 예약하기</Link>}
 
-      {room && !sample && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
+      {/* 즉시 시작은 누른 시각이 시작이라 취소(시작 전만, FR-RSV-007)가 안 된다. 잘못 눌러도 노쇼가 되니 누르기 전에 알린다 */}
+      {room && !sample && (
+        <p className="in-warn">
+          <b>시작하면 취소할 수 없어요.</b> <b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 노쇼로 기록되고, 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+        </p>
+      )}
 
       <div className="rs-bar">
         <div className="rs-bar-row">
