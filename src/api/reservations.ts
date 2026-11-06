@@ -48,6 +48,19 @@ export function startNow(
   })
 }
 
+/**
+ * 연장하기 (FR-RSV-105, core #51). 대표자, 사용 중, 끝나기 10분 전부터 끝나기 전까지, 30분 단위 최대 2시간, 1회.
+ * core는 지금 예약을 퇴실하고 지금부터 endAt까지 새 예약(새 번호, 바로 사용 중)을 만든다.
+ * idempotencyKey가 같으면 다시 보내도 두 번 연장되지 않는다
+ */
+export function continueReservation(id: number, endAt: string, idempotencyKey: string): Promise<CreatedReservation> {
+  return api(`/api/reservations/${id}/continue`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ endAt }),
+  })
+}
+
 /** GET /api/reservations/me 한 건 (core MyReservationResponse) */
 export interface MyReservation {
   id: number
