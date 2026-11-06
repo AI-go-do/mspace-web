@@ -34,7 +34,7 @@ export default function Checkout() {
   const r = list?.find((x) => x.id === id)
 
   async function leave() {
-    if (busy) return
+    if (busy || photoBusy) return
     setBusy(true)
     setFail(null)
     try {
@@ -132,7 +132,7 @@ export default function Checkout() {
         ))}
         <span className="muted small">다음 사람이 "어질러졌다"고 신고하면 경고가 남을 수 있어요.</span>
       </section>
-      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} disabled={busy} />
+      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} disabled={busy || asking} />
 
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
 
@@ -153,7 +153,7 @@ export default function Checkout() {
             <p className="tidy">자리 정리하셨나요?</p>
             <div className="sheet-actions">
               <button type="button" className="btn-line" autoFocus onClick={() => setAsking(false)}>더 쓸게요</button>
-              <button type="button" className="btn-primary" disabled={busy} onClick={leave}>{busy ? '퇴실하는 중…' : '퇴실할게요'}</button>
+              <button type="button" className="btn-primary" disabled={busy || photoBusy} onClick={leave}>{busy ? '퇴실하는 중…' : photoBusy ? '사진 올리는 중…' : '퇴실할게요'}</button>
             </div>
           </div>
         </div>
