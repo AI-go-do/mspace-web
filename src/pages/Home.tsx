@@ -34,6 +34,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [mine, setMine] = useState<MyReservation[]>([])
+  // 내 예약을 한 번이라도 받았는지. 받기 전에는 비서 카드를 내지 않는다(급한 연장·입실 대신 낮은 제안이 먼저 보이지 않게)
+  const [mineLoaded, setMineLoaded] = useState(false)
   // 내 시간표(비서 서버). undefined = 아직 못 받음(비서가 꺼져 있어도 홈은 그대로), null = 아직 안 넣음
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined)
   const unread = useUnreadCount()
@@ -53,7 +55,11 @@ export default function Home() {
         .catch((e: Error) => alive && setError(e.message))
     const loadMine = () =>
       getMyReservations()
-        .then((list) => alive && setMine(list))
+        .then((list) => {
+          if (!alive) return
+          setMine(list)
+          setMineLoaded(true)
+        })
         .catch(() => { /* 내 예약을 못 받아도 홈 현황은 보여 준다 */ })
     load()
     loadMine()
@@ -81,8 +87,8 @@ export default function Home() {
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
   const card = mineToday[0]
-  // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 수업 끝 제안 → 시간표 권유). 현황을 받기 전에는 없다
-  const butler = day ? butlerSuggestion({ mine, rooms, schedule }, now) : null
+  // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 수업 끝 제안 → 시간표 권유). 현황과 내 예약을 받기 전에는 없다
+  const butler = day && mineLoaded ? butlerSuggestion({ mine, rooms, schedule }, now) : null
 
   return (
     <main>
