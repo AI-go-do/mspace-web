@@ -1,0 +1,6 @@
+.photo-up { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.photo-up h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.photo-up p { margin: 0; }
+.photo-up .btn-line { width: 100%; }
+.photo-done { font-size: 14px; font-weight: 700; color: var(--navy); }
+.photo-err { font-size: 14px; color: var(--navy); }
