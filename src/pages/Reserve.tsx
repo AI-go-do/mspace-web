@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { minutesLabel } from '../lib/format'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
 import { createReservation } from '../api/reservations'
 import { getAvailability, type RoomSlots, type Slot } from '../api/rooms'
@@ -103,6 +104,7 @@ export default function Reserve() {
         },
         idemKey.current,
       )
+      celebrate()
       navigate(`/reservations/${created.id}`, { state: { created } })
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return // 로그인 화면으로 간다

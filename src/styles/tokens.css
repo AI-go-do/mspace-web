@@ -139,3 +139,15 @@ button { font-family: inherit; color: inherit; }
 .sheet-actions { display: flex; gap: 8px; margin-top: 4px; }
 .sheet-actions .btn-line { flex: 1; }
 .sheet-actions .btn-primary { flex: 1.4; }
+
+/* 예약 성공 폭죽(components/Confetti). 화면 전체를 덮지만 누르는 건 그대로 아래로 간다 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  pointer-events: none;
+  z-index: 1000;
+  /* 화면 바뀜 효과(View Transitions) 동안에도 새 화면과 같이 움직이지 않고 제자리에서 계속 그려지게 따로 뗀다 */
+  view-transition-name: confetti;
+}
