@@ -4,18 +4,20 @@ import type { Day, Schedule, ScheduleClass } from '../api/schedule'
 import { deadlineOf } from '../pages/AccessCode'
 import { canContinueAt } from './format'
 import { MAX_SLOTS } from './slots'
-import { seoulDate } from './time'
+import { isFreeNow, seoulDate } from './time'
 
 /**
  * 홈 맨 위 "비서가 먼저" 카드 (11/6 재웅: 혁신은 주인→비서가 빠지고 비서→주인이 먼저 움직이는 것).
  * 학생이 아무것도 누르지 않아도, 이미 받아 둔 내 예약·방 현황·시간표만 보고 지금 할 일을 하나 골라 먼저 말을 건다.
- * core를 바꾸지 않고 화면이 가진 자료로만 정한다. 우선순위는 급한 순: 연장 → 입실 → 수업 끝 제안 → 시간표 권유
+ * core를 바꾸지 않고 화면이 가진 자료로만 정한다. 우선순위는 급한 순: 연장 → 입실 → 지켜보던 방이 빔 → 수업 끝 제안 → 시간표 권유
  */
 export type Suggestion =
   /** 사용 중인 내 예약이 10분 안에 끝난다(대표자). 연장은 끝나기 전에만 되므로 가장 급하다 */
   | { kind: 'extend'; r: MyReservation }
   /** 내 예약의 입실 시간이다(대표자, 시작 10분 전 ~ 입실 마감). QR을 바로 꺼낸다 */
   | { kind: 'checkin'; r: MyReservation; deadline: Date }
+  /** 지켜보던(눈 표시) 방이 지금 비었다. 바로 쓰기로 간다 */
+  | { kind: 'roomFree'; roomId: number }
   /** 오늘 마지막 수업이 끝나는 시각부터 가장 오래 비는 방 */
   | { kind: 'afterClass'; className: string; endTime: string; roomId: number; date: string; start: number; len: number; startAt: string; endAt: string }
   /** 시간표가 아직 없다(서버가 NO_SCHEDULE). 넣으면 수업 끝 제안을 받을 수 있다고 알린다 */
@@ -67,10 +69,12 @@ export interface ButlerInput {
   rooms: RoomSlots[]
   /** undefined: 아직 못 받음(또는 비서 서버가 꺼짐) → 시간표 제안은 건너뛴다. null: 아직 안 넣음 */
   schedule: Schedule | null | undefined
+  /** 지켜보기(눈 표시)를 켜 둔 방 번호. 없으면 빈 배열 */
+  watched?: number[]
 }
 
 /** 지금 먼저 말할 한 가지. 없으면 null(카드를 숨긴다) */
-export function butlerSuggestion({ mine, rooms, schedule }: ButlerInput, now: Date): Suggestion | null {
+export function butlerSuggestion({ mine, rooms, schedule, watched = [] }: ButlerInput, now: Date): Suggestion | null {
   const t = now.getTime()
   const extend = mine.find((r) => r.owner && r.status === 'IN_USE' && canContinueAt(r.endAt, t))
   if (extend) return { kind: 'extend', r: extend }
@@ -81,6 +85,13 @@ export function butlerSuggestion({ mine, rooms, schedule }: ButlerInput, now: Da
     return t >= from && t <= deadlineOf(r).getTime()
   })
   if (checkin) return { kind: 'checkin', r: checkin, deadline: deadlineOf(checkin) }
+
+  // 지켜보던 방 중 지금 비어 있는 것(지금 상태를 아는 방만). 여러 개면 번호가 작은 방
+  const freeWatched = [...watched].sort((a, b) => a - b).find((id) => {
+    const room = rooms.find((r) => r.roomId === id)
+    return !!room && room.occupiedNow !== undefined && isFreeNow(room.slots, now, room.occupiedNow)
+  })
+  if (freeWatched !== undefined) return { kind: 'roomFree', roomId: freeWatched }
 
   if (schedule === undefined) return null
   if (schedule === null) return { kind: 'noSchedule' }
