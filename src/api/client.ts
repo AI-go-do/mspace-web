@@ -38,7 +38,8 @@ async function send(path: string, init: RequestInit, token: string | null): Prom
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  // 사진(FormData)은 브라우저가 경계(boundary)를 붙인 multipart 머리글을 직접 넣는다
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   // 같은 출처라 refresh 쿠키(HttpOnly, /api/auth 전용)는 브라우저가 알아서 붙인다
   return fetch(path, { credentials: 'same-origin', ...init, headers })
 }

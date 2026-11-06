@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { confirmCard, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
+import { deniedLine } from '../content/denied'
 import { findMember } from '../api/members'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearSubmitting, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, setSubmitting, watchCardOutcome, type CardOutcome, type ChatMessage, type ChatState } from '../lib/chatStore'
@@ -308,8 +309,10 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
         saveCardOutcome(owner, c.token, { kind: 'closed', message: err.message })
         setState({ kind: 'closed', message: err.message })
       } else {
-        saveCardOutcome(owner, c.token, { kind: 'open', error: err.message })
-        setState({ kind: 'open', error: err.message })
+        // 예약 거절(참여자 예약 중 등)은 예약 화면과 같은 친절한 문구로
+        const error = deniedLine(err.code, err.message)
+        saveCardOutcome(owner, c.token, { kind: 'open', error })
+        setState({ kind: 'open', error })
       }
     }
   }

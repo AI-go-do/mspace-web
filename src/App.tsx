@@ -15,6 +15,7 @@ import Alerts from './pages/Alerts'
 import Placeholder from './pages/Placeholder'
 import ReservationDetail from './pages/ReservationDetail'
 import Rules from './pages/Rules'
+import Schedule from './pages/Schedule'
 import Reserve from './pages/Reserve'
 
 /** 로그인해야 쓰는 화면 */
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/reservations/:id" element={auth(<AccessCode />)} />
           <Route path="/map" element={auth(<MapPage />)} />
           <Route path="/me" element={auth(<MyReservations />)} />
+          <Route path="/me/schedule" element={auth(<Schedule />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Assistant />)} />
