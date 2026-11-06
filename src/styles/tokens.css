@@ -1,0 +1,141 @@
+/* 화면 디자인 기준(docs 요구사항 7.6). 색은 기본 4개 + 보조 2개만 쓴다. */
+:root {
+  --blue: #0a4da2;      /* 버튼·선택 (조선대 파랑) */
+  --navy: #15233d;      /* 글씨 */
+  --navy-70: rgba(21, 35, 61, 0.7); /* 보조 글씨 */
+  --gray: #eef1f5;      /* 바탕 */
+  --white: #ffffff;
+  --sky: #7dbbff;       /* 빈 방 · 조건 맞음 */
+  --sky-soft: color-mix(in srgb, var(--sky) 40%, var(--white)); /* 남은 빈 시간 막대 */
+  --yellow: #ffc53d;    /* 내 예약 · 마감 안내 · 안 읽은 알림 */
+  --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
+  --taken-solid: color-mix(in srgb, rgb(21, 35, 61) 22%, var(--white)); /* 같은 색을 불투명하게 (밝은 하늘 위에 겹쳐도 범례와 같은 색) */
+  --radius: 16px;
+  --touch: 44px;        /* 누르는 곳 최소 크기 */
+
+  /* 깊이감(11/6 디자인 다듬기). 새 색을 만들지 않고 위 색을 섞어 명암만 만든다 */
+  --blue-deep: color-mix(in srgb, var(--blue) 78%, var(--navy));   /* 파랑 그늘 */
+  --blue-lift: color-mix(in srgb, var(--blue) 82%, var(--sky));    /* 파랑 빛 받는 쪽 */
+  --grad-blue: linear-gradient(150deg, var(--blue-lift) 0%, var(--blue) 48%, var(--blue-deep) 100%);
+  --line: rgba(21, 35, 61, 0.07);                                  /* 머리카락 선 */
+  --shadow-1: 0 1px 2px rgba(21, 35, 61, 0.05), 0 4px 14px -4px rgba(21, 35, 61, 0.08);
+  --shadow-2: 0 2px 6px rgba(21, 35, 61, 0.06), 0 16px 36px -10px rgba(21, 35, 61, 0.18);
+  --shadow-blue: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 10px 24px -8px rgba(10, 77, 162, 0.6);
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  color: var(--navy);
+  background: var(--gray);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body {
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--gray);
+}
+h1, h2, .home-count, .key-title { letter-spacing: -0.025em; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; color: inherit; }
+
+.app {
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  position: relative;
+  padding-bottom: 84px; /* 아래 탭 높이 */
+  background: var(--gray);
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--line);
+}
+
+.muted { color: var(--navy-70); }
+
+
+/* ---- 화면 공통 ---- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+.btn-primary {
+  position: relative; overflow: hidden; isolation: isolate;
+  height: 56px; width: 100%; border: 0; border-radius: var(--radius);
+  background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue);
+  font-size: 16px; font-weight: 700; cursor: pointer; letter-spacing: -0.01em;
+  display: flex; align-items: center; justify-content: center;
+}
+/* 주 버튼 위로 빛이 한 번 지나감(나타날 때·누를 때) */
+.btn-primary::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.btn-primary:not(:disabled)::after { animation: shine 1.1s 0.35s var(--ease-out, ease-out) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:not(:disabled)::after { animation: none !important; }
+}
+.btn-primary:disabled { background: var(--gray); color: var(--navy-70); cursor: default; box-shadow: none; }
+.btn-primary:disabled::after { display: none; }
+.btn-line {
+  height: 56px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--white); color: var(--navy); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-1);
+}
+.back {
+  width: var(--touch); height: var(--touch); border: 0; border-radius: 12px;
+  background: transparent; color: var(--navy); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+
+/* 로그인 확인 중 */
+.splash {
+  min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: radial-gradient(120% 60% at 50% 0%, var(--blue-lift), transparent 70%), var(--grad-blue); color: var(--white);
+}
+.splash svg { animation: bob 2.4s ease-in-out infinite; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18)); }
+.splash-name { font-size: 28px; font-weight: 700; }
+.splash-sub { font-size: 14px; opacity: 0.8; }
+.app-full { padding-bottom: 0; }
+
+/* 화면 아래 고정 버튼 막대 */
+.rs-bar {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 480px;
+  background: color-mix(in srgb, var(--white) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+  border-radius: 24px 24px 0 0; box-shadow: 0 -1px 0 var(--line), 0 -12px 32px -16px rgba(21, 35, 61, 0.22);
+  padding: 14px 16px max(28px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* 아래 시트 (예약 거절·취소 확인·조기 퇴실 확인) */
+.sheet-wrap { position: fixed; inset: 0; z-index: 10; }
+.sheet-dim {
+  position: absolute; inset: 0; background: rgba(21, 35, 61, 0.42);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.sheet {
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 100%; max-width: 480px;
+  background: var(--white); border-radius: 28px 28px 0 0; padding: 30px 20px max(28px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -20px 50px -20px rgba(21, 35, 61, 0.45);
+}
+/* 손잡이 */
+.sheet::before {
+  content: ''; position: absolute; top: 10px; left: 50%; width: 40px; height: 5px; margin-left: -20px;
+  border-radius: 3px; background: var(--taken);
+}
+.sheet-icon {
+  width: 52px; height: 52px; border-radius: 26px; background: var(--yellow); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--yellow) 22%, transparent);
+}
+.sheet h2 { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.4; }
+.sheet p { margin: 0; font-size: 14px; line-height: 1.6; }
+.sheet-actions { display: flex; gap: 8px; margin-top: 4px; }
+.sheet-actions .btn-line { flex: 1; }
+.sheet-actions .btn-primary { flex: 1.4; }

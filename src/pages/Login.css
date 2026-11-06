@@ -1,0 +1,89 @@
+/* PWA 화면 시안 Login.dc.html · Code.dc.html과 같은 값 */
+.login {
+  position: relative; isolation: isolate;
+  min-height: 100dvh; display: flex; flex-direction: column;
+  background: radial-gradient(100% 50% at 80% 0%, color-mix(in srgb, var(--sky) 28%, transparent), transparent 60%), var(--grad-blue);
+  color: var(--white); overflow: hidden;
+}
+/* 뒤에서 천천히 흐르는 빛 */
+.login::before {
+  content: ''; position: absolute; z-index: -1; top: -120px; left: -120px; width: 380px; height: 380px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--sky) 45%, transparent), transparent);
+  animation: drift 16s ease-in-out infinite alternate; pointer-events: none;
+}
+.login-hero { padding: 96px 24px 0; animation: rise-in 0.5s var(--ease-out) backwards; display: flex; flex-direction: column; gap: 8px; }
+.login-hero h1 { margin: 0; font-size: 46px; font-weight: 700; line-height: 1.05; letter-spacing: -0.04em; }
+.login-hero h1::after { content: ''; display: inline-block; width: 10px; height: 10px; margin-left: 4px; border-radius: 5px; background: var(--yellow); }
+.login-hero p { margin: 0; font-size: 16px; line-height: 1.5; opacity: 0.8; }
+.login-school {
+  align-self: flex-start; font-size: 13px; padding: 5px 10px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.login-campus { width: 100%; height: auto; margin-top: 36px; opacity: 0.22; }
+.login-mascot { display: flex; justify-content: center; margin: -72px 0 -20px; position: relative; z-index: 1; }
+.login-mascot svg { filter: drop-shadow(0 14px 18px rgba(5, 20, 50, 0.35)); }
+.login-sheet {
+  flex: 1; background: var(--white); color: var(--navy); border-radius: 28px 28px 0 0;
+  box-shadow: 0 -18px 40px -20px rgba(5, 20, 50, 0.45); animation: rise-in 0.5s 0.12s var(--ease-out) backwards;
+  padding: 30px 20px 32px; display: flex; flex-direction: column; gap: 12px;
+}
+.login-label { font-size: 14px; font-weight: 700; }
+.mail-box {
+  height: 56px; border-radius: 16px; background: var(--gray); border: 1.5px solid transparent;
+  display: flex; align-items: center; padding: 0 16px; gap: 4px;
+  transition: border-color 0.18s, background-color 0.18s, box-shadow 0.18s;
+}
+.mail-box:focus-within {
+  background: var(--white); border-color: var(--blue);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent);
+}
+.mail-box input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  font: inherit; font-size: 16px; font-weight: 700; color: var(--navy);
+}
+.mail-box span { font-size: 16px; }
+.mail-box input::placeholder { font-weight: 400; color: var(--navy-70); }
+.login-help { margin: 0; text-align: center; font-size: 14px; }
+.login-error { margin: 0; font-size: 14px; font-weight: 700; color: var(--navy); background: var(--yellow); border-radius: 12px; padding: 10px 12px; }
+
+.code-page { min-height: 100dvh; background: var(--white); padding: 52px 16px 32px; display: flex; flex-direction: column; }
+.code-form { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 16px 8px 0; }
+.code-form h1 { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.4; }
+.code-form > .muted { font-size: 14px; }
+.code-boxes { position: relative; margin-top: 24px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+/* 진짜 입력칸은 투명하게 6칸 위에 덮는다(붙여넣기·폰 자동 채우기가 그대로 된다) */
+.code-boxes input {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0;
+  font-size: 16px; caret-color: transparent;
+}
+.code-box {
+  position: relative; height: 62px; border-radius: 14px; background: var(--gray); box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: var(--blue);
+  transition: background-color 0.18s, box-shadow 0.18s;
+}
+.code-boxes:focus-within .code-box.at {
+  background: var(--white); box-shadow: inset 0 0 0 2px var(--blue), 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent);
+}
+/* 지금 칸: 깜빡이는 입력 막대 */
+.code-boxes:focus-within .code-box.at::after {
+  content: ''; width: 2px; height: 26px; border-radius: 1px; background: var(--blue); animation: caret 1s steps(1) infinite;
+}
+.code-box:not(:empty) { background: color-mix(in srgb, var(--blue) 7%, var(--white)); animation: pop 0.22s var(--ease-spring); }
+.code-boxes:focus-within { outline: none; }
+.code-row { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
+.code-left { font-size: 14px; font-weight: 700; color: var(--blue); }
+.link-btn {
+  min-height: var(--touch); border: 0; background: transparent; padding: 0;
+  font-size: 14px; color: var(--navy-70); text-decoration: underline; cursor: pointer;
+}
+.link-btn:disabled { text-decoration: none; cursor: default; }
+.signup { min-width: 0; margin: 16px 0 0; border: 0; padding: 16px; border-radius: 12px; background: var(--gray); display: flex; flex-direction: column; gap: 6px; }
+.signup legend { float: left; width: 100%; padding: 0 0 6px; font-size: 14px; font-weight: 700; }
+.signup label { font-size: 12px; color: var(--navy-70); }
+.signup input {
+  width: 100%; height: 48px; border: 0; border-radius: 12px; background: var(--white); padding: 0 14px;
+  font: inherit; font-size: 16px; font-weight: 700; color: var(--navy);
+}
+.remember { margin-top: 16px; min-height: var(--touch); display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.remember input { width: 22px; height: 22px; accent-color: var(--blue); }
+.code-bottom { margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; gap: 12px; text-align: center; font-size: 12px; }
