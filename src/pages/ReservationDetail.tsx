@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { ApiError, currentMemberId } from '../api/client'
+import PhotoUpload from '../components/PhotoUpload'
 import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
@@ -17,6 +18,8 @@ export default function ReservationDetail() {
   const now = useNow()
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 입실 사진을 올리는 동안 퇴실 화면으로 넘어가면 결과를 못 보니 막는다
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [fail, setFail] = useState<string | null>(null)
   // 취소 응답의 상태. 다시 받기에 실패해도 화면이 취소된 상태를 보여 주게 한다(목록이 바뀌면 서버 값을 따른다)
@@ -92,11 +95,17 @@ export default function ReservationDetail() {
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
       {stale && <p className="card mine-msg muted" role="status">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
+      {r.status === 'IN_USE' && <PhotoUpload key={`${r.id}-${currentMemberId()}-in`} reservationId={r.id} kind="CHECK_IN" onBusyChange={setPhotoBusy} />}
+      {/* 대표자는 퇴실 화면에서 올린다. 참여자는 퇴실 화면에 못 들어가므로 여기서 */}
+      {r.status === 'IN_USE' && !r.owner && <PhotoUpload key={`${r.id}-${currentMemberId()}-out`} reservationId={r.id} kind="CHECK_OUT" />}
+
       {r.owner && active && (
         <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 번호 보기</Link>
       )}
       {r.owner && r.status === 'IN_USE' && (
-        <Link to={`/me/${r.id}/checkout`} className="btn-line detail-key">다 썼어요, 퇴실</Link>
+        photoBusy
+          ? <button type="button" className="btn-line detail-key" disabled>사진 올리는 중…</button>
+          : <Link to={`/me/${r.id}/checkout`} className="btn-line detail-key">다 썼어요, 퇴실</Link>
       )}
       {canCancel && (
         <div className="detail-cancel">

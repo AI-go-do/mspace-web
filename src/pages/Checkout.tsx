@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { ApiError, currentMemberId } from '../api/client'
+import PhotoUpload from '../components/PhotoUpload'
 import { checkoutReservation, getMyReservations } from '../api/reservations'
 import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
@@ -13,7 +14,7 @@ const CHECKS = ['쓰레기를 버렸어요', '책상·의자를 정리했어요'
 /**
  * 퇴실 (FR-RSV-008, 시안 Checkout): 정리 체크 → 퇴실하기 → (끝나기 전이면) "조기 퇴실할까요?" 확인 → 완료.
  * 퇴실은 번호를 끄는 것이고 문은 도어락이 잠근다(요구사항 3.2).
- * 퇴실 사진은 v0.3(FR-RPT-101)이라 아직 없다.
+ * 퇴실 사진(FR-RPT-102)은 선택: 정리한 방을 찍어 두는 증거. 안 올려도 퇴실된다.
  */
 export default function Checkout() {
   const id = Number(useParams().id)
@@ -23,6 +24,8 @@ export default function Checkout() {
   const [checked, setChecked] = useState<boolean[]>(CHECKS.map(() => false))
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
+  // 사진을 올리는 중에 퇴실하면 완료 화면으로 바뀌어 결과를 못 보므로 끝날 때까지 기다린다
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [fail, setFail] = useState<string | null>(null)
   // 409 뒤 서버에서 다시 보니 다른 상태(자동 반납 등)면 폼을 닫는다
@@ -31,7 +34,7 @@ export default function Checkout() {
   const r = list?.find((x) => x.id === id)
 
   async function leave() {
-    if (busy) return
+    if (busy || photoBusy) return
     setBusy(true)
     setFail(null)
     try {
@@ -129,11 +132,14 @@ export default function Checkout() {
         ))}
         <span className="muted small">다음 사람이 "어질러졌다"고 신고하면 경고가 남을 수 있어요.</span>
       </section>
+      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} disabled={busy || asking} />
 
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
 
       <div className="rs-bar">
-        <button type="button" className="btn-primary" disabled={busy} onClick={press}>{busy ? '퇴실하는 중…' : '퇴실하기'}</button>
+        <button type="button" className="btn-primary" disabled={busy || photoBusy} onClick={press}>
+          {busy ? '퇴실하는 중…' : photoBusy ? '사진 올리는 중…' : '퇴실하기'}
+        </button>
       </div>
 
       {asking && (
@@ -147,7 +153,7 @@ export default function Checkout() {
             <p className="tidy">자리 정리하셨나요?</p>
             <div className="sheet-actions">
               <button type="button" className="btn-line" autoFocus onClick={() => setAsking(false)}>더 쓸게요</button>
-              <button type="button" className="btn-primary" disabled={busy} onClick={leave}>{busy ? '퇴실하는 중…' : '퇴실할게요'}</button>
+              <button type="button" className="btn-primary" disabled={busy || photoBusy} onClick={leave}>{busy ? '퇴실하는 중…' : photoBusy ? '사진 올리는 중…' : '퇴실할게요'}</button>
             </div>
           </div>
         </div>
