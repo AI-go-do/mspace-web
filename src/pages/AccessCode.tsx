@@ -57,7 +57,10 @@ export function refreshDelay(
   if (!r || !visible || !r.owner || r.status !== 'BOOKED') return REFRESH_MS
   const from = Date.parse(r.startAt) - 10 * 60_000
   const until = deadlineOf(r).getTime() + 60_000
-  return now >= from && now <= until ? CHECKIN_REFRESH_MS : REFRESH_MS
+  if (now >= from && now <= until) return CHECKIN_REFRESH_MS
+  // 아직 입실 시간 전이면 입실 시간이 시작될 때 한 번 더 본다(30초를 다 기다리지 않게)
+  if (now < from) return Math.max(CHECKIN_REFRESH_MS, Math.min(REFRESH_MS, from - now))
+  return REFRESH_MS
 }
 
 /** 이 화면을 연 동안 예약됨 → 사용 중으로 바뀌었는지(키패드 입실). 처음부터 사용 중이면 아니다 */
@@ -83,8 +86,9 @@ export default function AccessCode() {
     let alive = true
     let loaded = false
     let last: MyReservation | null = null
-    // 이 화면을 연 회원. 다른 탭에서 다른 학생이 로그인하면 그 학생 예약으로 바꿔 보이지 않는다
-    let member = currentMemberId() ?? undefined
+    // 이 화면을 연 회원. 다른 탭에서 다른 학생이 로그인하면 그 학생 예약으로 바꿔 보이지 않는다.
+    // 아직 모르면(시작 때 refresh가 네트워크로 실패) 요청하지 않고 다음 확인 때 다시 잡는다
+    let member: number | null = currentMemberId()
     // 요청은 한 번에 하나만 보낸다. 진행 중에 새로고침이 또 오면 끝난 뒤 한 번만 다시 받는다.
     // 그래서 답이 순서대로 오고, 느린 연결에서도 받은 답이 화면에 반영된다
     let inFlight: AbortController | null = null
@@ -103,7 +107,11 @@ export default function AccessCode() {
         again = true
         return
       }
-      member ??= currentMemberId() ?? undefined
+      member ??= currentMemberId()
+      if (member === null) {
+        schedule()
+        return
+      }
       const abort = new AbortController()
       inFlight = abort
       const cut = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS)

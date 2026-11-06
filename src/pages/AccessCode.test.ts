@@ -31,12 +31,16 @@ describe('입실하면 번호 화면 닫기', () => {
     expect(refreshDelay(r, at('2026-11-06T14:46:00+09:00'), true)).toBe(CHECKIN_REFRESH_MS)
   })
   it('그 밖의 때, 화면을 안 볼 때, 대표자가 아니거나 이미 입실했으면 30초', () => {
-    expect(refreshDelay(r, at('2026-11-06T14:19:59+09:00'), true)).toBe(30_000)
+    expect(refreshDelay(r, at('2026-11-06T14:00:00+09:00'), true)).toBe(30_000)
     expect(refreshDelay(r, at('2026-11-06T14:46:01+09:00'), true)).toBe(30_000)
     expect(refreshDelay(r, at('2026-11-06T14:30:00+09:00'), false)).toBe(30_000)
     expect(refreshDelay({ ...r, owner: false }, at('2026-11-06T14:30:00+09:00'), true)).toBe(30_000)
     expect(refreshDelay({ ...r, status: 'IN_USE' }, at('2026-11-06T14:30:00+09:00'), true)).toBe(30_000)
     expect(refreshDelay(null, at('2026-11-06T14:30:00+09:00'), true)).toBe(30_000)
+  })
+  it('입실 시간이 곧 시작되면 그때 맞춰 한 번 더 본다(최소 3초)', () => {
+    expect(refreshDelay(r, at('2026-11-06T14:19:50+09:00'), true)).toBe(10_000)
+    expect(refreshDelay(r, at('2026-11-06T14:19:59+09:00'), true)).toBe(CHECKIN_REFRESH_MS)
   })
   it('서버 입실 마감(checkinDeadline)이 있으면 그 시각까지 자주 본다', () => {
     const late = { ...r, checkinDeadline: '2026-11-06T14:52:00+09:00' }
