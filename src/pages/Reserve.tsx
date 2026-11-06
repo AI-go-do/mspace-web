@@ -39,6 +39,7 @@ export default function Reserve() {
 
   // 날짜를 빨리 바꾸면 늦게 온 옛 응답이 새 날짜 위에 덮이지 않게 최근 요청만 반영한다
   const loadSeq = useRef(0)
+  const refreshSeq = useRef(0)
   const load = useCallback(() => {
     const seq = ++loadSeq.current
     // 다시 불러오는 동안·실패한 뒤에 옛 시간표를 고를 수 없게 비운다
@@ -77,15 +78,19 @@ export default function Reserve() {
     if (date !== today || pick) return
     const id = setInterval(() => {
       const seq = loadSeq.current
+      const mine = ++refreshSeq.current // 늦게 온 옛 새로고침이 새것을 덮지 않게 새로고침마다 번호를 준다
       setNow(new Date())
       getAvailability(date)
         .then((r) => {
           const found = r.data.rooms.find((x) => x.roomId === roomId)
-          if (found && seq === loadSeq.current) setRoom(found)
+          if (found && seq === loadSeq.current && mine === refreshSeq.current) setRoom(found)
         })
         .catch(() => {})
     }, 30_000)
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      refreshSeq.current++ // 칸을 고르거나 날짜를 바꾸면 아직 오는 중인 새로고침은 버린다
+    }
   }, [date, today, pick, roomId])
 
   // 같은 내용으로 다시 보내면 같은 키 → 서버가 예약을 두 번 만들지 않는다
