@@ -55,7 +55,7 @@ export default function MyPage() {
 
 function MyPageFor({ member }: { member: number | null }) {
   const { list, error, stale, reload } = useMyReservations()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const { logout } = useAuth()
   const now = useNow()
   const admin = useIsAdmin()
@@ -93,7 +93,21 @@ function MyPageFor({ member }: { member: number | null }) {
   const next = active.find((r) => r !== inUse)
   // "곧 끝나요" 알림에서 왔는데 그 예약이 지금 쓰는 예약이 아니면(이미 끝났거나 다른 예약) 알려 준다
   const fromEnd = Number(params.get('end'))
-  const staleEnd = !stale && list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
+  const endMismatch = list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
+  // 목록이 최신이면 "이미 끝났어요", 못 받은 옛 목록이면 끝났다고 단정하지 않고 다르다고만 알린다
+  const staleEnd = endMismatch && !stale
+  const maybeOther = endMismatch && stale && inUse != null
+  // 연장하면 새 예약 번호가 나와 알림의 번호와 달라진다. 알림 받은 그 예약을 연장했으면 주소의 end를 지운다
+  // (그사이 다른 알림으로 주소가 바뀌었으면 그대로 둔다)
+  const onExtended = (fromId: number, newId: number, text: string) => {
+    setExtended({ id: newId, text })
+    setParams((p) => {
+      if (p.get('end') !== String(fromId)) return p
+      const nextParams = new URLSearchParams(p)
+      nextParams.delete('end')
+      return nextParams
+    }, { replace: true })
+  }
   const agreed = hasAgreed()
 
   return (
@@ -110,9 +124,10 @@ function MyPageFor({ member }: { member: number | null }) {
       {stale && <p role="status" className="card mine-msg muted">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
       {staleEnd && <p role="status" className="card mine-msg muted">그 알림의 예약은 이미 끝났어요.{inUse ? ' 아래는 지금 쓰는 다른 예약이에요.' : ''}</p>}
+      {maybeOther && <p role="status" className="card mine-msg muted">그 알림의 예약과 아래 예약이 달라요. 최신 정보를 받으면 다시 확인할게요.</p>}
       {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
         notice={extended && extended.id === inUse.id ? extended.text : null}
-        onExtended={(id, text) => setExtended({ id, text })} />}
+        onExtended={(newId, text) => onExtended(inUse.id, newId, text)} />}
       {!inUse && next && (
         <Link to={`/me/${next.id}`} className="card mine-item">
           <span className="mine-item-text">
