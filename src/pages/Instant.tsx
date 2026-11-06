@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
@@ -27,7 +27,21 @@ export default function Instant() {
   // 서버에 닿지 못해 예시를 보여 주는 중이면 실제로 시작하지 않는다
   const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [roomId, setRoomId] = useState<number | null>(null)
+  // 홈·배치도에서 빈 방을 누르면 ?room=번호로 와서 그 방이 골라진 채로 연다(11/6 스크럼 "즉시 시작이 기본값")
+  const asked = Number(useSearchParams()[0].get('room')) || null
+  const [roomId, setRoomId] = useState<number | null>(asked)
+  // 화면을 연 채로 주소의 방 번호만 바뀌면 새 방으로 다시 고른다(끝 시각은 지우고, 끝 시각으로 내리기도 다시 한 번)
+  const firstAsked = useRef(asked)
+  // 끝 시각 고르기로 저절로 내린 적이 있는지(방을 고른 채로 왔을 때 한 번만)
+  const scrolled = useRef(false)
+  useEffect(() => {
+    if (firstAsked.current === asked) return
+    firstAsked.current = asked
+    setRoomId(asked)
+    setEndAt(null)
+    setStep('pick')
+    scrolled.current = false
+  }, [asked])
   const [endAt, setEndAt] = useState<string | null>(null)
   const [people, setPeople] = useState<FoundMember[]>([])
   const [step, setStep] = useState<Step>('pick')
@@ -91,6 +105,24 @@ export default function Instant() {
   const min = room?.minPeople ?? 1
   const max = room?.maxPeople ?? 99
   const deadline = seoulClock(new Date(now.getTime() + 10 * 60_000))
+
+  // 방을 고른 채로 왔으면, 처음 한 번 끝 시각 고르기를 화면에 올려 바로 누를 수 있게 한다
+  const endsRef = useRef<HTMLElement | null>(null)
+  const hasRoom = room !== null
+  useEffect(() => {
+    if (scrolled.current || !hasRoom || asked === null || roomId !== asked) return
+    scrolled.current = true
+    // 동작 줄이기를 켠 사람에게는 화면을 저절로 움직이지 않는다(방은 골라져 있고 직접 내려 보면 된다)
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (calm) return
+    endsRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [hasRoom, asked, roomId])
+
+  // 함께 쓸 사람·수칙 단계에 있는 동안 고른 방이 사용 중이 되면, 이유가 보이는 방 고르기로 돌아간다(보내는 중이면 결과를 기다린다)
+  const lost = rooms !== null && roomId !== null && room === null
+  useEffect(() => {
+    if (lost && step !== 'pick' && !busy) setStep('pick')
+  }, [lost, step, busy])
 
   /** 지금 시작해서 고를 수 있는 끝 시각이 하나라도 있는지 */
   const canStart = (r: RoomSlots) => instantEnds(r.slots, now).some((e) => e.ok)
@@ -168,6 +200,10 @@ export default function Instant() {
         {sample && <p role="status" className="muted">서버에 닿지 않아 예시를 보여 주고 있어요. 지금은 시작할 수 없어요.</p>}
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
+        {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
+        {rooms && roomId !== null && !room && (
+          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 {busy ? '시간을 골라 예약' : <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>}해 주세요.</p>
+        )}
         {free.map((r) => {
           const ok = canStart(r)
           const until = freeUntil(r)
@@ -185,7 +221,7 @@ export default function Instant() {
       </section>
 
       {room && (
-        <section className="card in-ends" aria-labelledby="end-title">
+        <section ref={endsRef} className="card in-ends" aria-labelledby="end-title">
           <div className="in-ends-head">
             <h2 id="end-title">언제까지 쓸까요?</h2>
             <span className="muted small">30분 단위 · 최대 2시간</span>
@@ -199,6 +235,8 @@ export default function Instant() {
           </div>
         </section>
       )}
+
+      {room && !busy && <Link to={`/rooms/${room.roomId}`} className="in-later">나중에 쓸 거예요 · 창작실 {room.roomId} 시간 골라 예약하기</Link>}
 
       {room && !sample && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
 

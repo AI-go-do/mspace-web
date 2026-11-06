@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAvailability, type RoomSlots } from '../api/rooms'
 import { nowState, seoulClock, seoulDate } from '../lib/time'
+import { roomLink } from '../lib/slots'
 import { useNow } from '../lib/useNow'
 import { REQUEST_TIMEOUT_MS } from './MyReservations'
 import './MapPage.css'
 
 /**
  * 배치도 탭 (시안 Map): 실제 배치 순서(창작실 5 → 1, 위 공작실, 오른쪽 복도·입구)로 방을 크게 놓고
- * 지금 비었는지 보여 준다. 방을 고르면 그 방의 시간 고르기(FR-WEB-001)로 간다.
+ * 지금 비었는지 보여 준다. 방을 고르면 비어 있을 땐 지금 바로 쓰기(FR-WEB-102), 아니면 시간 고르기(FR-WEB-001)로 간다.
  */
 export default function MapPage() {
   const navigate = useNavigate()
@@ -119,7 +120,10 @@ export default function MapPage() {
             <b>창작실 {room.roomId}</b>
             <span className="muted">{room.minPeople}–{room.maxPeople}명 · {nowState(room.slots, now, room.occupiedNow).text}</span>
           </div>
-          <button type="button" className="btn-primary" onClick={() => navigate(`/rooms/${room.roomId}`)}>이 방으로 시간 정하기</button>
+          {/* 지금 비어 있으면 지금 바로 쓰기가 기본(11/6 스크럼), 아니면 시간 고르기 */}
+          {roomLink(room, now).startsWith('/now')
+            ? <button type="button" className="btn-primary" onClick={() => navigate(roomLink(room, now))}>이 방 지금 바로 쓰기</button>
+            : <button type="button" className="btn-primary" onClick={() => navigate(`/rooms/${room.roomId}`)}>이 방으로 시간 정하기</button>}
         </div>
       )}
     </main>
