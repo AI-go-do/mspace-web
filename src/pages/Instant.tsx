@@ -101,8 +101,10 @@ export default function Instant() {
   useEffect(() => {
     if (scrolled.current || !hasRoom || asked === null || roomId !== asked) return
     scrolled.current = true
+    // 동작 줄이기를 켠 사람에게는 화면을 저절로 움직이지 않는다(방은 골라져 있고 직접 내려 보면 된다)
     const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    endsRef.current?.scrollIntoView({ block: 'center', behavior: calm ? 'auto' : 'smooth' })
+    if (calm) return
+    endsRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [hasRoom, asked, roomId])
 
   /** 지금 시작해서 고를 수 있는 끝 시각이 하나라도 있는지 */
