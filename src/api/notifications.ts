@@ -62,7 +62,9 @@ export function notificationAction(n: AppNotification): { to: string; label: str
       return { to: `/reservations/${n.reservationId}`, label: '입실 번호 보기' }
     case 'AWAY_SOON':
       return { to: `/me/${n.reservationId}/checkout`, label: '퇴실할게요' }
+    // 끝나기 10분 전: 연장 버튼은 사용 중 카드(마이 탭 맨 위)에 있다
     case 'END_SOON':
+      return { to: '/me', label: '연장하기' }
     case 'FORCED_CHECKOUT':
       return { to: `/me/${n.reservationId}`, label: '예약 보기' }
     default:

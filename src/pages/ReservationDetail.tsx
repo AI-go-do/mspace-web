@@ -15,7 +15,9 @@ export default function ReservationDetail() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
   const { list, error, stale, reload } = useMyReservations()
-  const now = useNow()
+  // 취소할 수 있는 동안(누른 뒤 5분 등)은 1초마다 다시 그려 마감에 맞춰 취소 버튼이 사라지게 한다
+  const target = list?.find((x) => x.id === id)
+  const now = useNow(target && canCancelAt(target, Date.now()) ? 1_000 : 30_000)
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   // 입실 사진을 올리는 동안 퇴실 화면으로 넘어가면 결과를 못 보니 막는다

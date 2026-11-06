@@ -379,8 +379,10 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', '잠시 후 다시 시도해 주세요')
       if (CLOSED.has(err.code)) {
-        saveCardOutcome(owner, c.token, { kind: 'closed', message: err.message })
-        setState({ kind: 'closed', message: err.message })
+        // 이미 쓴 확인: 앞서 누른 것이 처리됐을 수 있다(두 번 누름·응답 전에 끊김). 결과를 어디서 보는지 알려 준다
+        const message = err.code === 'CONFIRMATION_USED' ? '이미 처리한 확인이에요. 결과는 내 예약에서 볼 수 있어요.' : err.message
+        saveCardOutcome(owner, c.token, { kind: 'closed', message })
+        setState({ kind: 'closed', message })
       } else {
         // 예약 거절(참여자 예약 중 등)은 예약 화면과 같은 친절한 문구로
         const error = deniedLine(err.code, err.message)
@@ -440,9 +442,12 @@ export function ConfirmCard({ c, owner }: { c: ChatConfirmation; owner: number |
       )}
       {state.kind === 'open' && state.error && <p className="card-error" role="alert">{state.error}</p>}
       {closed ? (
-        <p className="card-error" role="alert">
-          {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 스페이시에게 다시 말해 주세요.'}
-        </p>
+        <>
+          <p className="card-error" role="alert">
+            {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 스페이시에게 다시 말해 주세요.'}
+          </p>
+          {state.kind === 'closed' && <Link to="/me/reservations" className="card-link">내 예약 보기 →</Link>}
+        </>
       ) : (
         <>
           <p className="muted card-note">{seoulClock(new Date(c.expiresAt))}까지 눌러 주세요</p>

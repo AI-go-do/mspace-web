@@ -85,7 +85,10 @@ export default function Home() {
   const freeShown = useCountUp(day ? freeCount : null)
   // 오늘 끝나지 않은 내 예약 → 막대를 노랑으로, 아래 카드로
   const today = seoulDate(now)
-  const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
+  // 어제 시작해 자정을 넘겨 오늘까지 쓰는 예약(23:00–01:00)도 오늘 것으로 본다. 막대에서는 0시부터 그린다
+  const dayStart = Date.parse(`${today}T00:00:00+09:00`)
+  const mineToday = mine.filter((m) => isActive(m.status)
+    && (seoulDate(new Date(m.startAt)) === today || (Date.parse(m.startAt) < dayStart && Date.parse(m.endAt) > dayStart)))
   const card = mineToday[0]
   // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 수업 끝 제안 → 시간표 권유). 현황과 내 예약을 받기 전에는 없다
   const butler = day && mineLoaded ? butlerSuggestion({ mine, rooms, schedule }, now) : null
@@ -160,7 +163,7 @@ export default function Home() {
               const segs = takenSegments(r.slots, now)
               const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
               const mySegs = mineToday.filter((m) => m.room.id === r.roomId)
-                .map((m) => ({ from: (Date.parse(m.startAt) - day0) / 3_600_000, to: (Date.parse(m.endAt) - day0) / 3_600_000 }))
+                .map((m) => ({ from: Math.max(0, (Date.parse(m.startAt) - day0) / 3_600_000), to: Math.min(24, (Date.parse(m.endAt) - day0) / 3_600_000) }))
               // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
               const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
               return (
@@ -196,7 +199,7 @@ export default function Home() {
       {card && (
         <Link to={`/reservations/${card.id}`} className="mine-card">
           <span className="mine-card-text">
-            <span>내 예약 · 오늘 {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
+            <span>내 예약 · {Date.parse(card.startAt) < dayStart ? '어제' : '오늘'} {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
             <b>{card.owner ? '입실 번호 보기' : '예약 보기'}</b>
           </span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
