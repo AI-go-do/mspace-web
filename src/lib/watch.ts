@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { seoulDate } from './time'
 
 /**
@@ -42,23 +42,28 @@ export function toggled(rooms: number[], roomId: number): number[] {
   return rooms.includes(roomId) ? rooms.filter((r) => r !== roomId) : [...rooms, roomId].sort((a, b) => a - b)
 }
 
-/** 지켜보는 방 목록과 켜고 끄기. 회원이 바뀌면 그 회원의 목록으로 바꾼다 */
+/** 지켜보는 방 목록과 켜고 끄기. 회원이나 날짜가 바뀌면 그 렌더에서 바로 그 회원·그 날의 목록으로 바꾼다 */
 export function useWatched(member: number | null, now: Date): { watched: number[]; toggle: (roomId: number) => void; unwatch: (roomId: number) => void } {
   const today = seoulDate(now)
-  const [watched, setWatched] = useState<number[]>(() => read(member, today))
-  // 지금 목록은 화면 상태가 기준이다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 연달아 눌러도 앞 변경을 잃지 않게 ref로 최신 값을 든다
-  const current = useRef(watched)
-  useEffect(() => {
-    const next = read(member, today)
-    current.current = next
-    setWatched(next)
-  }, [member, today])
-  const save = useCallback((next: number[]) => {
-    current.current = next
-    setWatched(next)
-    write(member, today, next)
-  }, [member, today])
-  const toggle = useCallback((roomId: number) => save(toggled(current.current, roomId)), [save])
-  const unwatch = useCallback((roomId: number) => save(current.current.filter((r) => r !== roomId)), [save])
+  const scope = `${member ?? 'anon'}|${today}`
+  const [state, setState] = useState(() => ({ scope, rooms: read(member, today) }))
+  // 회원·날짜가 바뀐 렌더에서 앞 회원(또는 어제) 목록을 한 번도 내주지 않게, 효과를 기다리지 않고 렌더 중에 바꾼다
+  // (앞 목록으로 "방이 비었어요" 카드나 진동이 나가지 않게)
+  let watched = state.rooms
+  if (state.scope !== scope) {
+    watched = read(member, today)
+    setState({ scope, rooms: watched })
+  }
+  // 바꾸는 기준은 화면 상태다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 함수형 갱신이라 연달아 눌러도 앞 변경을 잃지 않는다
+  const update = useCallback((change: (rooms: number[]) => number[]) => {
+    setState((prev) => {
+      const base = prev.scope === scope ? prev.rooms : read(member, today)
+      const next = change(base)
+      write(member, today, next)
+      return { scope, rooms: next }
+    })
+  }, [member, today, scope])
+  const toggle = useCallback((roomId: number) => update((rooms) => toggled(rooms, roomId)), [update])
+  const unwatch = useCallback((roomId: number) => update((rooms) => rooms.filter((r) => r !== roomId)), [update])
   return { watched, toggle, unwatch }
 }
