@@ -44,6 +44,8 @@ const REFRESH_MS = 30_000
 export const CHECKIN_REFRESH_MS = 3_000
 /** 답이 오지 않는 요청을 끊는 시간. 끊어야 다음 확인이 돈다 */
 const REQUEST_TIMEOUT_MS = 10_000
+/** 서버에 닿지 못했을 때. 브라우저 문구("Failed to fetch")를 그대로 내지 않는다 */
+const OFFLINE = '연결이 끊겼어요. 와이파이를 확인하고 다시 시도해 주세요'
 /** 입실을 알린 뒤 내 예약으로 넘어가기까지 */
 const ENTERED_MS = 1_200
 
@@ -82,6 +84,8 @@ export default function AccessCode() {
   // 지금 바로 쓰기 취소 버튼(누른 뒤 5분)이 마감에 맞춰 사라지게 자주 다시 그린다
   const now = useNow(5_000)
   const [error, setError] = useState<string | null>(null)
+  // [다시 시도]를 누르면 1 올려서 처음부터 다시 받는다
+  const [attempt, setAttempt] = useState(0)
   const [shared, setShared] = useState<string | null>(null)
 
   const [entered, setEntered] = useState(false)
@@ -117,7 +121,9 @@ export default function AccessCode() {
         // 받은 회원으로 고정한 뒤에만 예약을 조회한다. refresh 401이면 client가 로그인을 끝내 로그인 화면으로 간다
         refreshTokens()
           .then((t) => { if (alive) member = t.memberId ?? null })
-          .catch(() => undefined)
+          // 처음부터 못 받으면(문 앞에서 와이파이 끊김) "불러오는 중"에 머물지 않고 오류와 다시 시도를 보여 준다.
+          // 뒤에서는 계속 다시 받아 보므로 연결이 돌아오면 저절로 열린다
+          .catch((e: unknown) => { if (alive && !loaded) setError(e instanceof ApiError ? e.message : OFFLINE) })
           .finally(() => { if (alive && member !== null) refresh(); else schedule() })
         return
       }
@@ -128,6 +134,7 @@ export default function AccessCode() {
         .then((list) => {
           if (!alive || inFlight !== abort) return
           const found = list.find((x) => x.id === id) ?? null
+          // 한 번이라도 받으면 오류 화면을 걷는다(연결이 돌아온 경우)
           const prev = last?.status
           last = found
           setR(found)
@@ -149,7 +156,7 @@ export default function AccessCode() {
             return
           }
           // 한 번 받은 뒤 잠깐 끊긴 건 그대로 두고, 처음부터 못 받으면 오류를 보여 준다
-          if (!loaded) setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e.message)
+          if (!loaded) setError(abort.signal.aborted ? '연결이 늦어요. 잠시 후 다시 시도해 주세요' : e instanceof ApiError ? e.message : OFFLINE)
         })
         .finally(() => {
           clearTimeout(cut)
@@ -174,17 +181,29 @@ export default function AccessCode() {
       inFlight = null
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [id, navigate])
+  }, [id, navigate, attempt])
 
+  // 처음부터 못 받은 경우(와이파이 끊김·없는 예약). 막다른 화면이 되지 않게 다시 시도와 내 예약으로 가는 길을 둔다
   if (error) {
     return (
       <main className="key-page">
         <div className="key-top"><span className="key-title">입실 번호</span></div>
-        <div className="ticket"><div className="ticket-body"><p role="alert">{error}</p><Link to="/me" className="link">내 예약 보기</Link></div></div>
+        <div className="ticket"><div className="ticket-body">
+          <p role="alert">{error}</p>
+          <button type="button" className="btn-primary" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 시도</button>
+          <Link to="/me" className="link">내 예약 보기</Link>
+        </div></div>
       </main>
     )
   }
-  if (!r) return <main className="key-page" aria-busy="true"><div className="key-top"><span className="key-sub" role="status">불러오는 중…</span></div></main>
+  if (!r) {
+    return (
+      <main className="key-page" aria-busy="true">
+        <div className="key-top"><span className="key-sub" role="status">불러오는 중…</span></div>
+        <div className="key-actions"><Link to="/me" className="btn-ghost center-link">내 예약 보기</Link></div>
+      </main>
+    )
+  }
 
   const date = seoulDate(new Date(r.startAt))
   const today = seoulDate()
