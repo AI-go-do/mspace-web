@@ -1,17 +1,17 @@
 /* PWA 화면 시안 Time · Members · Rules · Denied와 같은 값 */
 /* 아래 고정 막대(.rs-bar)가 규칙 확인 줄까지 늘어나도 내용을 가리지 않게. 막대 아래 여백과 같이 늘어남 */
 .reserve { min-height: 100dvh; padding-bottom: calc(172px + max(28px, env(safe-area-inset-bottom))); }
-.rs-head { background: var(--white); padding: 52px 16px 12px; display: flex; flex-direction: column; gap: 12px; }
+.rs-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 12px; }
 .rs-title { display: flex; align-items: center; gap: 8px; }
 .rs-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
 .rs-title h1 .muted { font-size: 14px; font-weight: 400; }
 .rs-title .sub { display: block; font-size: 12px; }
 .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .days button {
-  height: 56px; border: 0; border-radius: 12px; background: var(--gray); color: var(--navy);
+  height: 58px; border: 0; border-radius: 16px; background: var(--gray); color: var(--navy);
   display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 0;
 }
-.days button[aria-pressed='true'] { background: var(--blue); color: var(--white); }
+.days button[aria-pressed='true'] { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
 .days .wd { font-size: 12px; }
 .days .dn { font-size: 16px; font-weight: 700; }
 
@@ -22,19 +22,24 @@
 .lg-pick { background: var(--blue); }
 .slot-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .slot {
-  height: var(--touch); border-radius: 8px; border: 1px solid var(--gray); background: var(--white);
+  height: var(--touch); border-radius: 10px; border: 0; background: var(--gray); font-weight: 500;
   color: var(--navy); font-size: 12px; padding: 0; cursor: pointer; font-variant-numeric: tabular-nums;
 }
-.slot.taken { background: var(--taken); color: var(--navy-70); cursor: default; }
-.slot.past { color: rgba(21, 35, 61, 0.3); cursor: default; }
-.slot.on { background: var(--blue); border-color: var(--blue); color: var(--white); font-weight: 700; }
+.slot:not(:disabled):not(.on) { background: color-mix(in srgb, var(--sky) 18%, var(--white)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sky) 45%, var(--white)); }
+/* 예약된 칸: 빗금으로 "막힘"을 색만이 아니라 무늬로도 */
+.slot.taken {
+  background: repeating-linear-gradient(-45deg, var(--taken-solid) 0 4px, color-mix(in srgb, var(--taken-solid) 60%, var(--white)) 4px 8px);
+  color: var(--navy-70); cursor: default;
+}
+.slot.past { background: transparent; color: rgba(21, 35, 61, 0.3); cursor: default; }
+.slot.on { background: var(--grad-blue); color: var(--white); font-weight: 700; box-shadow: var(--shadow-blue); }
 
 .rs-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rs-when { display: flex; flex-direction: column; min-width: 0; }
 .rs-when .muted { font-size: 12px; }
-.rs-when b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.rs-when b { font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .people-chip {
-  min-height: var(--touch); border: 0; border-radius: 12px; background: var(--gray); color: var(--navy);
+  min-height: var(--touch); border: 0; border-radius: 22px; background: var(--gray); color: var(--navy);
   padding: 0 12px; display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; cursor: pointer;
   flex-shrink: 0; white-space: nowrap;
 }
@@ -44,7 +49,8 @@
 /* 함께 쓸 사람 */
 .search { display: flex; gap: 8px; }
 .search input {
-  flex: 1; min-width: 0; height: 48px; border: 0; border-radius: 12px; background: var(--gray);
+  flex: 1; min-width: 0; height: 48px; border: 1.5px solid transparent; border-radius: 14px; background: var(--gray);
+  transition: border-color 0.18s, background-color 0.18s, box-shadow 0.18s;
   padding: 0 14px; font: inherit; font-size: 16px; font-weight: 700; color: var(--navy);
 }
 .search input::placeholder { font-weight: 400; color: var(--navy-70); }
@@ -58,13 +64,13 @@
   flex: none; width: 40px; height: 40px; border-radius: 20px; background: var(--gray);
   display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;
 }
-.avatar.me { background: var(--blue); color: var(--white); }
+.avatar.me { background: var(--grad-blue); color: var(--white); box-shadow: 0 0 0 3px var(--white), 0 0 0 4.5px color-mix(in srgb, var(--blue) 25%, transparent); }
 .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .who b { font-size: 16px; }
 .who .muted { font-size: 12px; }
 .strong { font-size: 14px; font-weight: 700; }
 .add-btn {
-  height: var(--touch); padding: 0 16px; border: 0; border-radius: 12px; background: var(--blue); color: var(--white);
+  height: var(--touch); padding: 0 16px; border: 0; border-radius: 22px; background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue);
   font-size: 14px; font-weight: 700; cursor: pointer;
 }
 .notice {
@@ -95,7 +101,7 @@
   flex: none; width: 56px; height: 44px; border-radius: 12px; background: var(--gray);
   display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700;
 }
-.rule-tag.strong { background: var(--yellow); font-size: 16px; }
+.rule-tag.strong { background: var(--yellow); font-size: 16px; box-shadow: 0 6px 14px -8px color-mix(in srgb, var(--yellow) 90%, var(--navy)); }
 .rule-text { display: flex; flex-direction: column; gap: 2px; }
 .rule-text b { font-size: 14px; }
 .rule-text .muted { font-size: 12px; line-height: 1.5; }
@@ -108,3 +114,7 @@
 .next-day { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--taken); display: flex; flex-direction: column; gap: 6px; }
 .next-day-label { font-size: 13px; color: var(--navy-70); font-weight: 600; }
 .next-day-tag { font-size: 11px; font-weight: 600; }
+
+.search input:focus { outline: none; background: var(--white); border-color: var(--blue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent); }
+.found { animation: rise-in 0.26s var(--ease-out) backwards; }
+.person { animation: rise-in 0.24s var(--ease-out) backwards; }

@@ -115,7 +115,7 @@ export default function MapPage() {
 
       {room && (
         <div className="map-bar">
-          <div className="map-bar-row">
+          <div className="map-bar-row" key={room.roomId}>
             <b>창작실 {room.roomId}</b>
             <span className="muted">{room.minPeople}–{room.maxPeople}명 · {nowState(room.slots, now, room.occupiedNow).text}</span>
           </div>

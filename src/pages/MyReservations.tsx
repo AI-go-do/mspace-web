@@ -142,7 +142,7 @@ export default function MyReservations() {
       {list && tab === 'past' && (
         <>
           {past.map((r) => (
-            <Link key={r.id} to={`/me/${r.id}`} className="card mine-item">
+            <Link key={r.id} to={`/me/${r.id}`} className="card mine-item past">
               <span className="mine-item-text">
                 <span className="muted">{STATUS_LABEL[r.status]} · {r.owner ? '대표자' : '참여자'}</span>
                 <b>{whenLabel(r.startAt, now)} · 창작실 {r.room.id}</b>

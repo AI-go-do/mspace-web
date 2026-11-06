@@ -2,16 +2,17 @@
 .in-rooms { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 8px; }
 .in-rooms h2, .in-ends h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .in-room {
-  min-height: 64px; border: 2px solid var(--gray); border-radius: 12px; background: var(--white); color: var(--navy);
+  min-height: 68px; border: 1.5px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-1); background: var(--white); color: var(--navy);
   display: flex; align-items: center; gap: 12px; padding: 8px 12px; text-align: left; cursor: pointer;
 }
-.in-room[aria-pressed='true'] { border-color: var(--blue); }
+.in-room[aria-pressed='true'] { border-color: var(--blue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent), var(--shadow-1); }
 .in-room:disabled { opacity: 0.5; cursor: default; }
 .in-no {
-  flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--sky);
+  flex: none; width: 44px; height: 44px; border-radius: 14px; color: var(--blue);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--sky) 30%, var(--white)), color-mix(in srgb, var(--sky) 55%, var(--white)));
   display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
 }
-.in-room[aria-pressed='true'] .in-no { background: var(--blue); color: var(--white); }
+.in-room[aria-pressed='true'] .in-no { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); animation: pop 0.26s var(--ease-spring); }
 .in-text { display: flex; flex-direction: column; gap: 2px; }
 .in-text b { font-size: 16px; }
 .in-text .muted { font-size: 12px; }
@@ -19,11 +20,11 @@
 .in-ends-head { display: flex; align-items: baseline; justify-content: space-between; }
 .end-chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 .end-chips button {
-  height: var(--touch); border: 1.5px solid var(--gray); border-radius: 10px; background: var(--white); color: var(--navy);
+  height: var(--touch); border: 1.5px solid var(--gray); border-radius: 12px; background: var(--white); color: var(--navy);
   font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; padding: 0;
 }
-.end-chips button[aria-pressed='true'] { background: var(--blue); border-color: var(--blue); color: var(--white); font-weight: 700; }
+.end-chips button[aria-pressed='true'] { background: var(--grad-blue); border-color: transparent; color: var(--white); font-weight: 700; box-shadow: var(--shadow-blue); animation: pop 0.26s var(--ease-spring); }
 .end-chips button:disabled { background: var(--gray); color: rgba(21, 35, 61, 0.35); cursor: default; }
-.in-warn { margin: 12px 16px 0; border-radius: 12px; background: var(--yellow); padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+.in-warn { margin: 12px 16px 0; border-radius: 16px; background: var(--yellow); padding: 12px 14px; font-size: 14px; line-height: 1.5; }
 .people-chip:disabled { opacity: 0.5; cursor: default; }
 .in-rooms h2 .sample { margin-left: 8px; vertical-align: middle; }

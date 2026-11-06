@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { minutesLabel } from '../lib/format'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
@@ -179,6 +179,7 @@ export default function Reserve() {
                 const label = `${slotClock(i)} ${taken ? '예약됨' : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
                 return (
                   <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''}`}
+                    style={on ? { '--k': i - pick!.start } as CSSProperties : undefined}
                     disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
                     {slotClock(i)}
                   </button>
@@ -196,6 +197,7 @@ export default function Reserve() {
                     const label = `다음 날 ${slotClock(k)} ${taken ? '예약됨' : on ? '선택됨' : '비어 있음'}`
                     return (
                       <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${on ? 'on' : ''}`}
+                        style={on ? { '--k': i - pick!.start } as CSSProperties : undefined}
                         disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
                         {slotClock(k)}
                       </button>

@@ -75,7 +75,7 @@ export default function Checkout() {
     return (
       <main className="checkout-done">
         <span className="done-mark" aria-hidden="true">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path className="draw" pathLength={1} d="m5 12.5 4.5 4.5L19 7.5" /></svg>
         </span>
         <h1>퇴실했어요</h1>
         <p>{r ? `창작실 ${r.room.id}은` : '방은'} 바로 다른 사람이 예약할 수 있어요. 나갈 때 문이 닫혔는지 한 번 봐 주세요.</p>

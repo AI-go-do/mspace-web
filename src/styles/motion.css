@@ -25,6 +25,7 @@
 @keyframes print { from { clip-path: inset(0 0 100% 0 round 24px); transform: translateY(-14px); } to { clip-path: inset(0 0 0 0 round 24px); transform: none; } }
 @keyframes ring-out { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(2.4); } }
 @keyframes caret { 50% { opacity: 0; } }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes digit-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
 
 /* 1. 화면이 바뀔 때: 서서히 나타나고, 첫 카드들은 살짝 아래에서 떠오름 */
@@ -44,8 +45,9 @@
   transform: scale(0.96);
 }
 
-/* 3. 고른 칸: 톡 튀어 오름 */
-.slot.on, .map-room.on { animation: pop 0.26s var(--ease-spring); }
+/* 3. 고른 칸: 톡 튀어 오름. 시간 칸은 시작부터 차례로 채워짐(--k = 시작에서 몇 번째) */
+.slot.on, .map-room.on { animation: pop 0.26s var(--ease-spring) backwards; }
+.slot.on { animation-delay: calc(var(--k, 0) * 35ms); }
 
 /* 4. 아래 시트: 아래에서 올라오고 뒤는 서서히 어두워짐 */
 .sheet-dim { animation: fade-in 0.2s ease-out backwards; }
