@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 /** 브라우저의 화면 켜 두기(Screen Wake Lock). 없는 브라우저(예전 iOS)에서는 아무것도 안 한다 */
-type Lock = { release(): Promise<void> }
+type Lock = { readonly released: boolean; release(): Promise<void>; addEventListener(type: 'release', cb: () => void): void }
 type WakeLockApi = { request(type: 'screen'): Promise<Lock> }
 
 /**
@@ -14,13 +14,23 @@ export function useWakeLock(on: boolean): void {
     const api = (navigator as Navigator & { wakeLock?: WakeLockApi }).wakeLock
     if (!api) return
     let lock: Lock | null = null
+    let pending = false
     let alive = true
     const grab = () => {
-      if (!alive || document.visibilityState !== 'visible') return
+      // 이미 잡고 있거나 잡는 중이면 또 요청하지 않는다(두 개가 겹치면 하나가 안 풀린 채 남는다)
+      if (!alive || pending || (lock && !lock.released) || document.visibilityState !== 'visible') return
+      pending = true
       api.request('screen').then((l) => {
-        if (alive) lock = l
-        else void l.release()
-      }).catch(() => { /* 저전력 모드·권한 없음: 그냥 꺼지게 둔다 */ })
+        pending = false
+        if (l.released) return
+        if (!alive || (lock && !lock.released)) {
+          void l.release().catch(() => {})
+          return
+        }
+        lock = l
+        // 브라우저가 먼저 풀면(탭 숨김 등) 비워 두어 다음 grab이 다시 잡을 수 있게
+        l.addEventListener('release', () => { if (lock === l) lock = null })
+      }).catch(() => { pending = false /* 저전력 모드·권한 없음: 그냥 꺼지게 둔다 */ })
     }
     grab()
     document.addEventListener('visibilitychange', grab)

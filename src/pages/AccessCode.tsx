@@ -303,7 +303,11 @@ export default function AccessCode() {
                 {r.accessCode!.split('').map((d, i) => <span key={i}>{d}</span>)}
               </div>
               {r.status === 'BOOKED'
-                ? <span className="deadline" aria-live="off">{deadlineText(deadline, r.startAt, now.getTime())}</span>
+                ? <>
+                    {/* 1초마다 바뀌는 카운트다운은 읽어 주지 않고(aria-live off), 마감이 지난 순간만 따로 알린다 */}
+                    <span className="deadline" aria-live="off">{deadlineText(deadline, r.startAt, now.getTime())}</span>
+                    {now.getTime() > deadline.getTime() && <span className="sr-only" role="status">입실 마감이 지났어요</span>}
+                  </>
                 : <span className="deadline calm">입실했어요. 잠깐 나갔다 와도 같은 번호로 열려요</span>}
             </>
           )}
