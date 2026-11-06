@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { minutesLabel } from '../lib/format'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
@@ -10,7 +10,7 @@ import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../component
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
 import { seoulClock, seoulDate } from '../lib/time'
-import { addDays, dayLabel, DAY_SLOTS, freeNextDaySlots, lengthLabel, MAX_SLOTS, nextDayReach, slotClock, slotClockAcross, tapSlot, weekChips, type Pick } from '../lib/slots'
+import { addDays, dayLabel, DAY_SLOTS, freeNextDaySlots, lengthLabel, MAX_SLOTS, nextDayReach, roomLink, slotClock, slotClockAcross, tapSlot, weekChips, type Pick } from '../lib/slots'
 import './Reserve.css'
 
 type Step = 'time' | 'members' | 'rules'
@@ -71,6 +71,38 @@ export default function Reserve() {
     setNow(new Date())
     load()
   }, [load])
+
+  // '지금 시작' 줄이 낡지 않게: 오늘을 보고 칸을 안 골랐을 때만 30초마다 시계와 방 현황을 조용히 다시 받는다(고른 칸은 건드리지 않는다).
+  // 처음 불러오기가 끝나기 전이나 앞 새로고침이 아직 오는 중이면 그 차례는 건너뛰어 요청이 겹치지 않게 하고, 10초 안에 안 오면 끊는다
+  const hasRoom = room !== null
+  useEffect(() => {
+    if (date !== today || pick || !hasRoom) return
+    let pending: AbortController | null = null
+    const id = setInterval(() => {
+      setNow(new Date())
+      if (pending) return
+      const seq = loadSeq.current
+      const ctrl = new AbortController()
+      pending = ctrl
+      const timer = setTimeout(() => ctrl.abort(), 10_000)
+      getAvailability(date, ctrl.signal)
+        .then((r) => {
+          if (ctrl.signal.aborted || seq !== loadSeq.current) return
+          const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+          setRoom(found)
+          if (!found) setLoadError('없는 방이에요') // 처음 불러오기와 같게
+        })
+        .catch(() => {})
+        .finally(() => {
+          clearTimeout(timer)
+          if (pending === ctrl) pending = null
+        })
+    }, 30_000)
+    return () => {
+      clearInterval(id)
+      pending?.abort() // 칸을 고르거나 날짜를 바꾸면 오는 중인 새로고침은 버린다
+    }
+  }, [date, today, pick, roomId, hasRoom])
 
   // 같은 내용으로 다시 보내면 같은 키 → 서버가 예약을 두 번 만들지 않는다
   const idemKey = useRef(newKey())
@@ -137,6 +169,9 @@ export default function Reserve() {
   }
 
   const title = `창작실 ${roomId}`
+  // 수연 피드백(11/6): 지금 바로 쓰기가 예약 화면과 떨어져 있어 불편 → 오늘 이 방이 지금 비어 있으면 시간표 위에 바로 시작 줄을 둔다
+  const startNowLink = room && date === today && !pick ? roomLink(room, now) : null
+  const canStartNow = !!startNowLink && startNowLink.startsWith('/now')
   const when = pick ? `${date === today ? '오늘' : dayLabel(date)} ${range}` : ''
 
   return (
@@ -158,6 +193,16 @@ export default function Reserve() {
               ))}
             </div>
           </header>
+
+          {canStartNow && (
+            <Link to={startNowLink!} state={people.length ? { people } : undefined} className="card rs-now">
+              <span className="rs-now-text">
+                <b>지금 비어 있어요</b>
+                <span className="muted">지금 {seoulClock(now)}부터 바로 쓰기 · 끝 시각만 골라요</span>
+              </span>
+              <span className="rs-now-go">지금 시작</span>
+            </Link>
+          )}
 
           <section className="card rs-grid-card" aria-labelledby="grid-title">
             <div className="rs-grid-head">
