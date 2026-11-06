@@ -1,6 +1,8 @@
 /* PWA 화면 시안 Time · Members · Rules · Denied와 같은 값 */
 /* 아래 고정 막대(.rs-bar)가 규칙 확인 줄까지 늘어나도 내용을 가리지 않게. 막대 아래 여백과 같이 늘어남 */
 .reserve { min-height: 100dvh; padding-bottom: calc(172px + max(28px, env(safe-area-inset-bottom))); }
+/* 즉시 시작 경고가 막대 안에 들어가면(함께 쓰는 사람 화면) 그만큼 더 띄워 마지막 사람의 빼기 버튼이 가리지 않게 */
+.reserve:has(.rs-bar .in-warn) { padding-bottom: calc(172px + 110px + max(28px, env(safe-area-inset-bottom))); }
 .rs-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 12px; }
 .rs-title { display: flex; align-items: center; gap: 8px; }
 .rs-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
