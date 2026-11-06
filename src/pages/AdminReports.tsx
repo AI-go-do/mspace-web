@@ -9,6 +9,7 @@ import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
 import { seoulClock } from '../lib/time'
 
 const REQUEST_TIMEOUT_MS = 15_000
+/** 신고 종류 코드를 화면 이름으로 */
 const categoryLabel = (c: string) => CATEGORIES.find((x) => x.value === c)?.label ?? c
 
 /** 신고 목록 + 판정 (FR-RPT-103). 기본은 대기(OPEN)만, "전체"로 판정한 것까지 */
@@ -63,6 +64,7 @@ export function AdminReports({ onForceCheckout }: { onForceCheckout: (reservatio
   )
 }
 
+/** 신고 한 건. 펼치면 증거와 판정 버튼을 보여 준다 */
 function ReportCard({ r, open, onToggle, onJudged, onForceCheckout }: {
   r: AdminReport
   open: boolean
