@@ -132,11 +132,17 @@ export default function Instant() {
     return at ? seoulClock(new Date(at)) : null
   }
 
-  async function submit() {
-    if (!room || !end || busy || sample) return
+  // 마지막으로 보낸 내용과 멱등 키. "됐는지 모름"일 때 다시 시도는 이걸 그대로 보낸다(같은 예약이 두 번 생기지 않게)
+  const lastSent = useRef<{ body: Parameters<typeof startNow>[0]; key: string } | null>(null)
+
+  async function submit(resend?: { body: Parameters<typeof startNow>[0]; key: string }) {
+    if (!resend && (!room || !end)) return
+    if (busy || sample) return
     setBusy(true)
     try {
-      const created = await startNow({ roomId: room.roomId, endAt: end, participantStudentIds: people.map((p) => p.studentId) }, idemKey.current)
+      const sent = resend ?? { body: { roomId: room!.roomId, endAt: end!, participantStudentIds: people.map((p) => p.studentId) }, key: idemKey.current }
+      lastSent.current = sent
+      const created = await startNow(sent.body, sent.key)
       celebrate()
       navigate(`/reservations/${created.id}`, { state: { created, instant: true } })
     } catch (e) {
@@ -160,7 +166,7 @@ export default function Instant() {
     if (!d) return
     if (d.next === 'mine') return navigate('/me')
     if (d.next === 'members') return setStep('members')
-    if (d.next === 'retry') return submit()
+    if (d.next === 'retry') return submit(d.unsure ? lastSent.current ?? undefined : undefined)
     setStep('pick')
     setEndAt(null)
     load()

@@ -86,21 +86,29 @@ export async function api<T>(path: string, { member, as, ...init }: RequestInit 
   const timeout = timed ? new AbortController() : null
   const timer = timeout ? setTimeout(() => timeout.abort(), WRITE_TIMEOUT_MS) : undefined
   const sendInit = timeout ? { ...init, signal: timeout.signal } : init
+  // 우리가 정한 시간이 지나 요청을 끊었을 때만 TIMEOUT으로 바꾼다. 서버에서는 처리됐을 수도 있어서 "실패"라고 단정하지 않는다.
+  // refresh·응답 읽기 중에 시간이 지난 경우는 그 오류를 그대로 둔다(세션 오류를 TIMEOUT으로 덮지 않게)
+  const sendTimed = async (token: string | null): Promise<Response> => {
+    try {
+      return await send(path, sendInit, token)
+    } catch (e) {
+      if (timeout?.signal.aborted && e instanceof DOMException && e.name === 'AbortError') {
+        throw new ApiError(0, 'TIMEOUT', '응답이 늦어요. 처리됐는지 확인한 뒤 다시 시도해 주세요')
+      }
+      throw e
+    }
+  }
   let res: Response
   try {
-    res = await send(path, sendInit, tokens?.accessToken ?? null)
+    res = await sendTimed(tokens?.accessToken ?? null)
     if (res.status === 401 && tokens) {
       // 시계가 틀렸거나 서버가 토큰을 버린 경우: 같은 세대일 때만 한 번 새로 받아 다시 보낸다
       if (started !== generation) throw await toError(res)
       const fresh = await refreshTokens()
       if (started !== generation) throw await toError(res)
       if (wrongMember(fresh)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
-      res = await send(path, sendInit, fresh.accessToken)
+      res = await sendTimed(fresh.accessToken)
     }
-  } catch (e) {
-    // 우리가 정한 시간이 지나 끊었다: 서버에서는 처리됐을 수도 있어서 "실패"라고 단정하지 않는다
-    if (timeout?.signal.aborted) throw new ApiError(0, 'TIMEOUT', '응답이 늦어요. 처리됐는지 확인한 뒤 다시 시도해 주세요')
-    throw e
   } finally {
     clearTimeout(timer)
   }
