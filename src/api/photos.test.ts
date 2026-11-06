@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
 import { ApiError } from './client'
-import { photoErrorMessage, uploadPhoto } from './photos'
+import { photoErrorMessage, UPLOAD_TIMEOUT_MS, uploadPhoto } from './photos'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -38,5 +38,27 @@ describe('입실·퇴실 사진 (FR-RPT-102)', () => {
     expect(photoErrorMessage(err(413, ''), 'CHECK_OUT')).toContain('너무 커요')
     expect(photoErrorMessage(err(400, 'SOMETHING_NEW'), 'CHECK_IN')).toBe('서버 문장')
     expect(photoErrorMessage(new TypeError('fetch failed'), 'CHECK_IN')).toContain('연결')
+  })
+})
+
+describe('사진 올리기 시간 제한', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    clearTokens()
+  })
+
+  it('응답이 오지 않으면 30초 뒤 끊어서 다시 시도할 수 있게 한다', async () => {
+    vi.useFakeTimers()
+    saveTokens({ accessToken: 't', expiresAt: new Date(Date.now() + 3_600_000).toISOString() })
+    vi.stubGlobal('fetch', vi.fn((_p: string, init: RequestInit) => new Promise((_res, rej) => {
+      init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))
+    })))
+    const pending = uploadPhoto(12, 'CHECK_OUT', new Blob([new Uint8Array(3)]))
+    const caught = pending.catch((e) => e)
+    await vi.advanceTimersByTimeAsync(UPLOAD_TIMEOUT_MS)
+    const err = await caught
+    expect(err).toBeInstanceOf(Error)
+    expect(photoErrorMessage(err, 'CHECK_OUT')).toContain('연결')
   })
 })

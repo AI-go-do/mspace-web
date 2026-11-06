@@ -18,8 +18,15 @@ export function uploadPhoto(reservationId: number, kind: PhotoKind, image: Blob,
   const form = new FormData()
   form.append('kind', kind)
   form.append('file', image, kind === 'CHECK_IN' ? 'checkin.jpg' : 'checkout.jpg')
-  return api(`/api/reservations/${reservationId}/photos`, { method: 'POST', body: form, member })
+  // 응답이 오지 않으면 끊어서 버튼이 '올리는 중'에 머물지 않고 다시 누를 수 있게 한다
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS)
+  return api<UploadedPhoto>(`/api/reservations/${reservationId}/photos`, { method: 'POST', body: form, member, signal: controller.signal })
+    .finally(() => clearTimeout(timer))
 }
+
+/** 줄인 사진(900KB 아래)을 느린 학교 와이파이로 보내도 넉넉한 시간 */
+export const UPLOAD_TIMEOUT_MS = 30_000
 
 /** 서버 오류를 학생이 읽을 문장으로 */
 export function photoErrorMessage(e: unknown, kind: PhotoKind): string {

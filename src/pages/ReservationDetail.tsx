@@ -93,7 +93,7 @@ export default function ReservationDetail() {
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
       {stale && <p className="card mine-msg muted" role="status">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
-      {r.status === 'IN_USE' && <PhotoUpload reservationId={r.id} kind="CHECK_IN" />}
+      {r.status === 'IN_USE' && <PhotoUpload key={r.id} reservationId={r.id} kind="CHECK_IN" />}
 
       {r.owner && active && (
         <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 번호 보기</Link>
