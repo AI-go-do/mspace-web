@@ -67,3 +67,5 @@
 /* 지금 바로 쓰기를 잘못 눌렀을 때만 보이는 취소 줄. 버튼 위 한 줄 전체 */
 .key-undo { order: -1; flex-basis: 100%; text-align: center; color: var(--white); font-size: 14px; padding: 4px 0; }
 .key-page:has(.key-undo) { padding-bottom: 160px; }
+/* 불러오는 중에도 빠져나갈 수 있게 아래에 링크 하나 */
+.center-link { display: flex; align-items: center; justify-content: center; text-align: center; }
