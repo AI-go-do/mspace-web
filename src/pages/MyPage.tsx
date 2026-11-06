@@ -48,6 +48,12 @@ export function friendsLine(f: FriendList | null): string {
  * 입실하면 여기로 넘어오고 사용 중 카드가 맨 위에 그대로 있다(FR-WEB-002)
  */
 export default function MyPage() {
+  // 회원이 바뀌면(공용 폰에서 다른 사람이 로그인) 화면을 통째로 새로 만들어 앞 사람의 예약·시간표·친구 요약을 바로 버린다
+  const member = useMemberId()
+  return <MyPageFor key={member ?? 'none'} member={member} />
+}
+
+function MyPageFor({ member }: { member: number | null }) {
   const { list, error, stale, reload } = useMyReservations()
   const { logout } = useAuth()
   const now = useNow()
@@ -57,8 +63,7 @@ export default function MyPage() {
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
 
-  // 회원 번호를 아직 모르면(첫 토큰 갱신이 늦거나 실패) 알게 되는 순간 다시 받고, 연결이 돌아오면 못 받은 것만 다시 받는다
-  const member = useMemberId()
+  // 회원 번호를 아직 모르면(첫 토큰 갱신이 늦거나 실패) 알게 되는 순간(새 key로 다시 그려짐) 받고, 연결이 돌아오면 못 받은 것만 다시 받는다
   useEffect(() => {
     if (member === null) return
     let alive = true

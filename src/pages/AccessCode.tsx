@@ -267,7 +267,7 @@ export default function AccessCode() {
         <Spacey size={80} />
         <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
-          {entered ? '입실했어요. 내 예약으로 넘어가요'
+          {entered ? '입실했어요. 마이로 넘어가요'
             : showCode
             ? (r.status === 'BOOKED' && r.qrText ? '문 앞 카메라에 QR을 비추거나 키패드에 번호를 눌러 주세요 · 화면이 꺼지지 않아요' : '방 앞 키패드에 이 번호를 눌러 주세요')
             : !r.owner ? '번호는 대표자에게만 보여요'
