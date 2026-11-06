@@ -77,11 +77,10 @@ export default function Assistant() {
         suggestions: result.suggestions ?? [], hints: result.hints ?? [],
       }],
     }), owner)
-    // 마이크로 물었으면 답도 소리로 (화면을 떠났으면 읽지 않는다)
-    if (readNext.current && mounted.current && ttsOk) {
-      readNext.current = false
-      read(id, result.reply)
-    }
+    // 마이크로 물었으면 답도 소리로. 화면을 떠났거나 그사이 회원이 바뀌었으면 읽지 않는다(앞 회원 답을 소리로 내지 않게)
+    const readIt = readNext.current
+    readNext.current = false
+    if (readIt && mounted.current && ttsOk && owner === currentMemberId()) read(id, result.reply)
   }
 
   function read(id: number, text: string) {

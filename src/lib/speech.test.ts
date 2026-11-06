@@ -39,6 +39,14 @@ describe('음성 기능 찾기', () => {
 })
 
 describe('한 번 듣고 보내기', () => {
+  it('시작하지 못하면(start가 던짐) null을 돌려줘 화면이 듣는 중으로 바뀌지 않는다', () => {
+    class Broken extends FakeRecognition { start(): void { throw new Error('not-allowed') } }
+    const h = handlers()
+    expect(listenOnce(h, Broken)).toBeNull()
+    expect(h.onError).toHaveBeenCalledTimes(1)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
   it('한국어로 듣고, 말하는 중 글은 입력 칸에, 끝나면 마지막 글을 한 번만 보낸다', () => {
     const h = handlers()
     listenOnce(h, FakeRecognition)

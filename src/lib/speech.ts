@@ -61,7 +61,7 @@ export interface ListenHandlers {
   onEnd(): void
 }
 
-/** 한 번 말하고 끝나는 듣기. 멈추는 함수를 돌려준다. 음성 인식이 없으면 null */
+/** 한 번 말하고 끝나는 듣기. 멈추는 함수를 돌려준다. 음성 인식이 없거나 시작하지 못하면 null */
 export function listenOnce(h: ListenHandlers, ctor: RecognitionCtor | null = recognitionCtor()): (() => void) | null {
   if (!ctor) return null
   const r = new ctor()
@@ -102,7 +102,7 @@ export function listenOnce(h: ListenHandlers, ctor: RecognitionCtor | null = rec
   } catch {
     h.onError(speechErrorLine('start-failed'))
     h.onEnd()
-    return () => undefined
+    return null
   }
   // 멈춤 버튼: 지금까지 들린 말로 끝낸다(stop은 onend 전에 마지막 결과를 준다)
   return () => {
