@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
+import { ApiError } from '../api/client'
+import { continueReservation, getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
+import { newKey } from '../components/ReserveSteps'
 import { useAuth } from '../auth/AuthProvider'
-import { minutesLabel, timeRange, whenLabel } from '../lib/format'
+import { canContinueAt, minutesLabel, remainLabel, timeRange, whenLabel } from '../lib/format'
+import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
+import { useStillHere } from './Alerts'
 import './Mine.css'
 
 const Chevron = () => (
@@ -85,7 +89,7 @@ export function useMyReservations() {
  * 입실·퇴실 사진과 "방에 문제가 있나요?"는 v0.3(FR-RPT-101)이라 아직 없다.
  */
 export default function MyReservations() {
-  const { list, error, stale } = useMyReservations()
+  const { list, error, stale, reload } = useMyReservations()
   const { logout } = useAuth()
   const now = useNow()
   const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
@@ -118,7 +122,7 @@ export default function MyReservations() {
 
       {list && tab === 'upcoming' && (
         <>
-          {inUse && <InUseCard r={inUse} now={now} />}
+          {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload} />}
           {upcoming.map((r) => (
             <Link key={r.id} to={`/me/${r.id}`} className="card mine-item">
               <span className="mine-item-text">
@@ -165,14 +169,47 @@ export default function MyReservations() {
   )
 }
 
-/** 지금 사용 중 카드: 방·시간·인원·남은 시간(숫자 + 막대)·퇴실 */
-function InUseCard({ r, now }: { r: MyReservation; now: Date }) {
+/** 연장 길이 고르기: 30분 단위 최대 2시간 (FR-RSV-105) */
+const CONTINUE_STEPS = [30, 60, 90, 120]
+
+/**
+ * 지금 사용 중 카드 (입실하면 이 창으로 바뀐다): 방·시간·인원, 1초마다 줄어드는 남은 시간, 끝나는 시각, 진행 막대,
+ * 대표자 버튼 — 퇴실하기 · 연장하기(끝나기 10분 전부터) · 아직 있어요(예약당 1번)
+ */
+function InUseCard({ r, onChanged }: { r: MyReservation; onChanged: () => void }) {
+  const now = useNow(1_000)
   const start = Date.parse(r.startAt)
   const end = Date.parse(r.endAt)
-  const left = (end - now.getTime()) / 60_000
   const done = Math.min(100, Math.max(0, ((now.getTime() - start) / (end - start)) * 100))
   const elapsed = minutesLabel((now.getTime() - start) / 60_000)
   const total = minutesLabel((end - start) / 60_000)
+  const canContinue = canContinueAt(r.endAt, now.getTime())
+  const still = useStillHere(r.id)
+  const [picking, setPicking] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  // 한 번 고르는 동안은 같은 멱등 키를 쓴다(응답을 못 받고 다시 눌러도 두 번 연장되지 않게)
+  const key = useRef(newKey())
+
+  async function extend(minutes: number) {
+    if (sending) return
+    setSending(true)
+    setNote(null)
+    try {
+      const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current)
+      key.current = newKey()
+      setPicking(false)
+      setNote(`${seoulClock(new Date(res.endAt))}까지 연장했어요. 번호가 새로 나왔어요.`)
+      onChanged()
+    } catch (e) {
+      setNote(e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요')
+      // 409(이미 연장·다음 칸 예약됨·시간 밖)는 같은 키로 다시 보내도 같으니 새 키로 바꾼다
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) key.current = newKey()
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <section className="inuse" aria-label="지금 사용 중인 예약">
       <div className="inuse-top">
@@ -182,17 +219,44 @@ function InUseCard({ r, now }: { r: MyReservation; now: Date }) {
           <span className="inuse-sub">{timeRange(r.startAt, r.endAt)} · {r.participants.length}명</span>
         </div>
         <div className="inuse-left">
-          <span>남은 시간</span>
-          <b>{minutesLabel(left)}</b>
+          <span>{seoulClock(new Date(end))}까지</span>
+          <b className="inuse-count" aria-live="off">{remainLabel(end - now.getTime())}</b>
+          <span>남음</span>
         </div>
       </div>
       <div className="inuse-bar" role="img" aria-label={`${total} 중 ${elapsed} 지남`}>
         <i style={{ width: `${done}%` }} />
       </div>
       {r.owner ? (
-        <Link to={`/me/${r.id}/checkout`} className="inuse-btn">다 썼어요, 퇴실</Link>
+        <>
+          <Link to={`/me/${r.id}/checkout`} className="inuse-btn">다 썼어요, 퇴실하기</Link>
+          <div className="inuse-row">
+            <button type="button" className="inuse-btn2" disabled={!canContinue || sending} aria-expanded={picking}
+              onClick={() => { setNote(null); setPicking((v) => !v) }}>
+              연장하기
+            </button>
+            {still.state.kind !== 'done' && (
+              <button type="button" className="inuse-btn2" disabled={still.state.kind === 'sending'} onClick={() => void still.press()}>
+                {still.state.kind === 'sending' ? '알리는 중…' : '아직 있어요'}
+              </button>
+            )}
+          </div>
+          {!canContinue && end > now.getTime() && <span className="inuse-note">연장은 끝나기 10분 전부터 할 수 있어요</span>}
+          {picking && canContinue && (
+            <div className="inuse-steps" role="group" aria-label="얼마나 더 쓸까요">
+              {CONTINUE_STEPS.map((m) => (
+                <button key={m} type="button" className="inuse-step" disabled={sending} onClick={() => void extend(m)}>
+                  +{minutesLabel(m)}<small>{seoulClock(new Date(end + m * 60_000))}까지</small>
+                </button>
+              ))}
+            </div>
+          )}
+          {note && <p className="inuse-note" role="status">{note}</p>}
+          {still.state.kind === 'done' && <p className="inuse-note" role="status">{still.state.message}</p>}
+          {still.state.kind === 'error' && <p className="inuse-note" role="alert">{still.state.message}</p>}
+        </>
       ) : (
-        <span className="inuse-note">퇴실은 대표자가 해요</span>
+        <span className="inuse-note">퇴실·연장은 대표자가 해요</span>
       )}
       <div className="inuse-links">
         {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}

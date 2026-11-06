@@ -105,10 +105,10 @@ export default function Alerts() {
 const stillHereDone = new Map<number, string>()
 
 /**
- * 자리 비움 알림의 두 버튼 (FR-NTF-103, FR-DEV-103): "아직 있어요"(예약당 1번) · "퇴실할게요"(퇴실 화면으로).
+ * "아직 있어요" 보내기 (FR-DEV-103). 알림함과 내 예약의 사용 중 카드가 같이 쓴다(누른 기록을 함께 본다).
  * 서버가 이미 썼다·꺼 뒀다·사용 중 아님이라고 하면 그 문구를 남기고 버튼을 거둔다
  */
-function AwayActions({ reservationId, checkoutTo }: { reservationId: number; checkoutTo?: string }) {
+export function useStillHere(reservationId: number) {
   const [state, setState] = useState<{ kind: 'idle' | 'sending' } | { kind: 'error'; message: string } | { kind: 'done'; message: string }>(() => {
     const done = stillHereDone.get(reservationId)
     return done ? { kind: 'done', message: done } : { kind: 'idle' }
@@ -116,6 +116,7 @@ function AwayActions({ reservationId, checkoutTo }: { reservationId: number; che
 
   /** "아직 있어요"를 서버에 보내고 결과 문구로 버튼을 바꾼다 */
   async function press() {
+    if (state.kind === 'sending') return
     setState({ kind: 'sending' })
     try {
       await stillHere(reservationId)
@@ -130,6 +131,12 @@ function AwayActions({ reservationId, checkoutTo }: { reservationId: number; che
       } else setState({ kind: 'error', message: err.message })
     }
   }
+  return { state, press }
+}
+
+/** 자리 비움 알림의 두 버튼 (FR-NTF-103, FR-DEV-103): "아직 있어요"(예약당 1번) · "퇴실할게요"(퇴실 화면으로) */
+function AwayActions({ reservationId, checkoutTo }: { reservationId: number; checkoutTo?: string }) {
+  const { state, press } = useStillHere(reservationId)
 
   return (
     <div className="alert-actions">
