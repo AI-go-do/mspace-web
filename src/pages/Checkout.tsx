@@ -132,7 +132,7 @@ export default function Checkout() {
         ))}
         <span className="muted small">다음 사람이 "어질러졌다"고 신고하면 경고가 남을 수 있어요.</span>
       </section>
-      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} />
+      <PhotoUpload key={`${r.id}-${currentMemberId()}`} reservationId={r.id} kind="CHECK_OUT" onBusyChange={setPhotoBusy} disabled={busy} />
 
       {fail && <p className="card mine-msg" role="alert">{fail}</p>}
 

@@ -19,9 +19,21 @@ const COPY: Record<PhotoKind, { title: string; why: string }> = {
  * 입실·퇴실 사진 올리기 (FR-RPT-102). 사진은 브라우저에서 900KB 아래로 자동으로 줄여 보낸다.
  * 학생은 사진을 고르기만 하면 된다. 사진은 30일 뒤 지워진다.
  */
-export default function PhotoUpload({ reservationId, kind, onBusyChange }: {
+/** 사진 줄이기가 멈추면(아주 큰 사진·브라우저 문제) 퇴실이 계속 막히지 않게 끊는다 */
+const SHRINK_TIMEOUT_MS = 15_000
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms)
+    p.then(resolve, reject).finally(() => clearTimeout(timer))
+  })
+}
+
+export default function PhotoUpload({ reservationId, kind, onBusyChange, disabled = false }: {
   reservationId: number
   kind: PhotoKind
+  /** 부모가 다른 일(퇴실 요청 등)을 하는 동안 사진을 새로 올리지 못하게 한다 */
+  disabled?: boolean
   /** 올리는 동안 부모가 화면을 바꾸지 않게(퇴실하기 등) 알려 준다 */
   onBusyChange?: (busy: boolean) => void
 }) {
@@ -29,6 +41,9 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange }: {
   // 다른 탭에서 다른 학생이 로그인하면 보내지 않게 처음 회원을 잡아 둔다
   const memberRef = useRef<number | null>(currentMemberId())
   const [busy, setBusy] = useState(false)
+  // 이미 열린 사진 선택 창에서 고른 경우도 막으려고 최신 값을 ref로 본다
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
   const [done, setDone] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const copy = COPY[kind]
@@ -36,13 +51,13 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange }: {
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // 같은 사진을 다시 골라도 다시 읽게
-    if (!file || busy) return
+    if (!file || busy || disabledRef.current) return
     setMsg(null)
     if (!ACCEPT.includes(file.type)) return setMsg('JPG·PNG 사진만 올릴 수 있어요.')
     setBusy(true)
     onBusyChange?.(true)
     try {
-      const small = await shrinkImage(file).catch(() => undefined)
+      const small = await withTimeout(shrinkImage(file), SHRINK_TIMEOUT_MS).catch(() => undefined)
       if (small === undefined) return setMsg('사진을 열지 못했어요. 다른 사진으로 다시 올려 주세요.')
       if (!small) return setMsg('사진이 너무 커요. 다른 사진으로 다시 올려 주세요.')
       await uploadPhoto(reservationId, kind, small, memberRef.current ?? undefined)
@@ -66,7 +81,7 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange }: {
         <>
           <p className="muted small">{copy.why} 안 올려도 {kind === 'CHECK_IN' ? '입실' : '퇴실'}은 그대로 돼요.</p>
           <input ref={fileRef} type="file" accept={ACCEPT.join(',')} hidden onChange={pick} />
-          <button type="button" className="btn-line" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <button type="button" className="btn-line" disabled={busy || disabled} onClick={() => fileRef.current?.click()}>
             {busy ? '사진 올리는 중…' : '사진 찍기·고르기'}
           </button>
           {msg && <p role="alert" className="photo-err">{msg}</p>}
