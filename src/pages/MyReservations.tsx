@@ -168,6 +168,7 @@ export default function MyReservations() {
       <div className="mine-foot">
         <Link to="/rules" className="link">이용 규칙</Link>
         <Link to="/me/schedule" className="link">내 시간표</Link>
+        <Link to="/me/friends" className="link">친구</Link>
         {admin && <Link to="/admin" className="link">관리자</Link>}
         <button type="button" className="link-btn" onClick={tryLogout}>로그아웃</button>
       </div>
