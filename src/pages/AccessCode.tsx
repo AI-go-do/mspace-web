@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
-import { getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
+import { cancelDeadline, canCancel, getMyReservations, isActive, STATUS_LABEL, type CreatedReservation, type MyReservation } from '../api/reservations'
 import Spacey from '../components/Spacey'
 import { dayLabel } from '../lib/slots'
-import { seoulClock, seoulDate } from '../lib/time'
+import { seoulClock, seoulClockSec, seoulDate } from '../lib/time'
+import { useNow } from '../lib/useNow'
 import './AccessCode.css'
 
 interface NavState {
@@ -78,6 +79,8 @@ export default function AccessCode() {
   // 번호는 지금 로그인한 회원의 예약 목록에서 확인한 것만 보여 준다.
   // 화면 이동 기록(state)은 다른 계정이 남긴 것일 수 있어 번호 표시에 쓰지 않는다
   const [r, setR] = useState<MyReservation | null>(null)
+  // 지금 바로 쓰기 취소 버튼(누른 뒤 5분)이 마감에 맞춰 사라지게 자주 다시 그린다
+  const now = useNow(5_000)
   const [error, setError] = useState<string | null>(null)
   const [shared, setShared] = useState<string | null>(null)
 
@@ -191,6 +194,8 @@ export default function AccessCode() {
   const active = isActive(r.status)
   const showCode = r.owner && active && !!r.accessCode
   const deadline = seoulClock(deadlineOf(r, state.instant))
+  // 지금 바로 쓰기를 잘못 눌렀으면 여기서 바로 취소하러 간다 (시작 후에도 취소되는 예약만, core #84)
+  const undo = canCancel(r, now.getTime()) && cancelDeadline(r).getTime() > Date.parse(r.startAt)
 
   async function share() {
     const text = `M-space ${roomName} · ${when} ${time}\n입실 번호 ${r!.accessCode} (방 앞 키패드에 누르고 #)`
@@ -264,6 +269,7 @@ export default function AccessCode() {
       <div className="key-actions">
         {showCode && <button type="button" className="btn-ghost" onClick={share}>참여자에게 보내기</button>}
         <button type="button" className="btn-white" onClick={() => navigate('/me')}>내 예약 보기</button>
+        {undo && <Link to={`/me/${r.id}`} className="link key-undo">잘못 눌렀어요 · {seoulClockSec(cancelDeadline(r))} 전까지 취소</Link>}
       </div>
     </main>
   )

@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId } from '../api/client'
 import PhotoUpload from '../components/PhotoUpload'
-import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
+import { cancelDeadline, cancelReservation, canCancel as canCancelAt, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
-import { seoulClock } from '../lib/time'
+import { seoulClock, seoulClockSec } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import { deadlineOf } from './AccessCode'
 import { useMyReservations } from './MyReservations'
@@ -61,7 +61,9 @@ export default function ReservationDetail() {
   if (!r) return <main className="mine" aria-busy="true">{head}<p className="card mine-msg muted" role="status">불러오는 중…</p></main>
 
   const active = isActive(r.status)
-  const canCancel = r.owner && r.status === 'BOOKED' && Date.parse(r.startAt) > now.getTime()
+  const canCancel = canCancelAt(r, now.getTime())
+  // 지금 바로 쓰기는 시작 후에도 몇 분 동안 취소된다(core #84). 그때는 '시작 전까지'가 아니라 취소 마감 시각을 알린다
+  const cancelAfterStart = cancelDeadline(r).getTime() > Date.parse(r.startAt)
   const others = r.participants.length - 1
   const host = r.participants.find((p) => p.owner)
 
@@ -109,13 +111,15 @@ export default function ReservationDetail() {
       )}
       {canCancel && (
         <div className="detail-cancel">
-          <span className="muted small">시작({seoulClock(new Date(r.startAt))}) 전까지 대표자만 취소할 수 있어요</span>
+          <span className="muted small">{cancelAfterStart
+            ? `잘못 눌렀다면 ${seoulClockSec(cancelDeadline(r))} 전까지 취소할 수 있어요`
+            : `시작(${seoulClock(new Date(r.startAt))}) 전까지 대표자만 취소할 수 있어요`}</span>
           <button type="button" className="btn-line" onClick={() => setAsking(true)}>예약 취소</button>
         </div>
       )}
-      {/* 시작 시각이 지난 BOOKED(즉시 시작 포함)는 취소 버튼이 없다. 왜 없는지와 노쇼 마감을 알린다 */}
+      {/* 취소 마감이 지난 BOOKED는 취소 버튼이 없다. 왜 없는지와 노쇼 마감을 알린다 */}
       {r.owner && r.status === 'BOOKED' && !canCancel && (
-        <p className="muted small detail-note">시작한 예약은 취소할 수 없어요. {seoulClock(deadlineOf(r))}까지 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요.</p>
+        <p className="muted small detail-note">취소할 수 있는 시간이 지났어요. {seoulClock(deadlineOf(r))}까지 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요.</p>
       )}
       {!r.owner && active && <p className="muted small detail-note">참여자는 보기만 할 수 있어요. 취소·퇴실은 대표자가 해요.</p>}
 
