@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
 import { startNow } from '../api/reservations'
 import { getAvailability, type RoomSlots } from '../api/rooms'
@@ -117,6 +118,7 @@ export default function Instant() {
     setBusy(true)
     try {
       const created = await startNow({ roomId: room.roomId, endAt: end, participantStudentIds: people.map((p) => p.studentId) }, idemKey.current)
+      celebrate()
       navigate(`/reservations/${created.id}`, { state: { created, instant: true } })
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return

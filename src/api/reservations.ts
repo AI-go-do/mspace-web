@@ -63,6 +63,11 @@ export interface MyReservation {
   checkinDeadline?: string
   /** 이름은 가려서 온다(김*영) */
   participants: { name: string; owner: boolean }[]
+  /**
+   * 문 앞 웹캠이 읽는 입실 QR 글자 (core #71, 예: MSPACE:1:123456). 번호가 없으면(참여자·끝난 예약) null.
+   * 예전 core에는 없어서 선택 값 → 없으면 QR 없이 번호만 보여 준다
+   */
+  qrText?: string | null
 }
 
 /**
