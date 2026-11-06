@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
+import { getSchedule, type Schedule } from '../api/schedule'
+import ButlerCard from '../components/ButlerCard'
+import { butlerSuggestion } from '../lib/butler'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import { roomLink } from '../lib/slots'
 import { useCountUp } from '../lib/useCountUp'
@@ -31,10 +34,14 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [mine, setMine] = useState<MyReservation[]>([])
+  // 내 시간표(비서 서버). undefined = 아직 못 받음(비서가 꺼져 있어도 홈은 그대로), null = 아직 안 넣음
+  const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined)
   const unread = useUnreadCount()
 
   useEffect(() => {
     let alive = true
+    // 시간표는 자주 바뀌지 않아 화면을 열 때 한 번만 받는다. 못 받으면 수업 끝 제안만 빠진다
+    getSchedule().then((s) => alive && setSchedule(s)).catch(() => {})
     const load = () =>
       getAvailability(seoulDate())
         .then((r) => {
@@ -74,6 +81,8 @@ export default function Home() {
   const today = seoulDate(now)
   const mineToday = mine.filter((m) => isActive(m.status) && seoulDate(new Date(m.startAt)) === today)
   const card = mineToday[0]
+  // 비서가 먼저 말을 거는 한 가지(연장 → 입실 → 수업 끝 제안 → 시간표 권유). 현황을 받기 전에는 없다
+  const butler = day ? butlerSuggestion({ mine, rooms, schedule }, now) : null
 
   return (
     <main>
@@ -113,6 +122,8 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {butler && <ButlerCard key={butler.kind} s={butler} now={now} />}
 
       <section className="card today" aria-labelledby="today-title">
         <div className="today-head">

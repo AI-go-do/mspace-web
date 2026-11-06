@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { minutesLabel } from '../lib/format'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
 import { createReservation, type NewReservation } from '../api/reservations'
 import { getAvailability, type RoomSlots, type Slot } from '../api/rooms'
+import type { SuggestPick } from '../components/ButlerCard'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
 import { hasAgreed } from '../content/rules'
@@ -24,8 +25,10 @@ export default function Reserve() {
   const navigate = useNavigate()
   const today = seoulDate()
   const chips = useMemo(() => weekChips(today), [today])
+  // 홈 비서 카드("수업 끝나면 여기")가 넘긴 날짜·칸. 처음 시간표를 받은 뒤 그 칸이 아직 비어 있으면 골라 둔다(한 번만)
+  const suggest = useRef(((useLocation().state ?? {}) as { suggest?: SuggestPick }).suggest ?? null)
 
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(() => (suggest.current && chips.some((c) => c.date === suggest.current!.date) ? suggest.current.date : today))
   const [room, setRoom] = useState<RoomSlots | null>(null)
   // 자정 넘김용 다음 날 앞쪽 칸(끝으로만 쓴다). 못 받으면 빈 배열이라 자정을 넘겨 고를 수 없다
   const [nextSlots, setNextSlots] = useState<Slot[]>([])
@@ -36,6 +39,14 @@ export default function Reserve() {
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
   const [now, setNow] = useState(() => new Date())
+
+  // 골라 둔 칸이 화면 아래에 있으면 그리로 내려 보여 준다(한 번만)
+  const scrollToPick = useRef(false)
+  useEffect(() => {
+    if (!scrollToPick.current || !pick) return
+    scrollToPick.current = false
+    document.querySelector('.slot[aria-pressed="true"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [pick])
 
   // 날짜를 빨리 바꾸면 늦게 온 옛 응답이 새 날짜 위에 덮이지 않게 최근 요청만 반영한다
   const loadSeq = useRef(0)
@@ -61,6 +72,16 @@ export default function Reserve() {
         const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
         setRoom(found)
         if (!found) setLoadError('없는 방이에요')
+        const s = suggest.current
+        if (found && s && s.date === date) {
+          suggest.current = null
+          // 그 사이 누가 예약했거나 지난 칸이면 고르지 않고 시간표만 보여 준다
+          const want = found.slots.slice(s.start, s.start + s.len)
+          if (s.len > 0 && want.length === s.len && want.every((x) => x.available && Date.parse(x.startAt) >= Date.now())) {
+            setPick({ start: s.start, len: s.len })
+            scrollToPick.current = true
+          }
+        }
       })
       .catch((e: Error) => {
         if (seq === loadSeq.current) setLoadError(e.message)

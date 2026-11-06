@@ -1,0 +1,36 @@
+/* 홈 맨 위 "비서가 먼저" 카드. 방 현황 카드 위에 겹쳐 올라오는 흰 카드 */
+.butler {
+  position: relative; overflow: hidden; isolation: isolate;
+  margin: -28px 12px 0; padding: 14px 16px 14px 12px; border-radius: 22px; color: var(--navy); background: var(--white);
+  box-shadow: var(--shadow-2); display: grid; grid-template-columns: 52px 1fr; column-gap: 12px; row-gap: 8px; align-items: center;
+  animation: butler-in 0.5s 0.1s var(--ease-spring) backwards;
+  transition: transform 0.12s var(--ease-out);
+}
+.butler:active { transform: scale(0.98); }
+/* 비서 카드가 있으면 방 현황 카드는 그 아래로 평범하게 이어진다 */
+.butler + .today { margin-top: 12px; }
+.butler-mascot { flex: none; width: 52px; height: 52px; border-radius: 18px; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--sky) 30%, var(--white)), color-mix(in srgb, var(--sky) 55%, var(--white))); }
+.butler-mascot svg { animation: bob 2.4s ease-in-out infinite; }
+.butler-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.butler-eyebrow { font-size: 11px; font-weight: 700; color: var(--blue); letter-spacing: 0.02em; display: flex; align-items: center; gap: 4px; }
+.butler-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 3px; background: var(--sky); animation: pulse 2s ease-in-out infinite; }
+.butler-title { font-size: 16px; letter-spacing: -0.02em; line-height: 1.3; }
+.butler-sub { font-size: 12px; color: var(--navy-70); line-height: 1.4; }
+.butler-action {
+  grid-column: 2; justify-self: end; height: 36px; padding: 0 14px; border-radius: 18px; display: flex; align-items: center; gap: 2px;
+  background: var(--blue); color: var(--white); font-size: 13px; font-weight: 700; white-space: nowrap;
+  box-shadow: var(--shadow-blue);
+}
+.butler-action::after { content: '→'; margin-left: 2px; }
+/* 급한 일(입실·연장): 노란 띠가 왼쪽에서 흐르고, 할 일 버튼이 노랑 */
+.butler-urgent .butler-action { background: var(--yellow); color: var(--navy); box-shadow: 0 10px 22px -12px color-mix(in srgb, var(--yellow) 80%, var(--navy)); }
+.butler-urgent::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--yellow) 35%, transparent) 50%, transparent 65%);
+  transform: translateX(-120%); animation: shine 1.4s 0.5s var(--ease-out) backwards;
+}
+/* 권유(시간표 넣기): 조용하게 */
+.butler-soft { box-shadow: var(--shadow-1); }
+.butler-soft .butler-action { background: var(--gray); color: var(--blue); box-shadow: none; }
+@keyframes butler-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
