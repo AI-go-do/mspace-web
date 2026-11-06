@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { agoLabel, getMyNotifications, notificationAction, type AppNotification } from '../api/notifications'
 import { stillHere } from '../api/reservations'
 import { ApiError, currentMemberId } from '../api/client'
@@ -14,6 +14,7 @@ const REQUEST_TIMEOUT_MS = 15_000
  * 화면이 열려 있는 동안 30초마다 다시 받는다. 읽음 표시 API는 아직 없어 서버의 read 값만 보여 준다
  */
 export default function Alerts() {
+  const navigate = useNavigate()
   const [list, setList] = useState<AppNotification[] | null>(null)
   const [error, setError] = useState(false)
   const busy = useRef(false)
@@ -57,7 +58,15 @@ export default function Alerts() {
   return (
     <main className="alerts">
       <header className="alerts-head">
-        <h1>알림</h1>
+        {/* 알림함은 아래 탭에 없고 홈 종 버튼으로만 들어와서, 돌아갈 길을 위에 둔다 */}
+        <button type="button" className="back" aria-label="뒤로"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        </button>
+        <div>
+          <h1>알림</h1>
+          <span className="muted alerts-sub">입실·종료 10분 전, 자리 비움을 알려 드려요</span>
+        </div>
       </header>
       <p className="sr-only" aria-live="polite">{announce}</p>
 
@@ -68,10 +77,24 @@ export default function Alerts() {
         </p>
       )}
 
-      {list === null && !error && <p className="alerts-msg muted">불러오는 중…</p>}
+      {/* 처음 받는 동안 알림 카드 세 장 자리를 미리 그려 둔다(화면이 튀지 않게) */}
+      {list === null && !error && (
+        <ul className="alerts-list" aria-busy="true" aria-label="알림 불러오는 중">
+          {[0, 1, 2].map((i) => (
+            <li key={i} className="card alert alert-skeleton" aria-hidden="true">
+              <span className="sk-bar" style={{ width: '52%' }} /><span className="sk-bar" style={{ width: '88%' }} /><span className="sk-bar" style={{ width: '64%' }} />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {list?.length === 0 && (
         <div className="card alerts-empty">
+          <span className="alerts-empty-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+          </span>
           <b>아직 알림이 없어요</b>
           <span className="muted">입실 10분 전, 종료 10분 전, 자리를 오래 비웠을 때 여기로 알려 드려요.</span>
         </div>
