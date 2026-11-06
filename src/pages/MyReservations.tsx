@@ -199,22 +199,24 @@ function InUseCard({ r, onChanged, notice, onExtended }: {
   const [sending, setSending] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   // 한 번 고르는 동안은 같은 멱등 키를 쓴다(응답을 못 받고 다시 눌러도 두 번 연장되지 않게)
-  const key = useRef(newKey())
+  // 다른 길이를 고르면 새 키를 쓴다(같은 키에 다른 끝 시각을 보내면 core가 처음 요청 결과를 돌려주므로)
+  const key = useRef({ minutes: 0, value: newKey() })
 
   async function extend(minutes: number) {
     if (sending) return
     setSending(true)
     setNote(null)
+    if (key.current.minutes !== minutes) key.current = { minutes, value: newKey() }
     try {
-      const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current)
-      key.current = newKey()
+      const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current.value)
+      key.current = { minutes: 0, value: newKey() }
       setPicking(false)
       onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 번호가 새로 나왔어요.`)
       onChanged()
     } catch (e) {
       setNote(e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요')
       // 409(이미 연장·다음 칸 예약됨·시간 밖)는 같은 키로 다시 보내도 같으니 새 키로 바꾼다
-      if (e instanceof ApiError && e.status >= 400 && e.status < 500) key.current = newKey()
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) key.current = { minutes: 0, value: newKey() }
     } finally {
       setSending(false)
     }
