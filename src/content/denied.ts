@@ -25,7 +25,7 @@ const UNSURE: Denied = {
 
 const BY_CODE: Record<string, Denied> = {
   RESERVATION_TIME_TAKEN: { title: '방금 다른 팀이 이 시간을 예약했어요', hint: '같은 방의 다른 시간이나 다른 방을 골라 주세요.', action: '다른 시간 보기', next: 'time' },
-  OWNER_HAS_ACTIVE_RESERVATION: { title: '이미 끝나지 않은 예약이 있어요', hint: '대표자는 예약을 한 번에 1건만 가질 수 있어요. 지금 예약을 쓰거나 취소한 뒤 다시 예약해 주세요.', action: '내 예약 보기', next: 'mine' },
+  OWNER_HAS_ACTIVE_RESERVATION: { title: '이미 끝나지 않은 예약이 있어요', hint: '대표자든 참여자든 끝나지 않은 예약은 1건만 가질 수 있어요. 지금 예약이 끝나거나 취소된 뒤 다시 예약해 주세요.', action: '내 예약 보기', next: 'mine' },
   PARTICIPANT_HAS_ACTIVE_RESERVATION: { title: '함께 쓸 사람 중 이미 다른 예약에 들어 있는 사람이 있어요', hint: '한 사람은 끝나지 않은 예약에 한 번만 들어갈 수 있어요. 그 사람을 빼거나 다른 사람으로 바꿔 주세요. 그 예약이 끝난 뒤에는 다시 예약할 수 있어요.', action: '함께 쓸 사람 고치기', next: 'members' },
   PARTICIPANT_TIME_TAKEN: { title: '같은 시간에 다른 방에 있는 사람이 있어요', hint: '그 사람을 빼고 다시 예약해 주세요.', action: '함께 쓸 사람 고치기', next: 'members' },
   USER_SUSPENDED: { title: '지금은 이용이 정지되어 있어요', hint: '노쇼나 경고가 쌓여 정지 기간 동안은 예약·연장을 할 수 없어요. 정지가 끝나면 다시 예약할 수 있어요.', action: '내 예약 보기', next: 'mine' },
