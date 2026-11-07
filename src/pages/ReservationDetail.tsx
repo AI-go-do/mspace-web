@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId } from '../api/client'
 import PhotoUpload from '../components/PhotoUpload'
 import { cancelDeadline, cancelReservation, canCancel as canCancelAt, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
@@ -14,8 +14,12 @@ import './Mine.css'
 export default function ReservationDetail() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
+  // 앱 안에서 들어왔으면(첫 화면이 아니면) 온 곳으로, 바로 열었으면 내 예약 목록으로. history.length는 앞으로 가기 기록까지 세서 쓰지 않는다
+  const cameInApp = useLocation().key !== 'default'
   const { list, error, stale, reload } = useMyReservations()
-  const now = useNow()
+  // 취소할 수 있는 동안(누른 뒤 5분 등)은 1초마다 다시 그려 마감에 맞춰 취소 버튼이 사라지게 한다
+  const target = list?.find((x) => x.id === id)
+  const now = useNow(target && canCancelAt(target, Date.now()) ? 1_000 : 30_000)
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   // 입실 사진을 올리는 동안 퇴실 화면으로 넘어가면 결과를 못 보니 막는다
@@ -48,7 +52,7 @@ export default function ReservationDetail() {
 
   const head = (
     <header className="sub-head">
-      <button type="button" className="back" aria-label="뒤로" onClick={() => navigate('/me')}>
+      <button type="button" className="back" aria-label="뒤로" onClick={() => (cameInApp ? navigate(-1) : navigate('/me/reservations'))}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
       </button>
       <h1>예약 상세</h1>

@@ -1,6 +1,6 @@
 import type { MyReservation } from '../api/reservations'
 import type { RoomSlots } from '../api/rooms'
-import type { Day, Schedule, ScheduleClass } from '../api/schedule'
+import { seoulDay, type Schedule, type ScheduleClass } from '../api/schedule'
 import { deadlineOf } from '../pages/AccessCode'
 import { canContinueAt } from './format'
 import { MAX_SLOTS } from './slots'
@@ -24,12 +24,8 @@ export type Suggestion =
   | { kind: 'noSchedule' }
 
 const SLOT_MS = 30 * 60_000
-const DAY_OF: Record<string, Day> = { Mon: 'MON', Tue: 'TUE', Wed: 'WED', Thu: 'THU', Fri: 'FRI', Sat: 'SAT', Sun: 'SUN' }
-
-/** 서울 기준 오늘 요일 */
-export function seoulDay(now: Date): Day {
-  return DAY_OF[new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(now)]
-}
+// 요일 계산은 시간표 쪽 한 곳에 둔다(마이 탭과 같은 함수). 테스트·다른 곳이 쓰던 이름은 그대로 내보낸다
+export { seoulDay }
 
 /** 오늘 수업 중 가장 늦게 끝나는 것. 아직 안 끝난 것만(끝났으면 null: 그때는 "지금 바로 쓰기"가 맡는다) */
 export function lastClassToday(classes: ScheduleClass[], now: Date): { c: ScheduleClass; endAt: Date } | null {

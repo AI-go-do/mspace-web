@@ -7,6 +7,7 @@ const n = (kind: string, reservationId: number | null = 12): AppNotification =>
 describe('알림에서 갈 곳', () => {
   it('자리 비움 알림은 퇴실 화면으로 간다 (FR-NTF-103)', () => {
     expect(notificationAction(n('AWAY_SOON'))).toEqual({ to: '/me/12/checkout', label: '퇴실할게요' })
+    expect(notificationAction(n('END_SOON'))).toEqual({ to: '/me?end=12', label: '연장하기' })
   })
   it('입실 전 알림은 입실 번호로 간다', () => {
     expect(notificationAction(n('START_SOON'))?.to).toBe('/reservations/12')

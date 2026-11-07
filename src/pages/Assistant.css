@@ -68,6 +68,8 @@
   display: flex; align-items: center; justify-content: center;
 }
 .send:disabled { background: var(--white); color: var(--navy-70); cursor: default; }
+/* 닫힌 확인 카드에서 결과를 볼 곳으로 */
+.card-link { align-self: flex-start; min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; color: var(--blue); }
 
 /* 추천 말 (클릭만으로 이어 가기). 한 줄로 두고 옆으로 밀어 본다 */
 .chat-tip { margin: 6px 0 0; font-size: 13px; }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
@@ -42,6 +42,17 @@ export function friendsLine(f: FriendList | null): string {
 }
 
 /**
+ * 연장하면 새 예약 번호가 나와 알림 주소의 `?end=`와 달라진다(그대로 두면 "이미 끝났어요"가 잘못 뜬다).
+ * 지금 주소의 end가 연장한 그 예약일 때만 end를 뺀 주소를 돌려주고, 다른 알림으로 바뀌었으면 null(그대로 둔다)
+ */
+export function searchWithoutEnd(search: string, extendedId: number): URLSearchParams | null {
+  const params = new URLSearchParams(search)
+  if (params.get('end') !== String(extendedId)) return null
+  params.delete('end')
+  return params
+}
+
+/**
  * 마이 탭 (11/6 재웅: 내 예약에 로그아웃·시간표·친구가 섞여 있으니 마이페이지로 묶자).
  * 위에서 아래로: 머리글(스페이시·내 정보·수칙 동의) → 사용 중/다가오는 예약 1장 → 줄 메뉴(내 예약·내 시간표·친구·이용 규칙) → 관리자 → 로그아웃.
  * 이름·학번은 넣지 않는다(토큰에 회원 번호만 있고, 공용 폰에서 남의 이름이 보일 수 있어서).
@@ -55,6 +66,8 @@ export default function MyPage() {
 
 function MyPageFor({ member }: { member: number | null }) {
   const { list, error, stale, reload } = useMyReservations()
+  const [params, setParams] = useSearchParams()
+  const { pathname } = useLocation()
   const { logout } = useAuth()
   const now = useNow()
   const admin = useIsAdmin()
@@ -62,6 +75,11 @@ function MyPageFor({ member }: { member: number | null }) {
   const [friends, setFriends] = useState<FriendList | null>(null)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   // 회원 번호를 아직 모르면(첫 토큰 갱신이 늦거나 실패) 알게 되는 순간(새 key로 다시 그려짐) 받고, 연결이 돌아오면 못 받은 것만 다시 받는다
   useEffect(() => {
@@ -90,6 +108,22 @@ function MyPageFor({ member }: { member: number | null }) {
   const active = (list ?? []).filter((r) => isActive(r.status))
   const inUse = active.find((r) => r.status === 'IN_USE')
   const next = active.find((r) => r !== inUse)
+  // "곧 끝나요" 알림에서 왔는데 그 예약이 지금 쓰는 예약이 아니면(이미 끝났거나 다른 예약) 알려 준다
+  const fromEnd = Number(params.get('end'))
+  const endMismatch = list != null && Number.isInteger(fromEnd) && fromEnd > 0 && inUse?.id !== fromEnd
+  // 목록이 최신이면 "이미 끝났어요", 못 받은 옛 목록이면 끝났다고 단정하지 않고 다르다고만 알린다
+  const staleEnd = endMismatch && !stale
+  // 옛 목록에서 쓰는 예약이 다르거나, 그 예약이 목록에 아예 없으면 "다르다"고만 알린다
+  const maybeOther = endMismatch && stale && (inUse != null || !list.some((r) => r.id === fromEnd))
+  // 연장 응답을 기다리는 사이 다른 알림으로 주소가 바뀌었을 수 있다. setParams의 함수 인자는 그 렌더의 옛 주소를 주므로
+  // 지금 주소(BrowserRouter라 window.location이 곧 라우터 주소)를 본다. 마이 탭을 벗어났으면 손대지 않는다
+  const onExtended = (fromId: number, newId: number, text: string) => {
+    setExtended({ id: newId, text })
+    // 응답 전에 다른 화면으로 옮겼으면(아직 안 사라졌어도) 주소를 바꾸지 않는다
+    if (!mounted.current || window.location.pathname !== pathname) return
+    const cleared = searchWithoutEnd(window.location.search, fromId)
+    if (cleared) setParams(cleared, { replace: true })
+  }
   const agreed = hasAgreed()
 
   return (
@@ -105,9 +139,11 @@ function MyPageFor({ member }: { member: number | null }) {
       {error && <p role="alert" className="card mine-msg">내 예약을 못 불러왔어요. {error}</p>}
       {stale && <p role="status" className="card mine-msg muted">최신 정보를 못 받았어요. 잠시 후 다시 받아요.</p>}
 
+      {staleEnd && <p role="status" className="card mine-msg muted">그 알림의 예약은 이미 끝났어요.{inUse ? ' 아래는 지금 쓰는 다른 예약이에요.' : ''}</p>}
+      {maybeOther && <p role="status" className="card mine-msg muted">그 알림의 예약이 표시된 목록과 달라요. 최신 정보를 받으면 다시 확인할게요.</p>}
       {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
         notice={extended && extended.id === inUse.id ? extended.text : null}
-        onExtended={(id, text) => setExtended({ id, text })} />}
+        onExtended={(newId, text) => onExtended(inUse.id, newId, text)} />}
       {!inUse && next && (
         <Link to={`/me/${next.id}`} className="card mine-item">
           <span className="mine-item-text">
