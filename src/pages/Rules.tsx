@@ -1,10 +1,15 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ApiError } from '../api/client'
+import { getMyPenalty, penaltySummary, type MyPenalty } from '../api/penalties'
+import { useAuth } from '../auth/AuthProvider'
 import { BOOKING_FACTS, ROOM_RULES } from '../content/rules'
+import { useMemberId } from '../lib/useMemberId'
 import './Rules.css'
 
 /**
  * FR-WEB-003 이용 규칙 (시안 RulesPage). 로그인 전에도 볼 수 있다.
- * "내 경고 N회"는 경고 API(FR-RPT-104)가 생기면 제목 옆에 붙인다.
+ * 로그인했으면 위쪽에 "내 경고 N회"(GET /api/penalties/me, core #92)를 보여 준다.
  */
 export default function Rules() {
   const navigate = useNavigate()
@@ -17,6 +22,8 @@ export default function Rules() {
         </button>
         <h1>이용 규칙</h1>
       </header>
+
+      <MyPenaltyCard />
 
       <section className="card rules-sec" aria-labelledby="booking-title">
         <h2 id="booking-title">예약 규칙</h2>
@@ -50,5 +57,60 @@ export default function Rules() {
         <span className="muted small">정지되면 대표자·참여자 모두 예약할 수 없어요. 고장 배상은 관리자가 따로 연락해요.</span>
       </section>
     </main>
+  )
+}
+
+/**
+ * 내 경고 횟수 카드. 로그인 전에는 그리지 않는다(이 화면은 로그인 없이도 열리고, 부르면 로그인 화면으로 보내질 수 있어서).
+ * 회원이 바뀌면(공용 폰) 앞 사람 숫자를 버리고 새로 받는다
+ */
+function MyPenaltyCard() {
+  const { status } = useAuth()
+  const member = useMemberId()
+  if (status !== 'in' || member === null) return null
+  return <PenaltyFor key={member} member={member} />
+}
+
+function PenaltyFor({ member }: { member: number }) {
+  const [data, setData] = useState<MyPenalty | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // [다시 받기]를 누르면 1 올려서 다시 받는다
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    getMyPenalty(member)
+      .then((p) => { if (alive) { setData(p); setError(null) } })
+      .catch((e) => {
+        if (!alive) return
+        // 화면을 떠났거나 다른 회원으로 바뀐 경우(SESSION_CHANGED)는 key가 바뀌며 새로 그려지므로 알리지 않는다
+        if (e instanceof ApiError && e.code === 'SESSION_CHANGED') return
+        setError(e instanceof ApiError && e.status !== 0 && e.status < 500 ? e.message : '연결이 고르지 않아요.')
+      })
+    return () => { alive = false }
+  }, [member, attempt])
+
+  if (error && !data) {
+    return (
+      <section className="card rules-me" aria-live="polite">
+        <b>내 경고 횟수를 못 불러왔어요</b>
+        <span className="muted small">{error}</span>
+        <button type="button" className="rules-me-retry" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 받기</button>
+      </section>
+    )
+  }
+  if (!data) {
+    return (
+      <section className="card rules-me" aria-busy="true">
+        <b className="rules-me-wait">내 경고 확인 중…</b>
+      </section>
+    )
+  }
+  const s = penaltySummary(data)
+  return (
+    <section className={`card rules-me ${s.warn ? 'warn' : ''}`} aria-label="내 경고">
+      <b>{s.title}</b>
+      {s.lines.map((l) => <span key={l} className="small">{l}</span>)}
+    </section>
   )
 }
