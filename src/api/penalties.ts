@@ -17,13 +17,15 @@ export interface MyPenalty {
   reportSuspendedUntil: string | null
 }
 
+/** 본인 경고·정지 상태를 받는다. member는 공용 폰에서 회원이 바뀐 걸 알아채는 데 쓴다(client.ts) */
 export function getMyPenalty(member?: number | null): Promise<MyPenalty> {
   return api<MyPenalty>('/api/penalties/me', { member })
 }
 
-/** "11월 21일 (토) 14:00" */
-function until(iso: string): string {
+/** "11월 21일 (토) 14:00". 서버가 읽을 수 없는 시각을 주면 null(화면이 깨지지 않게) */
+function until(iso: string): string | null {
   const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
   return `${dayLabel(seoulDate(d))} ${seoulClock(d)}`
 }
 
@@ -33,10 +35,17 @@ function until(iso: string): string {
  */
 export function penaltySummary(p: MyPenalty): { title: string; lines: string[]; warn: boolean } {
   const lines: string[] = []
-  if (p.suspendedUntil) lines.push(`${until(p.suspendedUntil)}까지 예약·참여가 정지돼 있어요.`)
-  else lines.push(`최근 ${p.windowDays}일 안에 ${p.limit}회가 되면 정지돼요.`)
-  if (p.reportSuspendedUntil) lines.push(`신고는 ${until(p.reportSuspendedUntil)}까지 할 수 없어요.`)
-  else if (p.falseReportWarnings > 0) lines.push(`허위 신고 경고 ${p.falseReportWarnings}회`)
-  const warn = p.suspendedUntil != null || p.reportSuspendedUntil != null || p.warnings >= Math.max(1, p.limit - 1)
+  if (p.suspendedUntil) {
+    const end = until(p.suspendedUntil)
+    lines.push(end ? `${end}까지 예약·참여가 정지돼 있어요.` : '지금 예약·참여가 정지돼 있어요.')
+  }
+  // 정지 중에도 기준을 같이 보여 준다(아래 규칙 칸은 기본값만 적혀 있어서, 서버 설정이 다르면 여기서만 알 수 있다)
+  lines.push(`최근 ${p.windowDays}일 안에 ${p.limit}회가 되면 정지돼요.`)
+  if (p.reportSuspendedUntil) {
+    const end = until(p.reportSuspendedUntil)
+    lines.push(end ? `신고는 ${end}까지 할 수 없어요.` : '지금은 신고할 수 없어요.')
+  } else if (p.falseReportWarnings > 0) lines.push(`허위 신고 경고 ${p.falseReportWarnings}회`)
+  // 한 번만 더 받으면 정지되는 때부터 노랗게(기준이 1회면 0회부터)
+  const warn = p.suspendedUntil != null || p.reportSuspendedUntil != null || p.warnings >= p.limit - 1
   return { title: `내 경고 ${p.warnings}회`, lines, warn }
 }

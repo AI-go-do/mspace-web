@@ -71,6 +71,7 @@ function MyPenaltyCard() {
   return <PenaltyFor key={member} member={member} />
 }
 
+/** 한 회원의 경고 카드: 받는 중 → 결과, 실패하면 [다시 받기]. 화면을 떠나면 늦게 온 답은 버린다 */
 function PenaltyFor({ member }: { member: number }) {
   const [data, setData] = useState<MyPenalty | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -90,27 +91,30 @@ function PenaltyFor({ member }: { member: number }) {
     return () => { alive = false }
   }, [member, attempt])
 
-  if (error && !data) {
-    return (
-      <section className="card rules-me" aria-live="polite">
-        <b>내 경고 횟수를 못 불러왔어요</b>
-        <span className="muted small">{error}</span>
-        <button type="button" className="rules-me-retry" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 받기</button>
-      </section>
-    )
-  }
-  if (!data) {
-    return (
-      <section className="card rules-me" aria-busy="true">
-        <b className="rules-me-wait">내 경고 확인 중…</b>
-      </section>
-    )
-  }
-  const s = penaltySummary(data)
+  // 읽기 도우미가 "불러오는 중 → 실패/결과" 바뀜을 놓치지 않게 알림 영역(aria-live)은 처음부터 하나로 둔다
+  const s = data ? penaltySummary(data) : null
+  const failed = error != null && data == null
   return (
-    <section className={`card rules-me ${s.warn ? 'warn' : ''}`} aria-label="내 경고">
-      <b>{s.title}</b>
-      {s.lines.map((l) => <span key={l} className="small">{l}</span>)}
+    <section
+      className={`card rules-me ${s?.warn ? 'warn' : ''}`}
+      aria-label="내 경고"
+      aria-live="polite"
+      aria-busy={!s && !failed}
+    >
+      {failed ? (
+        <>
+          <b>내 경고 횟수를 못 불러왔어요</b>
+          <span className="muted small">{error}</span>
+          <button type="button" className="rules-me-retry" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 받기</button>
+        </>
+      ) : s ? (
+        <>
+          <b>{s.title}</b>
+          {s.lines.map((l) => <span key={l} className="small">{l}</span>)}
+        </>
+      ) : (
+        <b className="rules-me-wait">내 경고 확인 중…</b>
+      )}
     </section>
   )
 }

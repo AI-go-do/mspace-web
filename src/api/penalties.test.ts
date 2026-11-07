@@ -20,10 +20,25 @@ describe('이용 규칙 "내 경고 N회" (FR-WEB-003, core #92)', () => {
     expect(penaltySummary({ ...base, warnings: 2 }).warn).toBe(true)
   })
 
+  it('기준이 1회면 아직 0회여도 강조한다', () => {
+    expect(penaltySummary({ ...base, limit: 1 }).warn).toBe(true)
+  })
+
   it('정지 중이면 끝나는 때를 서울 시각으로 알린다', () => {
     const s = penaltySummary({ ...base, warnings: 0, suspendedUntil: '2026-11-21T05:00:00Z' })
     expect(s.lines[0]).toContain('14:00까지 예약·참여가 정지돼 있어요')
     expect(s.lines[0]).toContain('11월 21일')
+    expect(s.warn).toBe(true)
+  })
+
+  it('정지 중에도 서버 설정 기준을 같이 보여 준다', () => {
+    const s = penaltySummary({ ...base, limit: 5, windowDays: 14, suspendedUntil: '2026-11-21T05:00:00Z' })
+    expect(s.lines[1]).toBe('최근 14일 안에 5회가 되면 정지돼요.')
+  })
+
+  it('정지 끝 시각을 읽을 수 없어도 화면이 깨지지 않는다', () => {
+    const s = penaltySummary({ ...base, suspendedUntil: '언젠가', reportSuspendedUntil: 'bad' })
+    expect(s.lines).toEqual(['지금 예약·참여가 정지돼 있어요.', '최근 30일 안에 3회가 되면 정지돼요.', '지금은 신고할 수 없어요.'])
     expect(s.warn).toBe(true)
   })
 
