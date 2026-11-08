@@ -33,6 +33,8 @@ export interface RoomView {
   status: { text: string; tone: 'use' | 'empty' | 'warn' | 'off' }
   /** "14:00–16:00 · 예약 5명" / "다음 16:00 (예약 4명)" / "다음 예약 없음" */
   slot: string
+  /** 다음 예약 시작 시각. 다음 예약이 없거나 모르면 null */
+  nextAt: string | null
   /** CO2 아래 한 줄 */
   co2Note: string
   tempNote: string
@@ -139,6 +141,6 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
     roomId: env.roomId,
     name: cfg?.name ?? env.roomName,
     sensors, co2, temperatureC, humidityPct, history, forecast, forecastFrom, etaMinutes, sameForMinutes,
-    overtimeMinutes, flags, tone, status, slot, co2Note, tempNote, humNote,
+    overtimeMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote,
   }
 }
