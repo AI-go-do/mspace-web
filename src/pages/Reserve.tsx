@@ -282,7 +282,7 @@ export default function Reserve() {
     if (waitAt === null || waitBusy) return
     // 시트를 열어 둔 사이 칸이 시작했거나 비었으면 걸지 않는다
     const slot = daySlots[waitAt]
-    if (!slot || slot.available || Date.parse(slot.startAt) <= Date.now()) {
+    if (!slot || slot.available || !!slot.block || Date.parse(slot.startAt) <= Date.now()) {
       setWaitError('이 칸은 더 이상 기다릴 수 없어요. 다른 칸을 골라 주세요')
       return
     }
