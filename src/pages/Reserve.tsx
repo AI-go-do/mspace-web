@@ -274,7 +274,7 @@ export default function Reserve() {
     setWaitError(null)
     try {
       // 시트를 연 사이 그 예약이 취소됐을 수 있어 걸기 직전에 시간표를 새로 받아 같은 칸을 다시 본다.
-      // 못 받으면(연결·시간 초과) 지금 화면 기준으로 건다. 실제 API에서는 core가 한 번 더 확인한다
+      // 못 받으면(연결·시간 초과) 걸지 않는다. 예시 저장소는 빈 칸인지 다시 보지 않아서다
       const seq = loadSeq.current
       const ctrl = new AbortController()
       const timer = setTimeout(() => ctrl.abort(), 10_000)
@@ -282,12 +282,16 @@ export default function Reserve() {
         .then((r) => r.data.rooms.find((x) => x.roomId === roomId) ?? null)
         .catch(() => null)
         .finally(() => clearTimeout(timer))
-      const at = Date.parse(slot.startAt)
-      const freshSlots = fresh?.slots ?? daySlots
-      const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
       // 그 사이 날짜를 바꿨으면 새 날짜 시간표를 덮지 않는다
       if (seq !== loadSeq.current) return
-      if (fresh) setRoom(fresh)
+      if (!fresh) {
+        setWaitError('지금 시간표를 다시 확인하지 못했어요. 잠시 후 다시 눌러 주세요')
+        return
+      }
+      setRoom(fresh)
+      const at = Date.parse(slot.startAt)
+      const freshSlots = fresh.slots
+      const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
       if (i < 0 || freshSlots[i].available) {
         setWaitError('방금 이 칸이 비었어요. 시트를 닫고 칸을 눌러 바로 예약해 주세요')
         return
