@@ -8,15 +8,13 @@ import type { Proposal } from '../lib/apprentice'
 import { InboxItem, Notice } from './AdminApprentice'
 import { ReportList } from './AdminReports'
 import { RestProposals } from './AdminRest'
+import { POLL_MS } from '../lib/poll'
 
 /**
  * "할 일": 사람이 정해야 하는 일을 한곳에. 신고 판정(core, 실제 API)과 AI 처리안(가짜 단계)을 같이 보여 준다.
  * AI의 "신고 판정 초안"은 실제 신고 카드와 겹쳐서 여기에는 올리지 않는다(신고는 늘 사람이 판정, 레벨 1 고정)
  */
 export const inTodo = (p: Proposal) => p.kind !== 'report'
-
-
-export const POLL_MS = 60_000
 
 /** reportsKnown: 신고 수를 확인했나(불러오는 중·실패면 false). reportsFailed: 마지막 요청이 실패했나 */
 export type TodoCounts = { reports: number; reportsKnown: boolean; reportsFailed: boolean; ai: number; total: number }

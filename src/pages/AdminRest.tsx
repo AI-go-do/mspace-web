@@ -9,7 +9,7 @@ import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
 import { useMemberId } from '../lib/useMemberId'
 import { onReportsChanged } from '../lib/reportsBus'
-import { POLL_MS } from './AdminTodo'
+import { POLL_MS } from '../lib/poll'
 import './AdminRest.css'
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `방 ${id}`
