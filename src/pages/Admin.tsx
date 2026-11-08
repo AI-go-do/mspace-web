@@ -65,10 +65,17 @@ function LiveClock() {
   return <span className="adm-live"><i aria-hidden="true" />{seoulClock(now)}</span>
 }
 
-/** 칸 이름 옆 숫자. 숫자가 바뀌면 톡 튀어 오른다(key가 바뀌어 애니메이션이 다시 돈다) */
-function Badge({ n, label }: { n: number; label: string }) {
+/**
+ * 칸 이름 옆 숫자. 숫자가 바뀌면 톡 튀어 오른다(key가 바뀌어 애니메이션이 다시 돈다).
+ * 신고 수 요청이 실패했으면 0이어도 숨기지 않고 "?"(AI 제안이 있으면 "N+")로 모른다는 걸 보여 준다
+ */
+function Badge({ n, unknown = false }: { n: number; unknown?: boolean }) {
+  if (unknown) {
+    const text = n > 0 ? `${n}+` : '?'
+    return <span key={text} className="adm-badge" aria-label={`할 일 ${n > 0 ? `${n}건 이상, ` : ''}신고 수를 확인하지 못했어요`}>{text}</span>
+  }
   if (n <= 0) return null
-  return <span key={n} className="adm-badge" aria-label={label}>{n}</span>
+  return <span key={n} className="adm-badge" aria-label={`할 일 ${n}건`}>{n}</span>
 }
 
 export default function Admin() {
@@ -106,7 +113,7 @@ export default function Admin() {
             <button key={s.id} type="button" className="adm-nav-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
               <Icon>{s.icon}</Icon>
               <span>{s.label}</span>
-              <Badge n={badge(s.id)} label={`할 일 ${badge(s.id)}건`} />
+              <Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} />
             </button>
           ))}
         </nav>
@@ -143,7 +150,7 @@ export default function Admin() {
         <span className="adm-bar-glow" aria-hidden="true" />
         {SECTIONS.map((s) => (
           <button key={s.id} type="button" className="adm-bar-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
-            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} label={`할 일 ${badge(s.id)}건`} /></span>
+            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} /></span>
             {s.id === 'ai' ? 'AI' : s.label}
           </button>
         ))}
