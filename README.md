@@ -18,6 +18,9 @@ VITE_API_TARGET=http://localhost:8411 npm run dev
 
 core를 안 띄웠으면 홈이 예시 데이터로 보이고 "예시" 표시가 붙는다. 일부러 예시로 보려면 `VITE_API_MOCK=true npm run dev`.
 
+관리자 "지금" 탭(방별 CO2·온도·습도·재실)은 core API(`GET /api/admin/rooms/environment`)가 생기기 전까지 **가짜 값**으로 그린다(화면에 "가짜 값" 표시).
+core API가 생기면 `VITE_ADMIN_ENV_SOURCE=api`로 빌드하면 된다. 방 이름·센서 목록·이상 기준은 `src/config/adminRooms.ts` 한 곳에서 고친다.
+
 | 명령 | 하는 일 |
 |---|---|
 | `npm test` | 시간 계산 테스트(Vitest) |
