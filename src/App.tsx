@@ -34,7 +34,7 @@ export default function App() {
   const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
   return (
     <AuthProvider>
-      <div className={`app ${fullScreen ? 'app-full' : ''}`}>
+      <div className={`app ${fullScreen ? 'app-full' : ''} ${pathname === '/admin' ? 'app-wide' : ''}`}>
         {/* 화면이 바뀔 때 앞 화면은 살짝 가라앉고 새 화면이 떠오른다(View Transitions, 지원 안 하는 브라우저는 그냥 바뀜).
             주소 변경은 라우터가 startTransition 안에서 하므로 그때만 움직이고, 1분마다 새로 받는 데이터에는 안 움직인다 */}
         <ViewTransition default="page">
