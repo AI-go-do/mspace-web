@@ -95,7 +95,10 @@ export function forEvidence(w: WarningRecord): number[] {
 const PHONE = /01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/
 const LONG_NUMBER = /\d{8,}/
 /** 2026-11-06 같은 온전한 날짜만 학번으로 보지 않는다(2023-12-3456처럼 뒤에 숫자가 더 붙거나 없는 달·날은 빼지 않음) */
-const DATE = /(?<!\d)\d{4}[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[12]\d|3[01])(?!\d)/g
+const DATE = /(?<!\d)(\d{4})[-./](0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])(?!\d)/g
+/** 달력에 있는 날짜만 지운다(2023-02-30처럼 없는 날은 남겨서 학번 검사에 걸리게) */
+const dropRealDates = (t: string) =>
+  t.replace(DATE, (m, y: string, mo: string, d: string) => (Number(d) <= new Date(Date.UTC(Number(y), Number(mo), 0)).getUTCDate() ? ' ' : m))
 
 /** 보내기 전에 막을 것. 문제가 없으면 null */
 export function appealProblem(text: string, rules = APPEAL_RULES): string | null {
@@ -103,7 +106,7 @@ export function appealProblem(text: string, rules = APPEAL_RULES): string | null
   if (t.length < rules.minChars) return `${rules.minChars}자 넘게 적어 주세요.`
   if (t.length > rules.maxChars) return `${rules.maxChars}자까지 쓸 수 있어요.`
   // 관리자는 예약 번호로 찾는다. 전화번호·학번은 적지 않게 막는다(개인정보를 남기지 않는 원칙)
-  if (PHONE.test(t) || LONG_NUMBER.test(t.replace(DATE, ' ').replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. 관리자는 예약 번호로 찾아요.'
+  if (PHONE.test(t) || LONG_NUMBER.test(dropRealDates(t).replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. 관리자는 예약 번호로 찾아요.'
   return null
 }
 

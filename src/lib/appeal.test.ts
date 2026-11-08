@@ -53,6 +53,11 @@ describe('벌점 해명 카드', () => {
     // 날짜처럼 생겼지만 뒤에 숫자가 더 붙거나 없는 날이면 그대로 막는다
     expect(appealProblem('문이 안 열렸어요. 학번 2023-12-3456 입니다')).toMatch(/학번/)
     expect(appealProblem('문이 안 열렸어요. 번호 2023-13-45 입니다')).toMatch(/학번/)
+    // 달력에 없는 날(2월 30일, 평년 2월 29일)도 날짜로 보지 않고 막는다. 윤년 2월 29일은 날짜
+    expect(appealProblem('문이 안 열렸어요. 번호 2023-02-30 입니다')).toMatch(/학번/)
+    expect(appealProblem('문이 안 열렸어요. 번호 2023-02-29 입니다')).toMatch(/학번/)
+    expect(appealProblem('문이 안 열렸어요. 번호 2023-04-31 입니다')).toMatch(/학번/)
+    expect(appealProblem('2028-02-29에 QR을 찍었는데 안 열렸어요')).toBeNull()
   })
 
   it('상태 글과 진행 칸', () => {
