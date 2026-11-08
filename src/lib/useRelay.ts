@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { currentMemberId, onSessionEnd } from '../api/client'
 import { addWait, cancelWait, declineOffer, getMyOffers, getMyWaits, relayOn, type RelayOffer, type RelayWait } from '../api/relay'
 
@@ -69,12 +69,15 @@ export function useWaits(): {
   cancel: (id: number) => Promise<void>
 } {
   const [state, setState] = useState<{ member: number; list: RelayWait[] } | null>(null)
+  // 겹친 다시 받기 중 마지막 요청만 반영한다(늦게 온 옛 목록이 방금 건·그만둔 기다리기를 되돌리지 않게)
+  const seq = useRef(0)
 
   const reload = useCallback(() => {
     const memberId = currentMemberId()
     if (memberId === null || !relayOn()) return Promise.resolve()
+    const mine = ++seq.current
     return getMyWaits(memberId).then((list) => {
-      if (currentMemberId() === memberId) setState({ member: memberId, list })
+      if (mine === seq.current && currentMemberId() === memberId) setState({ member: memberId, list })
     })
   }, [])
 
@@ -84,14 +87,15 @@ export function useWaits(): {
     const memberId = currentMemberId()
     if (memberId === null) throw new Error('다시 로그인해 주세요')
     await addWait(memberId, roomId, startAt, endHint)
-    await reload()
+    // 걸기는 이미 됐다. 목록 다시 받기가 실패해도 실패로 알리지 않는다(다시 눌러 두 번 걸지 않게)
+    await reload().catch(() => undefined)
   }, [reload])
 
   const cancel = useCallback(async (id: number) => {
     const memberId = currentMemberId()
     if (memberId === null) return
     await cancelWait(memberId, id)
-    await reload()
+    await reload().catch(() => undefined)
   }, [reload])
 
   const mine = state !== null && state.member === currentMemberId()
