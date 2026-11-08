@@ -73,8 +73,8 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && typeof r.offline === 'boolean'
     && (r.co2 === null || (!!r.co2 && isNum(r.co2.ppm)))
     && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct)
-    && Array.isArray(r.series) && r.series.every((p) => !!p && typeof p.at === 'string' && isNumOrNull(p.ppm))
-    && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isNum(f.ppm))))
+    && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm))
+    && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isDate(f.at) && isNum(f.ppm))))
     && isCurrent(r.current) && isNext(r.next))
 }
 

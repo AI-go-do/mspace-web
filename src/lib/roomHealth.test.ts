@@ -185,6 +185,7 @@ describe('mockEnvironment (가짜 값)', () => {
 })
 
 describe('isRoomsEnvironment (API 응답 검사)', () => {
+  const ok0 = '2026-11-08T14:42:00+09:00'
   it('가짜 값 모양은 통과하고, current·next·forecast가 없어도 된다', () => {
     const env = mockEnvironment(now, 10)
     expect(isRoomsEnvironment(env)).toBe(true)
@@ -213,5 +214,13 @@ describe('isRoomsEnvironment (API 응답 검사)', () => {
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: { ...ok, endAt: '언젠가' } }] })).toBe(false)
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: { startAt: ok.startAt } }] })).toBe(false)
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, next: { startAt: ok.startAt } }] })).toBe(false)
+  })
+
+  it('series·forecast 값에 시각이 없거나 날짜가 아니면 거절한다', () => {
+    const env = mockEnvironment(now, 10)
+    const r = env.rooms[0]
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, forecast: [{ at: ok0, ppm: 800 }] }] })).toBe(true)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, forecast: [{ ppm: 800 }] }] })).toBe(false)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, series: [{ at: '언젠가', ppm: 800 }] }] })).toBe(false)
   })
 })

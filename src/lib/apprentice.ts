@@ -130,7 +130,7 @@ export function proposalsFromRooms(views: RoomView[], now: Date): Omit<Proposal,
         plan: '대표자에게 "다음 예약이 없으면 연장하고, 아니면 정리해 주세요" 안내를 보내요',
         reasons: [v.slot, `끝난 뒤 ${v.overtimeMinutes}분 동안 재실 센서 '있음'`] })
     }
-    if (f.hot && v.status.tone === 'empty' && v.slot.startsWith('다음 ')) {
+    if (f.hot && v.status.tone === 'empty' && v.nextAt !== null) {
       out.push({ kind: 'prep', roomId: v.roomId, createdAt: at, title: `${v.slot.replace('다음 ', '')} 예약 전에 방이 ${v.temperatureC?.toFixed(1)}°C예요`,
         plan: '다음 팀 대표자에게 "들어가면 에어컨부터 켜 주세요" 안내를 보내요',
         reasons: ['빈 방 온도가 계속 올라요', `더움 기준 ${ENV_RULES.hotC}°C 넘음`] })
