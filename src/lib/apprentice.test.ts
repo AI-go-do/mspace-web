@@ -144,4 +144,17 @@ describe('저장된 값 검사', () => {
     expect(_isStateForTest({ ...ok, stats: { auto: 0 } } as unknown as ApprenticeState)).toBe(false)
     expect(_isStateForTest({ ...ok, trainees: ok.trainees.slice(1) })).toBe(false)
   })
+
+  it('배열 안 항목이 깨졌거나 모르는 일 종류면 쓰지 않는다', () => {
+    _resetForTest()
+    resetApprentice()
+    const ok = _read()
+    const bad = (o: object) => ({ ...ok, ...o }) as unknown as ApprenticeState
+    expect(_isStateForTest(bad({ inbox: [null] }))).toBe(false)
+    expect(_isStateForTest(bad({ inbox: [{ ...ok.inbox[0], kind: 'unknown' }] }))).toBe(false)
+    expect(_isStateForTest(bad({ inbox: [{ ...ok.inbox[0], reasons: undefined }] }))).toBe(false)
+    expect(_isStateForTest(bad({ done: [{ ...ok.done[0], undone: 'no' }] }))).toBe(false)
+    expect(_isStateForTest(bad({ trainees: [...ok.trainees.slice(1), { ...ok.trainees[0], level: '2' }] }))).toBe(false)
+    expect(_isStateForTest(bad({ activeKeys: [3] }))).toBe(false)
+  })
 })

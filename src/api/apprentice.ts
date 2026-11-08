@@ -47,12 +47,21 @@ function seed(now: Date): ApprenticeState {
 
 /** 저장된 값이 손으로 고쳐졌거나 모양이 바뀌었으면 쓰지 않는다(아래 함수들이 읽는 칸을 모두 확인) */
 function isState(s: ApprenticeState | null): s is ApprenticeState {
-  const kinds = initialTrainees().map((t) => t.kind)
+  const kinds: string[] = initialTrainees().map((t) => t.kind)
+  const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+  const isTrainee = (t: Trainee) => !!t && typeof t === 'object' && kinds.includes(t.kind) && typeof t.name === 'string'
+    && isNum(t.level) && isNum(t.maxLevel) && isNum(t.streak) && isNum(t.right) && isNum(t.total) && typeof t.locked === 'boolean'
+  const isProposal = (p: Proposal) => !!p && typeof p === 'object' && typeof p.id === 'string' && kinds.includes(p.kind)
+    && isNum(p.roomId) && typeof p.title === 'string' && typeof p.plan === 'string' && typeof p.createdAt === 'string'
+    && Array.isArray(p.reasons) && p.reasons.every((r) => typeof r === 'string')
+  const isDone = (d: AutoDone) => isProposal(d) && isNum(d.level) && typeof d.doneAt === 'string' && typeof d.undone === 'boolean'
   return !!s && typeof s === 'object'
     && Array.isArray(s.trainees) && Array.isArray(s.inbox) && Array.isArray(s.done) && Array.isArray(s.activeKeys)
-    && typeof s.seq === 'number' && !!s.stats
-    && typeof s.stats.auto === 'number' && typeof s.stats.human === 'number' && typeof s.stats.undone === 'number'
-    && kinds.every((k) => s.trainees.some((t) => t?.kind === k))
+    && isNum(s.seq) && !!s.stats
+    && isNum(s.stats.auto) && isNum(s.stats.human) && isNum(s.stats.undone)
+    && s.trainees.every(isTrainee) && s.inbox.every(isProposal) && s.done.every(isDone)
+    && s.activeKeys.every((k) => typeof k === 'string')
+    && kinds.every((k) => s.trainees.some((t) => t.kind === k))
 }
 
 function load(): ApprenticeState {
