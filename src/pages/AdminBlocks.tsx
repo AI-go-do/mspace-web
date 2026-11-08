@@ -104,7 +104,7 @@ function BlockItem({ b, now }: { b: RoomBlock; now: Date }) {
 
   function cancelAll() {
     if (!window.confirm(`겹친 예약 ${conflicts.length}건을 취소할까요? 대표자와 참여자에게 "${reasonStatus(b.reason)}" 사유로 알림이 가요.`)) return
-    const n = cancelConflicts(b.id, now)
+    const n = cancelConflicts(b.id, new Date()) // 확인 창이 떠 있는 동안 끝난 예약은 빼려고 누른 시각으로
     setNote(`예약 ${n}건을 취소했어요. (가짜 단계라 실제 알림은 보내지 않았어요)`)
   }
 

@@ -88,7 +88,7 @@ function subscribe(fn: () => void) {
   return () => { listeners.delete(fn) }
 }
 
-/** 아직 취소 안 된 가짜 예약 */
+/** 아직 취소 안 된 가짜 예약. 미리 예약은 시작이 오늘부터 7일 안이라(예약 규칙) 그 뒤 날짜에는 겹칠 예약이 생길 수 없어요 */
 function liveReservations(s: BlocksState, now: Date): BlockConflict[] {
   return mockReservations(now).filter((r) => !s.canceled.includes(r.reservationId))
 }
