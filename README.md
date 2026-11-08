@@ -18,6 +18,8 @@ VITE_API_TARGET=http://localhost:8411 npm run dev
 
 core를 안 띄웠으면 홈이 예시 데이터로 보이고 "예시" 표시가 붙는다. 일부러 예시로 보려면 `VITE_API_MOCK=true npm run dev`.
 
+core API가 아직 없는 화면(방의 사과·빈방 릴레이, core #94)은 주소 끝에 `?demo=1`을 붙여 열면 예시 데이터로 보인다(그 탭에서만, `?demo=0`으로 끔). 보통 주소로 연 학생 화면에는 나오지 않는다.
+
 | 명령 | 하는 일 |
 |---|---|
 | `npm test` | 시간 계산 테스트(Vitest) |
