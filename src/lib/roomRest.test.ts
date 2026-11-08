@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AdminReport } from '../api/admin'
-import { demoBrokenReports, proposeRests, roomCapacity } from './roomRest'
+import { demoBrokenReports, isSkipped, proposeRests, roomCapacity } from './roomRest'
 import type { BlockConflict, RoomBlock } from './roomBlocks'
 
 const now = new Date('2026-11-08T14:10:00+09:00')
@@ -49,6 +49,24 @@ describe('아픈 방 휴업안', () => {
     expect(p.map((x) => x.roomId)).toEqual([4, 2])
     expect(roomCapacity(5)).toEqual([5, 8])
     expect(roomCapacity(1)).toEqual([3, 5])
+  })
+
+  it('넘긴 묶음은 신고 일부가 빠져도 다시 묻지 않고, 새 신고가 오면 다시 묻는다', () => {
+    const [first] = proposeRests([rep(1, 2, 5), rep(2, 2, 6), rep(3, 2, 7)], [], [], now)
+    const skipped = [first.key]
+    // 1번 신고가 판정되어 2건만 남아도 숨김
+    const [fewer] = proposeRests([rep(2, 2, 6), rep(3, 2, 7)], [], [], now)
+    expect(fewer.key).not.toBe(first.key)
+    expect(isSkipped(fewer, skipped)).toBe(true)
+    // 새 신고(4번)가 오면 다시 보임
+    const [more] = proposeRests([rep(2, 2, 6), rep(3, 2, 7), rep(4, 2, 1)], [], [], now)
+    expect(isSkipped(more, skipped)).toBe(false)
+    // 다른 방의 같은 신고 번호는 상관없음
+    const [other] = proposeRests([rep(2, 4, 6), rep(3, 4, 7)], [], [], now)
+    expect(isSkipped(other, skipped)).toBe(false)
+    // 예시 신고(음수 번호)도 같은 규칙
+    const [demo] = proposeRests(demoBrokenReports(now), [], [], now)
+    expect(isSkipped(demo, [demo.key])).toBe(true)
   })
 
   it('예시 신고는 3번 방 3건으로 휴업안 하나가 된다', () => {

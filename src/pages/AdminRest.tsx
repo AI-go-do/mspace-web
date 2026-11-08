@@ -4,7 +4,7 @@ import { createBlock, mockReservations, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { demoOn } from '../lib/demo'
 import { timeRange } from '../lib/format'
-import { demoBrokenReports as demoReports, proposeRests, REST_RULES, type RestProposal } from '../lib/roomRest'
+import { demoBrokenReports as demoReports, isSkipped, proposeRests, REST_RULES, type RestProposal } from '../lib/roomRest'
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
 import { useMemberId } from '../lib/useMemberId'
@@ -69,7 +69,7 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const source = demoOn() ? [...reports, ...demoBrokenReportsCached(now)] : reports
   const reservations = mockReservations(now).filter((r) => !canceled.includes(r.reservationId))
   const doneKeys = new Set(rested.map((r) => r.p.key))
-  const list = proposeRests(source, blocks, reservations, now).filter((p) => !skipped.includes(p.key) && !doneKeys.has(p.key))
+  const list = proposeRests(source, blocks, reservations, now).filter((p) => !isSkipped(p, skipped) && !doneKeys.has(p.key))
 
   function skip(p: RestProposal) {
     const next = [...skipped, p.key]

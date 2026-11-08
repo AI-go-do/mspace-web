@@ -67,6 +67,20 @@ export function proposeRests(
   return out.sort((a, b) => b.reports.length - a.reports.length || a.roomId - b.roomId)
 }
 
+/**
+ * [아직 괜찮아요]로 넘긴 묶음인가. 넘긴 묶음의 신고 일부가 판정되거나 24시간이 지나 빠져도 다시 묻지 않고,
+ * 넘긴 뒤 새 신고가 들어왔을 때만 다시 묻는다(키는 "방:신고id,신고id")
+ */
+export function isSkipped(p: RestProposal, skippedKeys: string[]): boolean {
+  const ids = p.reports.map((r) => String(r.id))
+  return skippedKeys.some((k) => {
+    const [room, list = ''] = k.split(':')
+    if (Number(room) !== p.roomId) return false
+    const seen = new Set(list.split(','))
+    return ids.every((id) => seen.has(id))
+  })
+}
+
 /** 그 예약 시간에 비어 있고(예약·막기 없음) 인원이 맞는 다른 방 */
 function freeRooms(res: BlockConflict, sick: number, blocks: RoomBlock[], reservations: BlockConflict[], now: Date): number[] {
   const s = Date.parse(res.startAt)
