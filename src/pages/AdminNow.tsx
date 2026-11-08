@@ -4,6 +4,8 @@ import { adminErrorMessage } from '../api/admin'
 import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
+import { useRoomBlocks } from '../api/roomBlocks'
+import { blockNow, reasonStatus } from '../lib/roomBlocks'
 import { ApprenticeInbox } from './AdminApprentice'
 import { seoulClock } from '../lib/time'
 import './AdminNow.css'
@@ -71,7 +73,7 @@ function Value({ label, value, unit, note, hot, big }: { label: string; value: s
   )
 }
 
-export function RoomCard({ view }: { view: RoomView }) {
+export function RoomCard({ view, blocked }: { view: RoomView; blocked?: string | null }) {
   const { flags } = view
   return (
     <article className={`card now-room t-${view.tone}`} aria-label={`${view.name} ${view.status.text}`}>
@@ -81,6 +83,7 @@ export function RoomCard({ view }: { view: RoomView }) {
           <b>{view.name}</b>
           <span className="muted">{view.slot}</span>
         </div>
+        {blocked && <span className="nr-st s-warn" title="관리자가 막은 기간">{blocked}</span>}
         <span className={`nr-st s-${view.status.tone}`}>{view.status.text}</span>
       </header>
       <div className="nr-vals">
@@ -136,6 +139,7 @@ export function AdminNow() {
     }
   }, [])
 
+  const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
     if (!data) return []
     const now = new Date(data.now)
@@ -159,7 +163,10 @@ export function AdminNow() {
       <ApprenticeInbox />
       {views.length > 0 && (
         <div className="now-rooms">
-          {views.map((v) => <RoomCard key={v.roomId} view={v} />)}
+          {views.map((v) => {
+            const b = data ? blockNow(v.roomId, blocks, new Date(data.now)) : null
+            return <RoomCard key={v.roomId} view={v} blocked={b ? reasonStatus(b.reason) : null} />
+          })}
           <article className="card now-sum">
             <b>방 {views.length}개 한눈에</b>
             <p>사용 중 <b className="big">{used}</b> / {views.length}</p>

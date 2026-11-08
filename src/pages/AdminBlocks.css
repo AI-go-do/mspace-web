@@ -1,0 +1,31 @@
+/* 관리자 "기간 막기" 탭. 색은 tokens.css 4+2색만 */
+.blk-form select.admin-input { appearance: auto; }
+.blk-reasons { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.blk-reasons legend { margin-bottom: 6px; }
+.blk-reason {
+  min-height: var(--touch); padding: 0 16px; border-radius: 22px; border: 1.5px solid var(--taken); background: var(--white);
+  display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.blk-reason input { position: absolute; opacity: 0; pointer-events: none; }
+.blk-reason.on { background: var(--navy); border-color: var(--navy); color: var(--white); }
+.blk-reason:focus-within { outline: 3px solid var(--sky); outline-offset: 2px; }
+.blk-when { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.blk-dt { display: grid; grid-template-columns: 1fr 96px; gap: 6px; margin-top: 4px; }
+.blk-h { margin: 8px 0 0; font-size: 16px; }
+.blk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.blk-item { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.blk-item.off { opacity: 0.6; }
+.blk-top { display: flex; align-items: center; gap: 12px; }
+.blk-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.blk-text b { font-size: 15px; }
+.blk-text .muted { font-size: 12px; }
+.blk-state { flex: none; padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; background: var(--gray); color: var(--navy-70); }
+.blk-state.now { background: var(--yellow); color: var(--navy); }
+.blk-state.end { background: transparent; }
+.blk-conflicts { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--yellow) 22%, var(--white)); display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.blk-conflicts p { margin: 0; }
+.blk-conflicts ul { margin: 0; padding-left: 18px; font-variant-numeric: tabular-nums; }
+.blk-conflicts .ap-ok { align-self: flex-start; }
+.blk-release { align-self: flex-start; }
+.blk-past summary { cursor: pointer; font-size: 13px; color: var(--blue); font-weight: 700; min-height: var(--touch); display: flex; align-items: center; }
+.blk-past .blk-list { margin-top: 6px; }

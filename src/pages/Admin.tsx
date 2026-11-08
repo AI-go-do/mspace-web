@@ -3,6 +3,7 @@ import { BackIcon } from '../components/ReserveSteps'
 import { AdminPenalties, AdminStats } from './AdminInsights'
 import { AdminNow } from './AdminNow'
 import { AdminApprentice } from './AdminApprentice'
+import { AdminBlocks } from './AdminBlocks'
 import { useApprentice, useApprenticeFeed } from '../api/apprentice'
 import { AdminReports, ForceCheckoutForm } from './AdminReports'
 import { useMemberId } from '../lib/useMemberId'
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'ai', label: 'AI 수습사원' },
   { id: 'reports', label: '신고' },
   { id: 'checkout', label: '강제 퇴실' },
+  { id: 'blocks', label: '기간 막기' },
   { id: 'penalties', label: '경고·정지' },
   { id: 'stats', label: '통계' },
 ] as const
@@ -61,6 +63,7 @@ export default function Admin() {
         {tab === 'ai' && <AdminApprentice />}
         {tab === 'reports' && <AdminReports onForceCheckout={(id) => setParams({ tab: 'checkout', reservation: String(id) })} />}
         {tab === 'checkout' && <ForceCheckoutForm initialId={params.get('reservation') ?? ''} />}
+        {tab === 'blocks' && <AdminBlocks />}
         {tab === 'penalties' && <AdminPenalties />}
         {tab === 'stats' && <AdminStats />}
       </div>
