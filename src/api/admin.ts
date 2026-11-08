@@ -13,7 +13,8 @@ export interface AdminReport {
   category: ReportCategory
   content: string | null
   verdict: ReportVerdict
-  reporterReservationId: number
+  /** 방 카메라 자동 신고(FR-DEV-105)면 null */
+  reporterReservationId: number | null
   createdAt: string
   judgedAt: string | null
 }
@@ -41,7 +42,8 @@ export interface Evidence {
   reportId: number
   /** 그 방을 바로 전에 쓴 예약. 못 찾으면 null */
   previous: { reservationId: number; checkedInAt: string | null; checkedOutAt: string | null; photo: EvidencePhoto } | null
-  reporter: { reservationId: number; photo: EvidencePhoto }
+  /** 방 카메라 자동 신고(FR-DEV-105)면 신고자가 없어 null */
+  reporter: { reservationId: number; photo: EvidencePhoto } | null
   /** 사진이 없는 이유 등 */
   note: string | null
 }

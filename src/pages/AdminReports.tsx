@@ -150,13 +150,23 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
             <span className="muted">{ev.previous ? `예약 #${ev.previous.reservationId}${ev.previous.checkedOutAt ? ` · ${seoulClock(new Date(ev.previous.checkedOutAt))} 퇴실` : ' · 아직 사용 중'}` : '—'}</span>
           </figcaption>
         </figure>
-        <figure className="evidence-cell">
-          <Photo photo={ev.reporter.photo} empty="입실 사진 없음" />
-          <figcaption>
-            <b>신고자 입실</b>
-            <span className="muted">예약 #{ev.reporter.reservationId}</span>
-          </figcaption>
-        </figure>
+        {ev.reporter ? (
+          <figure className="evidence-cell">
+            <Photo photo={ev.reporter.photo} empty="입실 사진 없음" />
+            <figcaption>
+              <b>신고자 입실</b>
+              <span className="muted">예약 #{ev.reporter.reservationId}</span>
+            </figcaption>
+          </figure>
+        ) : (
+          <figure className="evidence-cell">
+            <span className="evidence-photo empty">방 카메라 자동 신고</span>
+            <figcaption>
+              <b>신고자 없음</b>
+              <span className="muted">카메라가 본 내용은 신고 글에 있어요</span>
+            </figcaption>
+          </figure>
+        )}
       </div>
       {ev.note && <p className="muted admin-small">{ev.note}</p>}
       {ev.previous && stillInRoom(ev.previous) && (
