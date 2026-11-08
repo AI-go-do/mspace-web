@@ -112,7 +112,11 @@ export default function Reserve() {
             // 자정을 넘기는 칸(23:00–01:00, 릴레이로 넘겨받은 칸)은 다음 날 앞쪽 칸까지 받은 뒤 고른다.
             // 그 사이 학생이 직접 고른 칸이 있으면 덮지 않는다
             next.then((n) => {
-              if (seq === loadSeq.current && fits([...found.slots, ...openOfferSlots(n, liveRelay?.roomId === roomId ? liveRelay : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
+              if (seq !== loadSeq.current) return
+              // 두 응답 사이에 받을 시간이 지났을 수 있어 다음 날 칸이 온 이 순간 다시 본다
+              const live = relay && Date.parse(relay.expiresAt) > Date.now() ? relay : null
+              const dayOpen = withOffer(raw, live)?.slots ?? []
+              if (fits([...dayOpen, ...openOfferSlots(n, live?.roomId === roomId ? live : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
             })
           }
         }
@@ -269,7 +273,26 @@ export default function Reserve() {
     setWaitBusy(true)
     setWaitError(null)
     try {
-      await addWait(roomId, slot.startAt, takenRunEnd(daySlots, waitAt))
+      // 시트를 연 사이 그 예약이 취소됐을 수 있어 걸기 직전에 시간표를 새로 받아 같은 칸을 다시 본다.
+      // 못 받으면(연결·시간 초과) 지금 화면 기준으로 건다. 실제 API에서는 core가 한 번 더 확인한다
+      const seq = loadSeq.current
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 10_000)
+      const fresh = await getAvailability(date, ctrl.signal)
+        .then((r) => r.data.rooms.find((x) => x.roomId === roomId) ?? null)
+        .catch(() => null)
+        .finally(() => clearTimeout(timer))
+      const at = Date.parse(slot.startAt)
+      const freshSlots = fresh?.slots ?? daySlots
+      const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
+      // 그 사이 날짜를 바꿨으면 새 날짜 시간표를 덮지 않는다
+      if (seq !== loadSeq.current) return
+      if (fresh) setRoom(fresh)
+      if (i < 0 || freshSlots[i].available) {
+        setWaitError('방금 이 칸이 비었어요. 시트를 닫고 칸을 눌러 바로 예약해 주세요')
+        return
+      }
+      await addWait(roomId, freshSlots[i].startAt, takenRunEnd(freshSlots, i))
       setWaitAt(null)
     } catch (e) {
       setWaitError(e instanceof Error ? e.message : '잠시 후 다시 눌러 주세요')
