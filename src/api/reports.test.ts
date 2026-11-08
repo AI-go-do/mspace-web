@@ -16,6 +16,13 @@ describe('신고 보내기 전 확인 (FR-RPT-101)', () => {
     expect(reportProblem({ ...base, category: 'NOISE' })).toContain('소란')
     expect(reportProblem({ ...base, category: 'NOISE', noiseConfirmed: true })).toBeNull()
   })
+  it('어질러짐은 지금 쓰는 방이 아니면 막고, 쓰는 방을 모르면 core에 맡긴다 (core #96)', () => {
+    const messy = { ...base, category: 'MESSY' as const }
+    expect(reportProblem({ ...messy, ownRoomId: 3 })).toContain('지금 쓰는 방')
+    expect(reportProblem({ ...messy, ownRoomId: 2 })).toBeNull()
+    expect(reportProblem({ ...messy, ownRoomId: null })).toBeNull()
+    expect(reportProblem({ ...base, ownRoomId: 3 })).toBeNull()
+  })
   it('메모가 500자를 넘으면 막는다(앞뒤 공백은 세지 않음)', () => {
     expect(reportProblem({ ...base, content: ` ${'가'.repeat(MAX_REPORT_CONTENT)} ` })).toBeNull()
     expect(reportProblem({ ...base, content: '가'.repeat(MAX_REPORT_CONTENT + 1) })).toContain('500')
@@ -25,6 +32,11 @@ describe('신고 보내기 전 확인 (FR-RPT-101)', () => {
 describe('신고 오류 문구', () => {
   it('신고 정지(core #70)는 정지 안내', () => {
     expect(reportErrorMessage(new ApiError(403, 'REPORT_SUSPENDED', 'x'))).toContain('정지')
+  })
+  it('어질러짐 조건 거절(core #96)은 각각 안내', () => {
+    expect(reportErrorMessage(new ApiError(403, 'REPORT_MESSY_OWN_ROOM_ONLY', 'x'))).toContain('지금 쓰는 방')
+    expect(reportErrorMessage(new ApiError(409, 'REPORT_MESSY_TOO_LATE', 'x'))).toContain('5분')
+    expect(reportErrorMessage(new ApiError(409, 'REPORT_CHECKIN_PHOTO_REQUIRED', 'x'))).toContain('입실 사진')
   })
   it('모르는 code는 서버 문구', () => {
     expect(reportErrorMessage(new ApiError(400, 'INVALID_REQUEST', '서버 문구'))).toBe('서버 문구')
