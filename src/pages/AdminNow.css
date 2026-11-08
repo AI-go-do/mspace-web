@@ -7,6 +7,13 @@
 @keyframes now-pulse { 50% { opacity: 0.35; } }
 .now-sample { padding: 1px 8px; border-radius: 7px; border: 1px solid var(--taken); font-size: 12px; }
 
+/* 넓으면 왼쪽 방 카드 + 오른쪽 결재함(380px). 좁으면 결재함이 위(사람이 볼 일이 먼저) */
+.now-grid { display: grid; gap: 12px; align-items: start; }
+.now-grid > .ap-inbox { order: -1; }
+@media (min-width: 1000px) {
+  .now-grid { grid-template-columns: minmax(0, 1fr) 380px; }
+  .now-grid > .ap-inbox { order: 1; position: sticky; top: 12px; max-height: calc(100dvh - 24px); overflow: auto; }
+}
 .now-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
 .now-room {
   padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0;

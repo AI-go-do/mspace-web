@@ -4,6 +4,7 @@ import { adminErrorMessage } from '../api/admin'
 import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
+import { ApprenticeInbox } from './AdminApprentice'
 import { seoulClock } from '../lib/time'
 import './AdminNow.css'
 
@@ -154,6 +155,8 @@ export function AdminNow() {
         {sample && <span className="now-sample">가짜 값 · 시연용</span>}
       </div>
       {error && <p role="alert" className="admin-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
+      <div className="now-grid">
+      <ApprenticeInbox />
       {views.length > 0 && (
         <div className="now-rooms">
           {views.map((v) => <RoomCard key={v.roomId} view={v} />)}
@@ -170,6 +173,7 @@ export function AdminNow() {
           </article>
         </div>
       )}
+      </div>
     </section>
   )
 }

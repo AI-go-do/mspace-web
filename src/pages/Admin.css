@@ -19,7 +19,9 @@
 
 /* 관리자 화면만 넓게(App의 app-wide). "지금" 탭은 넓은 화면을 다 쓰고, 나머지 탭은 예전 폭(폰 한 장) 그대로 가운데 */
 .app.app-wide { max-width: 1440px; }
-.admin-head .admin-tabs { max-width: 720px; }
+.admin-head .admin-tabs { max-width: 760px; overflow-x: auto; scrollbar-width: none; }
+.admin-head .admin-tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+.admin-tab-badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--yellow); color: var(--navy); font-size: 11px; font-weight: 700; line-height: 18px; }
 .admin-body { width: calc(100% - 32px); max-width: 448px; margin: 12px auto 0; display: flex; flex-direction: column; gap: 10px; }
 .admin-filter { display: flex; align-items: center; gap: 8px; }
 .admin-chip {
