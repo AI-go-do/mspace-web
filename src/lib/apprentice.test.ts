@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  _isStateForTest, _peekForTest, _resetForTest, decideProposal, refreshApprentice, resetApprentice, undoAutoDone, type ApprenticeState,
+  _isStateForTest, _noticeForTest, _peekForTest, _resetForTest, decideProposal, refreshApprentice, resetApprentice, undoAutoDone, type ApprenticeState,
 } from '../api/apprentice'
 import { mockEnvironment } from '../api/environmentMock'
 import { ADMIN_ROOMS } from '../config/adminRooms'
@@ -114,6 +114,17 @@ describe('가짜 수습사원 저장소', () => {
     // 두 번 눌러도 한 번만
     undoAutoDone(d.id)
     expect(_read().stats.undone).toBe(1)
+  })
+
+  it('같은 일을 두 번째로 되돌리면 이미 레벨 1이라 레벨이 바뀌었다고 하지 않는다', () => {
+    const [a, b] = _read().done.filter((x) => x.kind === 'vent')
+    undoAutoDone(a.id)
+    undoAutoDone(b.id)
+    const t = _read().trainees.find((x) => x.kind === 'vent')!
+    expect(t.level).toBe(1)
+    expect(_read().stats.undone).toBe(2)
+    expect(_noticeForTest()?.result).toBe('reset')
+    expect(_noticeForTest()?.text).not.toContain('→')
   })
 })
 

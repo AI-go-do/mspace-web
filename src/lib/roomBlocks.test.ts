@@ -97,6 +97,14 @@ describe('가짜 기간 막기 저장소', () => {
     expect(Object.keys(list[0]).sort()).toEqual(['endAt', 'people', 'reservationId', 'roomId', 'startAt'])
   })
 
+  it('가짜 예약 번호는 자정이 지나도 같은 예약이면 같다', () => {
+    const today = mockReservations(now)
+    const tomorrow = mockReservations(new Date(now.getTime() + 86_400_000))
+    const tomorrowSlot = today.find((r) => r.startAt === t('2026-11-09T13:00:00').toISOString())!
+    expect(tomorrow.find((r) => r.startAt === tomorrowSlot.startAt)?.reservationId).toBe(tomorrowSlot.reservationId)
+    expect(new Set(today.map((r) => r.reservationId)).size).toBe(today.length)
+  })
+
   it('막으면 겹친 예약을 지우지 않고 보여 주고, 확인 뒤 취소하면 목록에서 빠진다', () => {
     // 1번 방 내일 13~15시 예약이 있다
     const r = createBlock(input({ startAt: t('2026-11-09T12:00:00'), endAt: t('2026-11-09T16:00:00') }), now)

@@ -164,13 +164,17 @@ export function undoAutoDone(id: string): void {
   const d = s.done.find((x) => x.id === id)
   if (!d || d.undone) return
   const before = trainee(s, d.kind)
-  const { next } = undoScore(before)
+  const { next, result } = undoScore(before)
+  // 같은 일을 두 번 되돌리면 이미 레벨 1이라 연속 기록만 0이 된다
+  const text = result === 'down'
+    ? `되돌렸어요 · ${next.name} 레벨 ${before.level} → ${next.level}. 다음부터 다시 먼저 물어봐요`
+    : `되돌렸어요 · ${next.name} 연속 기록이 0이 됐어요. 이미 레벨 ${next.level}이라 계속 먼저 물어봐요`
   set({
     ...s,
     trainees: replaceTrainee(s, next),
     done: s.done.map((x) => (x.id === id ? { ...x, undone: true } : x)),
     stats: { ...s.stats, undone: s.stats.undone + 1 },
-  }, { text: `되돌렸어요 · ${next.name} 레벨 ${before.level} → ${next.level}. 다음부터 다시 먼저 물어봐요`, kind: d.kind, result: 'down' })
+  }, { text, kind: d.kind, result })
 }
 
 /** 시연용: 가짜 기록을 처음으로 */
@@ -195,6 +199,11 @@ export function useApprenticeFeed(): void {
 /** 테스트용: 지금 상태 */
 export function _peekForTest(): ApprenticeState {
   return get()
+}
+
+/** 테스트용: 마지막 안내 한 줄 */
+export function _noticeForTest(): ApprenticeNotice | null {
+  return notice
 }
 
 /** 테스트용: 저장된 값 검사 */
