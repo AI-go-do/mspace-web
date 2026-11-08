@@ -30,7 +30,9 @@ export function mockReservations(now: Date, days = 7): BlockConflict[] {
       const start = today + d * 86_400_000 + a * 3_600_000
       const end = today + d * 86_400_000 + b * 3_600_000
       if (end <= now.getTime()) return
-      out.push({ reservationId: 2000 + d * 20 + i, roomId, startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString(), people })
+      // 번호는 오늘 기준이 아니라 그 날짜로 정한다(자정이 지나도 같은 예약은 같은 번호, 취소 기록이 어긋나지 않게)
+      const day = Math.round((today + d * 86_400_000) / 86_400_000)
+      out.push({ reservationId: day * 20 + i, roomId, startAt: new Date(start).toISOString(), endAt: new Date(end).toISOString(), people })
     })
   }
   return out
