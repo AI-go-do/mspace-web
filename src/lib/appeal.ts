@@ -94,8 +94,8 @@ export function forEvidence(w: WarningRecord): number[] {
 
 const PHONE = /01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/
 const LONG_NUMBER = /\d{8,}/
-/** 2026-11-06 같은 날짜는 학번으로 보지 않는다 */
-const DATE = /\d{4}[-./]\d{1,2}[-./]\d{1,2}/g
+/** 2026-11-06 같은 온전한 날짜만 학번으로 보지 않는다(2023-12-3456처럼 뒤에 숫자가 더 붙거나 없는 달·날은 빼지 않음) */
+const DATE = /(?<!\d)\d{4}[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[12]\d|3[01])(?!\d)/g
 
 /** 보내기 전에 막을 것. 문제가 없으면 null */
 export function appealProblem(text: string, rules = APPEAL_RULES): string | null {

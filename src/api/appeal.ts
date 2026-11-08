@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { appealProblem, type Appeal, type WarningRecord } from '../lib/appeal'
+import { currentMemberId } from './client'
 import { seoulDate } from '../lib/time'
 
 /**
@@ -68,13 +69,17 @@ export function demoWarnings(base: number, appeals: Record<string, Appeal> = {})
   return list.map((w) => (appeals[String(w.id)] ? { ...w, appeal: appeals[String(w.id)] } : w))
 }
 
+// 회원마다 따로 기억한다(같은 탭에서 다른 계정으로 바꿔도 앞 사람 해명이 보이지 않게)
+let whoAmI: () => number | null = currentMemberId
+const keyOf = (member: number | null) => `${KEY}:${member ?? 'guest'}`
 let state: State | null = null
+let stateKey: string | null = null
 let snapshot: WarningRecord[] = []
 const listeners = new Set<() => void>()
 
-function read(): State {
+function read(key: string): State {
   try {
-    const raw = sessionStorage.getItem(KEY)
+    const raw = sessionStorage.getItem(key)
     const s = raw ? (JSON.parse(raw) as Partial<State>) : null
     if (s && typeof s.seededAt === 'number' && s.appeals && typeof s.appeals === 'object') return { seededAt: s.seededAt, appeals: s.appeals }
   } catch { /* 처음이거나 저장소를 못 씀 */ }
@@ -82,17 +87,20 @@ function read(): State {
 }
 
 function get(): State {
-  if (!state) {
-    state = read()
+  const key = keyOf(whoAmI())
+  if (!state || stateKey !== key) {
+    state = read(key)
+    stateKey = key
     snapshot = demoWarnings(state.seededAt, state.appeals)
   }
   return state
 }
 
 function set(next: State) {
+  get()
   state = next
   snapshot = demoWarnings(next.seededAt, next.appeals)
-  try { sessionStorage.setItem(KEY, JSON.stringify(next)) } catch { /* 이 화면에서만 기억 */ }
+  try { sessionStorage.setItem(stateKey!, JSON.stringify(next)) } catch { /* 이 화면에서만 기억 */ }
   listeners.forEach((fn) => fn())
 }
 
@@ -122,7 +130,9 @@ export function resetAppeals(): void {
 }
 
 /** 테스트용 */
-export function _resetAppealsForTest(): void {
+export function _resetAppealsForTest(member: () => number | null = currentMemberId): void {
+  whoAmI = member
   state = null
+  stateKey = null
   snapshot = []
 }

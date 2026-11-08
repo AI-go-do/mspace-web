@@ -50,6 +50,9 @@ describe('벌점 해명 카드', () => {
     // 날짜는 학번으로 막지 않는다
     expect(appealProblem('2026-11-06 14:03에 QR을 찍었는데 안 열렸어요')).toBeNull()
     expect(appealProblem('2026.11.06에 QR을 찍었는데 안 열렸어요')).toBeNull()
+    // 날짜처럼 생겼지만 뒤에 숫자가 더 붙거나 없는 날이면 그대로 막는다
+    expect(appealProblem('문이 안 열렸어요. 학번 2023-12-3456 입니다')).toMatch(/학번/)
+    expect(appealProblem('문이 안 열렸어요. 번호 2023-13-45 입니다')).toMatch(/학번/)
   })
 
   it('상태 글과 진행 칸', () => {
