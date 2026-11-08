@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   _isStateForTest, _peekForTest, _resetForTest, decideProposal, refreshApprentice, resetApprentice, undoAutoDone, type ApprenticeState,
 } from '../api/apprentice'
@@ -156,5 +156,34 @@ describe('저장된 값 검사', () => {
     expect(_isStateForTest(bad({ done: [{ ...ok.done[0], undone: 'no' }] }))).toBe(false)
     expect(_isStateForTest(bad({ trainees: [...ok.trainees.slice(1), { ...ok.trainees[0], level: '2' }] }))).toBe(false)
     expect(_isStateForTest(bad({ activeKeys: [3] }))).toBe(false)
+  })
+})
+
+describe('저장된 기록 불러오기 (localStorage)', () => {
+  const stored = (v: unknown) => {
+    const raw = JSON.stringify(v)
+    vi.stubGlobal('localStorage', { getItem: () => raw, setItem: () => {}, removeItem: () => {} })
+    _resetForTest()
+  }
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    _resetForTest()
+  })
+
+  it('맞는 모양이면 저장된 값을 그대로 쓴다', () => {
+    _resetForTest()
+    resetApprentice()
+    const ok = { ..._read(), stats: { auto: 3, human: 4, undone: 1 } }
+    stored(ok)
+    expect(_read().stats).toEqual({ auto: 3, human: 4, undone: 1 })
+  })
+
+  it('항목이 깨진 값이 저장돼 있으면 처음 값으로 돌아간다', () => {
+    _resetForTest()
+    resetApprentice()
+    stored({ ..._read(), stats: { auto: 3, human: 4, undone: 1 }, inbox: [null] })
+    const s = _read()
+    expect(s.stats).toEqual({ auto: 0, human: 0, undone: 0 })
+    expect(s.inbox.map((p) => p.id)).toEqual(['s1', 's2'])
   })
 })
