@@ -104,8 +104,9 @@ export default function Reserve() {
         const raw = r.data.rooms.find((x) => x.roomId === roomId) ?? null
         setRoom(raw)
         if (!raw) setLoadError('없는 방이에요')
-        // 골라 두기 검사는 넘겨받은 칸을 연 시간표로 한다
-        const found = withOffer(raw, relay)
+        // 골라 두기 검사는 받을 시간이 남았을 때만 넘겨받은 칸을 연 시간표로 한다(화면과 같은 조건)
+        const liveRelay = relay && Date.parse(relay.expiresAt) > Date.now() ? relay : null
+        const found = withOffer(raw, liveRelay)
         const s = suggest.current
         if (found && s && s.date === date) {
           suggest.current = null
@@ -123,7 +124,7 @@ export default function Reserve() {
             // 자정을 넘기는 칸(23:00–01:00, 릴레이로 넘겨받은 칸)은 다음 날 앞쪽 칸까지 받은 뒤 고른다.
             // 그 사이 학생이 직접 고른 칸이 있으면 덮지 않는다
             next.then((n) => {
-              if (seq === loadSeq.current && fits([...found.slots, ...openOfferSlots(n, relay?.roomId === roomId ? relay : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
+              if (seq === loadSeq.current && fits([...found.slots, ...openOfferSlots(n, liveRelay?.roomId === roomId ? liveRelay : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
             })
           }
         }
@@ -279,10 +280,16 @@ export default function Reserve() {
 
   async function startWait() {
     if (waitAt === null || waitBusy) return
+    // 시트를 열어 둔 사이 칸이 시작했거나 비었으면 걸지 않는다
+    const slot = daySlots[waitAt]
+    if (!slot || slot.available || Date.parse(slot.startAt) <= Date.now()) {
+      setWaitError('이 칸은 더 이상 기다릴 수 없어요. 다른 칸을 골라 주세요')
+      return
+    }
     setWaitBusy(true)
     setWaitError(null)
     try {
-      await addWait(roomId, daySlots[waitAt].startAt, takenRunEnd(daySlots, waitAt))
+      await addWait(roomId, slot.startAt, takenRunEnd(daySlots, waitAt))
       setWaitAt(null)
     } catch (e) {
       setWaitError(e instanceof Error ? e.message : '잠시 후 다시 눌러 주세요')
