@@ -264,7 +264,9 @@ export function ForceCheckoutForm({ initialId, focus = false }: { initialId: str
   // 신고 카드의 [강제 퇴실로]에서 왔으면 이 카드로 내려와 번호 칸을 바로 쓸 수 있게
   useEffect(() => {
     if (!focus) return
-    box.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않고 바로 옮긴다
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    box.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
     box.current?.querySelector<HTMLInputElement>('#force-id')?.focus({ preventScroll: true })
   }, [focus])
 
