@@ -5,6 +5,7 @@ import {
   type AutoDone, type Proposal, type ScoreResult, type TaskKind, type Trainee,
 } from '../lib/apprentice'
 import { toRoomView } from '../lib/roomHealth'
+import { ENV_SOURCE } from './environment'
 import { mockEnvironment } from './environmentMock'
 
 /**
@@ -44,12 +45,22 @@ function seed(now: Date): ApprenticeState {
   return { trainees: initialTrainees(), inbox, done, activeKeys: [], stats: { auto: 0, human: 0, undone: 0 }, seq: 0 }
 }
 
+/** 저장된 값이 손으로 고쳐졌거나 모양이 바뀌었으면 쓰지 않는다(아래 함수들이 읽는 칸을 모두 확인) */
+function isState(s: ApprenticeState | null): s is ApprenticeState {
+  const kinds = initialTrainees().map((t) => t.kind)
+  return !!s && typeof s === 'object'
+    && Array.isArray(s.trainees) && Array.isArray(s.inbox) && Array.isArray(s.done) && Array.isArray(s.activeKeys)
+    && typeof s.seq === 'number' && !!s.stats
+    && typeof s.stats.auto === 'number' && typeof s.stats.human === 'number' && typeof s.stats.undone === 'number'
+    && kinds.every((k) => s.trainees.some((t) => t?.kind === k))
+}
+
 function load(): ApprenticeState {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const s = JSON.parse(raw) as ApprenticeState
-      if (Array.isArray(s.trainees) && Array.isArray(s.inbox) && Array.isArray(s.done)) return s
+      if (isState(s)) return s
     }
   } catch {
     /* 저장소 없음·깨짐: 처음부터 */
@@ -85,6 +96,8 @@ const replaceTrainee = (s: ApprenticeState, t: Trainee) => s.trainees.map((x) =>
 
 /** 방 상태를 보고 새 처리안을 만든다. 레벨 2 이상인 일은 AI가 먼저 처리하고 기록만 남긴다 */
 export function refreshApprentice(now = new Date()): void {
+  // 실제 센서 값(api)을 쓸 때 가짜 방에서 만든 처리안을 옆에 띄우지 않는다. 처리안은 core #94가 생기면 그쪽에서 받는다
+  if (ENV_SOURCE !== 'mock') return
   const s = get()
   const env = mockEnvironment(now, ENV_RULES.historyMinutes)
   const views = env.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
@@ -173,6 +186,9 @@ export function useApprenticeFeed(): void {
 export function _peekForTest(): ApprenticeState {
   return get()
 }
+
+/** 테스트용: 저장된 값 검사 */
+export const _isStateForTest = isState
 
 /** 테스트용: 모듈 상태를 비운다 */
 export function _resetForTest(s?: ApprenticeState): void {

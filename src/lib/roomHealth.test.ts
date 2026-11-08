@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { RoomEnvironment } from '../api/environment'
+import { isRoomsEnvironment, type RoomEnvironment } from '../api/environment'
 import { mockEnvironment } from '../api/environmentMock'
 import { ADMIN_ROOMS, ENV_RULES, type AdminRoomConfig } from '../config/adminRooms'
 import { toRoomView, trendSlope } from './roomHealth'
@@ -181,5 +181,26 @@ describe('mockEnvironment (가짜 값)', () => {
     expect(env.rooms[0].temperatureC).toBeNull()
     expect(env.rooms[0].presence).toBe('UNKNOWN')
     expect(env.rooms[0].co2).not.toBeNull()
+  })
+})
+
+describe('isRoomsEnvironment (API 응답 검사)', () => {
+  it('가짜 값 모양은 통과하고, current·next·forecast가 없어도 된다', () => {
+    const env = mockEnvironment(now, 10)
+    expect(isRoomsEnvironment(env)).toBe(true)
+    const r = { ...env.rooms[0] }
+    delete r.current
+    delete r.next
+    expect(isRoomsEnvironment({ now: env.now, rooms: [r] })).toBe(true)
+  })
+
+  it('rooms·series가 없거나 온도 칸이 빠지면 거절해 화면이 깨지지 않게 한다', () => {
+    const env = mockEnvironment(now, 10)
+    expect(isRoomsEnvironment(null)).toBe(false)
+    expect(isRoomsEnvironment({ now: env.now })).toBe(false)
+    const { series: _s, ...noSeries } = env.rooms[0]
+    expect(isRoomsEnvironment({ now: env.now, rooms: [noSeries] })).toBe(false)
+    const { temperatureC: _t, ...noTemp } = env.rooms[0]
+    expect(isRoomsEnvironment({ now: env.now, rooms: [noTemp] })).toBe(false)
   })
 })

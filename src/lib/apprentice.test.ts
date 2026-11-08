@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  _peekForTest, _resetForTest, decideProposal, refreshApprentice, resetApprentice, undoAutoDone, type ApprenticeState,
+  _isStateForTest, _peekForTest, _resetForTest, decideProposal, refreshApprentice, resetApprentice, undoAutoDone, type ApprenticeState,
 } from '../api/apprentice'
 import { mockEnvironment } from '../api/environmentMock'
 import { ADMIN_ROOMS } from '../config/adminRooms'
@@ -131,5 +131,17 @@ describe('가짜 수습사원 저장소: 레벨 2 이상', () => {
     expect(s.inbox.some((p) => p.kind === 'vent')).toBe(false)
     expect(s.done.some((d) => d.kind === 'vent' && d.id.startsWith('p'))).toBe(true)
     expect(s.stats.auto).toBeGreaterThan(0)
+  })
+})
+
+describe('저장된 값 검사', () => {
+  it('칸이 빠졌거나 일 종류가 모자라면 쓰지 않고 처음 값으로 돌아간다', () => {
+    _resetForTest()
+    resetApprentice()
+    const ok = _read()
+    expect(_isStateForTest(ok)).toBe(true)
+    expect(_isStateForTest({ ...ok, activeKeys: undefined } as unknown as ApprenticeState)).toBe(false)
+    expect(_isStateForTest({ ...ok, stats: { auto: 0 } } as unknown as ApprenticeState)).toBe(false)
+    expect(_isStateForTest({ ...ok, trainees: ok.trainees.slice(1) })).toBe(false)
   })
 })
