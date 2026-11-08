@@ -13,7 +13,8 @@ export interface AdminReport {
   category: ReportCategory
   content: string | null
   verdict: ReportVerdict
-  reporterReservationId: number
+  /** 방 카메라 자동 신고(FR-DEV-105)면 null */
+  reporterReservationId: number | null
   createdAt: string
   judgedAt: string | null
 }
@@ -41,7 +42,8 @@ export interface Evidence {
   reportId: number
   /** 그 방을 바로 전에 쓴 예약. 못 찾으면 null */
   previous: { reservationId: number; checkedInAt: string | null; checkedOutAt: string | null; photo: EvidencePhoto } | null
-  reporter: { reservationId: number; photo: EvidencePhoto }
+  /** 방 카메라 자동 신고(FR-DEV-105)면 신고자가 없어 null */
+  reporter: { reservationId: number; photo: EvidencePhoto } | null
   /** 사진이 없는 이유 등 */
   note: string | null
 }
@@ -86,6 +88,14 @@ export const JUDGE_OPTIONS: { verdict: Exclude<ReportVerdict, 'OPEN'>; label: st
   { verdict: 'UNVERIFIED', label: '확인 불가', confirm: '확인 불가로 판정할까요? 벌칙 없이 신고자에게 알림만 가요.' },
   { verdict: 'FALSE', label: '허위', confirm: '허위로 판정할까요? 신고자에게 경고 1회가 가요.' },
 ]
+
+/** 판정 확인 문구. 방 카메라 자동 신고(신고자 없음)면 신고자에게 가는 알림·경고가 없다고 바꿔 말한다 */
+export function judgeConfirm(opt: (typeof JUDGE_OPTIONS)[number], noReporter: boolean): string {
+  if (!noReporter) return opt.confirm
+  if (opt.verdict === 'UNVERIFIED') return '확인 불가로 판정할까요? 방 카메라 신고라 신고자가 없어 알림은 가지 않아요.'
+  if (opt.verdict === 'FALSE') return '허위로 판정할까요? 방 카메라 신고라 신고자가 없어 경고는 가지 않아요.'
+  return opt.confirm
+}
 
 /** 사용 중인 예약인지(퇴실 시각이 없음). 증거의 직전 예약이 아직 방을 쓰고 있으면 강제 퇴실을 권한다 */
 export function stillInRoom(previous: Evidence['previous']): boolean {
