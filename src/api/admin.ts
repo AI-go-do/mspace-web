@@ -89,6 +89,14 @@ export const JUDGE_OPTIONS: { verdict: Exclude<ReportVerdict, 'OPEN'>; label: st
   { verdict: 'FALSE', label: '허위', confirm: '허위로 판정할까요? 신고자에게 경고 1회가 가요.' },
 ]
 
+/** 판정 확인 문구. 방 카메라 자동 신고(신고자 없음)면 신고자에게 가는 알림·경고가 없다고 바꿔 말한다 */
+export function judgeConfirm(opt: (typeof JUDGE_OPTIONS)[number], noReporter: boolean): string {
+  if (!noReporter) return opt.confirm
+  if (opt.verdict === 'UNVERIFIED') return '확인 불가로 판정할까요? 방 카메라 신고라 신고자가 없어 알림은 가지 않아요.'
+  if (opt.verdict === 'FALSE') return '허위로 판정할까요? 방 카메라 신고라 신고자가 없어 경고는 가지 않아요.'
+  return opt.confirm
+}
+
 /** 사용 중인 예약인지(퇴실 시각이 없음). 증거의 직전 예약이 아직 방을 쓰고 있으면 강제 퇴실을 권한다 */
 export function stillInRoom(previous: Evidence['previous']): boolean {
   return !!previous && !!previous.checkedInAt && !previous.checkedOutAt

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminErrorMessage, JUDGE_OPTIONS, stillInRoom } from './admin'
+import { adminErrorMessage, judgeConfirm, JUDGE_OPTIONS, stillInRoom } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -50,5 +50,17 @@ describe('알림 효과 문구 (core #93)', () => {
   it('알림이 없었으면 0%가 아니라 아직 없다고', async () => {
     const { alertEffectLabel } = await import('./admin')
     expect(alertEffectLabel(0, 0, null)).toBe('아직 없어요')
+  })
+})
+
+describe('judgeConfirm', () => {
+  const opt = (v: string) => JUDGE_OPTIONS.find((o) => o.verdict === v)!
+  it('신고자가 있으면 원래 확인 문구를 쓴다', () => {
+    for (const o of JUDGE_OPTIONS) expect(judgeConfirm(o, false)).toBe(o.confirm)
+  })
+  it('방 카메라 신고(신고자 없음)면 확인 불가·허위 문구에서 신고자 알림·경고를 말하지 않는다', () => {
+    expect(judgeConfirm(opt('UNVERIFIED'), true)).toContain('알림은 가지 않아요')
+    expect(judgeConfirm(opt('FALSE'), true)).toContain('경고는 가지 않아요')
+    expect(judgeConfirm(opt('CONFIRMED'), true)).toBe(opt('CONFIRMED').confirm)
   })
 })

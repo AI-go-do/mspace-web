@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
+  adminErrorMessage, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeConfirm, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
   stillInRoom, type AdminReport, type Evidence, type EvidencePhoto,
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
@@ -93,7 +93,7 @@ function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
 
   async function judge(opt: (typeof JUDGE_OPTIONS)[number]) {
     const memberId = currentMemberId()
-    if (busy || memberId === null || !window.confirm(opt.confirm)) return
+    if (busy || memberId === null || !window.confirm(judgeConfirm(opt, r.reporterReservationId === null))) return
     setBusy(true)
     setMsg(null)
     try {
