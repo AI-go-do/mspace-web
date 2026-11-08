@@ -47,6 +47,9 @@ describe('벌점 해명 카드', () => {
     expect(appealProblem('문이 안 열렸어요. 010-1234-5678로 연락 주세요')).toMatch(/전화번호/)
     expect(appealProblem('문이 안 열렸어요. 학번 20231234 입니다')).toMatch(/학번/)
     expect(appealProblem('14:03에 QR을 세 번 찍었는데 안 열렸어요')).toBeNull()
+    // 날짜는 학번으로 막지 않는다
+    expect(appealProblem('2026-11-06 14:03에 QR을 찍었는데 안 열렸어요')).toBeNull()
+    expect(appealProblem('2026.11.06에 QR을 찍었는데 안 열렸어요')).toBeNull()
   })
 
   it('상태 글과 진행 칸', () => {

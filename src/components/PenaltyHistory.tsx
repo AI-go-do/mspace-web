@@ -125,8 +125,9 @@ function AppealSheet({ w, onClose, onSent }: { w: WarningRecord; onClose: () => 
       if (n >= full.length) { clearInterval(t); setTyping(false) }
     }, 16)
     return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 한 번만 쓴다
-  }, [])
+    // typing이 false가 되면(누름·키·근거 바꿈) 바로 멈춘다. 그동안 full은 바뀌지 않는다(toggle이 먼저 typing을 끈다)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typing])
 
   // 학생이 아직 손대지 않았으면 근거를 바꿀 때 초안도 다시 쓴다
   function toggle(j: number) {

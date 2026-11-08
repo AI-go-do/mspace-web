@@ -3,6 +3,7 @@
  * core에 경고 내역·해명 API가 아직 없어서 지금은 주소에 ?demo=1일 때만 예시로 보여 준다(api/appeal.ts).
  * 화면과 예시 저장소가 같이 쓰는 순수 함수만 둔다(시각은 밖에서 받는다)
  */
+import { seoulClock } from './time'
 
 /** 경고 종류. 노쇼는 따로 세고(30일 2번이면 정지), 나머지는 신고 판정으로 받은 위반 경고 */
 export type WarningKind = 'NO_SHOW' | 'MESSY' | 'WINDOW_OPEN' | 'BROKEN' | 'NOISE'
@@ -70,7 +71,7 @@ export function daysLeft(w: WarningRecord, now: Date, rules = APPEAL_RULES): num
   return Math.floor(left / 86_400_000)
 }
 
-const clock = (iso: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
+const clock = (iso: string) => seoulClock(new Date(iso))
 
 /**
  * 기록에서 고른 근거로 해명 초안을 쓴다(지금은 규칙으로 문장을 잇는다. 나중에 비서가 쓰면 이 함수만 바꾼다).
@@ -93,6 +94,8 @@ export function forEvidence(w: WarningRecord): number[] {
 
 const PHONE = /01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/
 const LONG_NUMBER = /\d{8,}/
+/** 2026-11-06 같은 날짜는 학번으로 보지 않는다 */
+const DATE = /\d{4}[-./]\d{1,2}[-./]\d{1,2}/g
 
 /** 보내기 전에 막을 것. 문제가 없으면 null */
 export function appealProblem(text: string, rules = APPEAL_RULES): string | null {
@@ -100,7 +103,7 @@ export function appealProblem(text: string, rules = APPEAL_RULES): string | null
   if (t.length < rules.minChars) return `${rules.minChars}자 넘게 적어 주세요.`
   if (t.length > rules.maxChars) return `${rules.maxChars}자까지 쓸 수 있어요.`
   // 관리자는 예약 번호로 찾는다. 전화번호·학번은 적지 않게 막는다(개인정보를 남기지 않는 원칙)
-  if (PHONE.test(t) || LONG_NUMBER.test(t.replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. 관리자는 예약 번호로 찾아요.'
+  if (PHONE.test(t) || LONG_NUMBER.test(t.replace(DATE, ' ').replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. 관리자는 예약 번호로 찾아요.'
   return null
 }
 
