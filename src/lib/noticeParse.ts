@@ -221,6 +221,10 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   if (!realDay(first.value) || (end && !realDay(end.value))) {
     return empty('없는 날짜예요. 공지의 날짜를 확인해 주세요.')
   }
+  // "11월 12일~11월 10일"처럼 끝이 앞서면 끝 날짜를 버리고 첫날만 막지 않게 되묻는다
+  if (end && cmp(end.value, first.value) < 0) {
+    return empty('끝 날짜가 시작 날짜보다 앞이에요. 공지의 날짜를 확인해 주세요.')
+  }
   const lastDay = end && cmp(end.value, first.value) > 0 ? end.value : first.value
   spans.push({ start: first.start, end: first.end, kind: 'date' })
   if (end) spans.push({ start: end.start, end: end.end, kind: 'date' })

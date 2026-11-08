@@ -140,6 +140,17 @@ describe('공지 한 줄 → 막기안', () => {
     expect(parseNotice('11/10~12/10 3번 방 공사', now).rows).toEqual([{ roomId: 3, startAt: kst('2026-11-10T00:00:00'), endAt: kst('2026-12-11T00:00:00') }])
   })
 
+  it('범위 끝 날짜가 시작보다 앞이면 첫날만 막지 않고 되묻는다', () => {
+    for (const n of ['11월 12일~11월 10일 3번 방 점검', '11/12~11/10 9시~12시 3번 방 점검']) {
+      const d = parseNotice(n, now)
+      expect(d.rows).toEqual([])
+      expect(d.problem).toContain('끝 날짜')
+    }
+    // 같은 날 범위, "30일~2일"(다음 달)은 그대로
+    expect(parseNotice('11/12~11/12 3번 방 점검', now).problem).toBeNull()
+    expect(parseNotice('11월 30일~2일 3번 방 공사', now).rows).toEqual([{ roomId: 3, startAt: kst('2026-11-30T00:00:00'), endAt: kst('2026-12-03T00:00:00') }])
+  })
+
   it('방 글자는 있는데 번호를 못 읽으면(역순 범위 등) 모든 방으로 넘겨짚지 않는다', () => {
     const d = parseNotice('11/12 8~6번 방 점검', now)
     expect(d.rows).toEqual([])
