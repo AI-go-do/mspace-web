@@ -6,6 +6,11 @@ import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
 import { createReservation, type NewReservation } from '../api/reservations'
 import { getAvailability, type RoomSlots, type Slot } from '../api/rooms'
+import { countdown, finishDemoOffer, isDemoOffer, offerPick, openOfferSlots, relayOn, takenRunEnd, type RelayOffer } from '../api/relay'
+import { currentMemberId } from '../api/client'
+import { WaitSheet } from '../components/Relay'
+import { useNow } from '../lib/useNow'
+import { useWaits } from '../lib/useRelay'
 import type { SuggestPick } from '../components/ButlerCard'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
@@ -26,12 +31,22 @@ export default function Reserve() {
   const today = seoulDate()
   const chips = useMemo(() => weekChips(today), [today])
   // 홈 비서 카드("수업 끝나면 여기")가 넘긴 날짜·칸. 처음 시간표를 받은 뒤 그 칸이 아직 비어 있으면 골라 둔다(한 번만)
-  const suggest = useRef(((useLocation().state ?? {}) as { suggest?: SuggestPick }).suggest ?? null)
+  const navState = (useLocation().state ?? {}) as { suggest?: SuggestPick; relay?: RelayOffer }
+  const suggest = useRef(navState.suggest ?? null)
+  // 빈방 릴레이(Q-18)로 넘겨받은 칸. 다른 학생에게는 예약됨으로 보이는 칸이라, 이 화면에서만 빈 칸으로 본다
+  const relay = useRef(navState.relay ?? null).current
+  const { waits, add: addWait, cancel: cancelWait } = useWaits()
+  const canWait = relayOn()
+  // 예약된 칸을 눌러 연 "기다리기" 시트
+  const [waitAt, setWaitAt] = useState<number | null>(null)
+  const [waitBusy, setWaitBusy] = useState(false)
+  const [waitError, setWaitError] = useState<string | null>(null)
 
   const [date, setDate] = useState(() => (suggest.current && chips.some((c) => c.date === suggest.current!.date) ? suggest.current.date : today))
-  const [room, setRoom] = useState<RoomSlots | null>(null)
+  // 서버에서 받은 그대로의 시간표. 넘겨받은 칸을 빈 칸으로 여는 것은 받을 시간 안에만 아래에서 한다
+  const [loadedRoom, setRoom] = useState<RoomSlots | null>(null)
   // 자정 넘김용 다음 날 앞쪽 칸(끝으로만 쓴다). 못 받으면 빈 배열이라 자정을 넘겨 고를 수 없다
-  const [nextSlots, setNextSlots] = useState<Slot[]>([])
+  const [loadedNext, setNextSlots] = useState<Slot[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pick, setPick] = useState<Pick | null>(null)
   const [step, setStep] = useState<Step>('time')
@@ -39,6 +54,11 @@ export default function Reserve() {
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
   const [now, setNow] = useState(() => new Date())
+  // 넘겨받은 칸은 받을 시간 안에만 빈 칸으로 연다. 시간이 지나면 다시 예약됨으로 보인다(이미 받은 시간표도 바로)
+  const tick = useNow(relay ? 1000 : 60_000)
+  const offerLive = !!relay && relay.roomId === roomId && Date.parse(relay.expiresAt) > tick.getTime()
+  const room = useMemo(() => (offerLive ? withOffer(loadedRoom, relay) : loadedRoom), [offerLive, loadedRoom, relay])
+  const nextSlots = useMemo(() => (offerLive ? openOfferSlots(loadedNext, relay) : loadedNext), [offerLive, loadedNext, relay])
 
   // 골라 둔 칸이 화면 아래에 있으면 그리로 내려 보여 준다(한 번만)
   const scrollToPick = useRef(false)
@@ -69,24 +89,42 @@ export default function Reserve() {
     return getAvailability(date)
       .then((r) => {
         if (seq !== loadSeq.current) return
-        const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
-        setRoom(found)
-        if (!found) setLoadError('없는 방이에요')
+        const raw = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+        setRoom(raw)
+        if (!raw) setLoadError('없는 방이에요')
+        // 골라 두기 검사는 받을 시간이 남았을 때만 넘겨받은 칸을 연 시간표로 한다(화면과 같은 조건)
+        const liveRelay = relay && Date.parse(relay.expiresAt) > Date.now() ? relay : null
+        const found = withOffer(raw, liveRelay)
         const s = suggest.current
         if (found && s && s.date === date) {
           suggest.current = null
           // 그 사이 누가 예약했거나 지난 칸이면 고르지 않고 시간표만 보여 준다
-          const want = found.slots.slice(s.start, s.start + s.len)
-          if (s.len > 0 && want.length === s.len && want.every((x) => x.available && Date.parse(x.startAt) >= Date.now())) {
-            setPick({ start: s.start, len: s.len })
-            scrollToPick.current = true
+          const fits = (all: Slot[]) => {
+            const want = all.slice(s.start, s.start + s.len)
+            return s.len > 0 && want.length === s.len && want.every((x) => x.available && Date.parse(x.startAt) >= Date.now())
+          }
+          if (s.start + s.len <= found.slots.length) {
+            if (fits(found.slots)) {
+              setPick({ start: s.start, len: s.len })
+              scrollToPick.current = true
+            }
+          } else {
+            // 자정을 넘기는 칸(23:00–01:00, 릴레이로 넘겨받은 칸)은 다음 날 앞쪽 칸까지 받은 뒤 고른다.
+            // 그 사이 학생이 직접 고른 칸이 있으면 덮지 않는다
+            next.then((n) => {
+              if (seq !== loadSeq.current) return
+              // 두 응답 사이에 받을 시간이 지났을 수 있어 다음 날 칸이 온 이 순간 다시 본다
+              const live = relay && Date.parse(relay.expiresAt) > Date.now() ? relay : null
+              const dayOpen = withOffer(raw, live)?.slots ?? []
+              if (fits([...dayOpen, ...openOfferSlots(n, live?.roomId === roomId ? live : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
+            })
           }
         }
       })
       .catch((e: Error) => {
         if (seq === loadSeq.current) setLoadError(e.message)
       })
-  }, [date, roomId, today])
+  }, [date, roomId, today, relay])
 
   useEffect(() => {
     setNow(new Date())
@@ -109,9 +147,9 @@ export default function Reserve() {
       getAvailability(date, ctrl.signal)
         .then((r) => {
           if (ctrl.signal.aborted || seq !== loadSeq.current) return
-          const found = r.data.rooms.find((x) => x.roomId === roomId) ?? null
-          setRoom(found)
-          if (!found) setLoadError('없는 방이에요') // 처음 불러오기와 같게
+          const raw = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+          setRoom(raw)
+          if (!raw) setLoadError('없는 방이에요') // 처음 불러오기와 같게
         })
         .catch(() => {})
         .finally(() => {
@@ -123,7 +161,7 @@ export default function Reserve() {
       clearInterval(id)
       pending?.abort() // 칸을 고르거나 날짜를 바꾸면 오는 중인 새로고침은 버린다
     }
-  }, [date, today, pick, roomId, hasRoom])
+  }, [date, today, pick, roomId, hasRoom, relay])
 
   // 같은 내용으로 다시 보내면 같은 키 → 서버가 예약을 두 번 만들지 않는다
   const idemKey = useRef(newKey())
@@ -148,17 +186,40 @@ export default function Reserve() {
   // (시트가 떠 있는 동안 고른 것이 바뀌어 키가 새로 나도, 같은 예약이 두 번 생기지 않게)
   const lastSent = useRef<{ body: NewReservation; key: string } | null>(null)
 
+  // 고른 칸이 넘겨받은 구간 안이면 릴레이 예약이다. 받을 시간은 1초마다 줄고, 지나면 예약 버튼을 막는다
+  const offer = relay ? offerPick(relay) : null
+  const viaRelay = !!relay && relay.roomId === roomId && !!offer && !!pick && offer.date === date && pick.start >= offer.start && pick.start + pick.len <= offer.start + offer.len
+  const relayLeft = relay ? Date.parse(relay.expiresAt) - tick.getTime() : 0
+  const relayExpired = viaRelay && relayLeft <= 0
+  // 넘겨받은 구간에 걸치면서 밖으로 늘린 선택은 릴레이 예약도 보통 예약도 아니라 막는다(넘겨받은 칸 안에서만 고르게)
+  const offerPartial = !!relay && relay.roomId === roomId && !!offer && !!pick && offer.date === date && !viaRelay
+    && pick.start < offer.start + offer.len && offer.start < pick.start + pick.len
+  // 예시 화면에서 받기를 끝까지 눌렀을 때 시트
+  const [demoDone, setDemoDone] = useState(false)
+
   async function submit(resend?: { body: NewReservation; key: string }) {
     if (!resend && (!pick || !room)) return
+    // 넘겨받은 칸의 받을 시간이 지났으면 새로 보내지 않는다(함께 쓸 사람·수칙 단계에 있는 사이 지나도). 같은 내용 다시 보내기는 그대로
+    if (!resend && (relayExpired || offerPartial)) return
+    // 화면 시계(1초)가 넘어가기 전에 눌러도 받을 시간이 지났으면 보내지 않는다
+    if (!resend && viaRelay && Date.parse(relay!.expiresAt) <= Date.now()) return
     if (busy) return
     setBusy(true)
     try {
+      if (!resend && viaRelay && isDemoOffer(relay!.id)) {
+        // 예시(?demo=1): core 릴레이 API 전이라 실제 예약은 만들지 않는다
+        const memberId = currentMemberId()
+        if (memberId !== null) finishDemoOffer(memberId, relay!.id)
+        setDemoDone(true)
+        return
+      }
       const sent = resend ?? {
         body: {
           roomId,
           startAt: slots[pick!.start].startAt,
           endAt: slots[pick!.start + pick!.len - 1].endAt,
           participantStudentIds: people.map((p) => p.studentId),
+          ...(viaRelay ? { relayOfferId: relay!.id } : {}),
         },
         key: idemKey.current,
       }
@@ -177,7 +238,7 @@ export default function Reserve() {
   }
 
   function reserve() {
-    if (!pick) return
+    if (!pick || relayExpired || offerPartial) return
     if (!countOk) return setStep('members')
     if (!hasAgreed()) return setStep('rules')
     submit()
@@ -194,6 +255,54 @@ export default function Reserve() {
     setPick(null)
     setNow(new Date())
     load()
+  }
+
+  // 이 날·이 방에서 내가 기다리는 칸
+  // 시각은 글자가 아니라 순간으로 비교한다(core가 +09:00, 시간표가 Z로 줘도 같은 칸으로 보게)
+  const waitingAt = new Set(waits.filter((w) => w.roomId === roomId && seoulDate(new Date(w.startAt)) === date).map((w) => Date.parse(w.startAt)))
+  const myWaits = waits.filter((w) => w.roomId === roomId && waitingAt.has(Date.parse(w.startAt)))
+
+  async function startWait() {
+    if (waitAt === null || waitBusy) return
+    // 시트를 열어 둔 사이 칸이 시작했거나 비었으면 걸지 않는다
+    const slot = daySlots[waitAt]
+    if (!slot || slot.available || Date.parse(slot.startAt) <= Date.now()) {
+      setWaitError('이 칸은 더 이상 기다릴 수 없어요. 다른 칸을 골라 주세요')
+      return
+    }
+    setWaitBusy(true)
+    setWaitError(null)
+    try {
+      // 시트를 연 사이 그 예약이 취소됐을 수 있어 걸기 직전에 시간표를 새로 받아 같은 칸을 다시 본다.
+      // 못 받으면(연결·시간 초과) 걸지 않는다. 예시 저장소는 빈 칸인지 다시 보지 않아서다
+      const seq = loadSeq.current
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 10_000)
+      const fresh = await getAvailability(date, ctrl.signal)
+        .then((r) => r.data.rooms.find((x) => x.roomId === roomId) ?? null)
+        .catch(() => null)
+        .finally(() => clearTimeout(timer))
+      // 그 사이 날짜를 바꿨으면 새 날짜 시간표를 덮지 않는다
+      if (seq !== loadSeq.current) return
+      if (!fresh) {
+        setWaitError('지금 시간표를 다시 확인하지 못했어요. 잠시 후 다시 눌러 주세요')
+        return
+      }
+      setRoom(fresh)
+      const at = Date.parse(slot.startAt)
+      const freshSlots = fresh.slots
+      const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
+      if (i < 0 || freshSlots[i].available) {
+        setWaitError('방금 이 칸이 비었어요. 시트를 닫고 칸을 눌러 바로 예약해 주세요')
+        return
+      }
+      await addWait(roomId, freshSlots[i].startAt, takenRunEnd(freshSlots, i))
+      setWaitAt(null)
+    } catch (e) {
+      setWaitError(e instanceof Error ? e.message : '잠시 후 다시 눌러 주세요')
+    } finally {
+      setWaitBusy(false)
+    }
   }
 
   const title = `창작실 ${roomId}`
@@ -251,11 +360,15 @@ export default function Reserve() {
                 const past = Date.parse(s.startAt) < now.getTime()
                 const taken = !past && !s.available
                 const on = !!pick && i >= pick.start && i < pick.start + pick.len
-                const label = `${slotClock(i)} ${taken ? '예약됨' : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
+                const waiting = taken && waitingAt.has(Date.parse(s.startAt))
+                // 빈방 릴레이: 예약된 칸도 눌러서 기다리기를 걸 수 있다(이미 기다리는 칸은 아래 줄에서 그만둔다)
+                const waitable = canWait && taken && !waiting
+                const label = `${slotClock(i)} ${waiting ? '예약됨, 기다리는 중' : taken ? (waitable ? '예약됨, 눌러서 기다리기' : '예약됨') : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
                 return (
-                  <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''}`}
+                  <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''} ${waitable ? 'can-wait' : ''} ${waiting ? 'waiting' : ''}`}
                     style={on ? { '--k': i - pick!.start } as CSSProperties : undefined}
-                    disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
+                    disabled={busy || (!free[i] && !waitable)} aria-pressed={on} aria-label={label}
+                    onClick={() => (waitable ? (setWaitError(null), setWaitAt(i)) : setPick(tapSlot(pick, i, free, DAY_SLOTS)))}>
                     {slotClock(i)}
                   </button>
                 )
@@ -281,12 +394,24 @@ export default function Reserve() {
                 </div>
               </div>
             )}
-            <span className="guide">시작 칸을 누르고 끝 칸을 누르세요 · 최대 2시간(4칸) · 지난 시간은 흐리게 보여요</span>
+            <span className="guide">시작 칸을 누르고 끝 칸을 누르세요 · 최대 2시간(4칸) · 지난 시간은 흐리게 보여요{canWait ? ' · 예약된 칸을 누르면 기다릴 수 있어요' : ''}</span>
+            {myWaits.length > 0 && (
+              <ul className="rs-waits">
+                {myWaits.map((w) => (
+                  <li key={w.id}>
+                    <span>{seoulClock(new Date(w.startAt))} 칸을 기다리는 중 · {w.order}번째</span>
+                    <button type="button" className="link-btn" onClick={() => void cancelWait(w.id).catch(() => undefined)}>그만 기다리기</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <div className="rs-bar">
             <div className="rs-bar-row">
               <span className="rs-when">
+                {viaRelay && <span className="rs-relay">{relayExpired ? '받을 시간이 지났어요' : `릴레이로 받은 칸 · ${countdown(relayLeft)} 안에`}</span>}
+                {offerPartial && <span className="rs-relay">넘겨받은 칸 안에서만 고를 수 있어요</span>}
                 <span className="muted">{dayLabel(date)}{pick ? ` · ${lengthLabel(pick.len)}` : ''}</span>
                 <b>{clock}</b>
               </span>
@@ -295,8 +420,8 @@ export default function Reserve() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>
             </div>
-            <button type="button" className="btn-primary" disabled={!pick || busy} onClick={reserve}>
-              {busy ? '예약하는 중…' : '예약하기'}
+            <button type="button" className="btn-primary" disabled={!pick || busy || relayExpired || offerPartial} onClick={reserve}>
+              {busy ? '예약하는 중…' : relayExpired ? '다음 사람에게 넘어갔어요' : '예약하기'}
             </button>
           </div>
         </>
@@ -315,7 +440,22 @@ export default function Reserve() {
           onAgree={submit} />
       )}
 
+      {waitAt !== null && (
+        <WaitSheet clock={slotClock(waitAt)} busy={waitBusy} error={waitError} onWait={() => void startWait()} onClose={() => setWaitAt(null)} />
+      )}
+
+      {demoDone && (
+        <DeniedSheet
+          denied={{ title: '예시라 실제 예약은 만들지 않았어요', hint: 'core 릴레이 API(core #94)가 붙으면 여기서 바로 예약되고 입실 번호 화면으로 가요.', action: '확인', next: 'time', message: '' }}
+          onClose={() => setDemoDone(false)} onHome={() => navigate('/')} onNext={() => navigate('/')} />
+      )}
+
       {denied && <DeniedSheet denied={denied} onClose={() => setDenied(null)} onHome={() => navigate('/')} onNext={followDenied} />}
     </main>
   )
+}
+
+/** 넘겨받은 구간의 칸을 빈 칸으로 바꾼 방(릴레이가 없으면 그대로) */
+function withOffer(room: RoomSlots | null, relay: RelayOffer | null): RoomSlots | null {
+  return room && relay && relay.roomId === room.roomId ? { ...room, slots: openOfferSlots(room.slots, relay) } : room
 }
