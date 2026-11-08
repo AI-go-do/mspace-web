@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { currentMemberId } from '../api/client'
+import { useMemberId } from '../lib/useMemberId'
 import { getReports } from '../api/admin'
 import { useApprentice } from '../api/apprentice'
 import type { Proposal } from '../lib/apprentice'
@@ -26,32 +27,35 @@ export type TodoCounts = { reports: number; reportsKnown: boolean; ai: number; t
  */
 export function useTodoCounts(): TodoCounts {
   const ai = useApprentice().state.inbox.filter(inTodo).length
-  const [reports, setReports] = useState<number | null>(null)
-  const [failed, setFailed] = useState(false)
+  const member = useMemberId()
+  // 누구의 숫자인지 같이 들고, 로그인한 회원이 바뀌면 앞 사람 숫자는 버린다(모름으로 돌아감)
+  const [res, setRes] = useState<{ member: number | null; n: number | null; failed: boolean }>(
+    { member: null, n: null, failed: false })
   useEffect(() => {
     let stale = false
     let ctrl: AbortController | null = null
     const load = () => {
-      const memberId = currentMemberId()
-      if (memberId === null || stale) return
+      if (member === null || stale || currentMemberId() !== member) return
       ctrl?.abort()
       const mine = new AbortController()
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), 10_000)
-      getReports('OPEN', mine.signal, memberId)
+      getReports('OPEN', mine.signal, member)
         .then((l) => {
           if (stale || ctrl !== mine) return
-          setReports(l.filter((r) => r.category !== 'NOISE').length)
-          setFailed(false)
+          setRes({ member, n: l.filter((r) => r.category !== 'NOISE').length, failed: false })
         })
-        .catch(() => { if (!stale && ctrl === mine) setFailed(true) })
+        .catch(() => { if (!stale && ctrl === mine) setRes((p) => ({ member, n: p.member === member ? p.n : null, failed: true })) })
         .finally(() => clearTimeout(timer))
     }
     load()
     const t = setInterval(() => { if (document.visibilityState === 'visible') load() }, POLL_MS)
     listeners.add(load)
     return () => { stale = true; clearInterval(t); ctrl?.abort(); listeners.delete(load) }
-  }, [])
+  }, [member])
+  const mineNow = res.member === member && member !== null
+  const reports = mineNow ? res.n : null
+  const failed = mineNow && res.failed
   return { reports: reports ?? 0, reportsKnown: reports !== null && !failed, ai, total: (reports ?? 0) + ai }
 }
 
