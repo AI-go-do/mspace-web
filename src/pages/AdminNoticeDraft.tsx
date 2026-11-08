@@ -56,6 +56,8 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
   const now = new Date()
   const reservations = mockReservations(now).filter((r) => !canceled.includes(r.reservationId))
   const d = draft?.d
+  // 막기안을 만든 뒤 공지 문장을 고쳤으면 화면의 막기안은 옛 문장 것이라 누르지 못하게
+  const stale = draft !== null && text !== draft.text
   const conflictTotal = d ? d.rows.reduce((n, r) => n + conflictsOf(r, reservations).length, 0) : 0
 
   return (
@@ -120,9 +122,10 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
                 </ul>
               )}
               {conflictTotal > 0 && <p className="nd-warn">막으면 이미 잡힌 예약 {conflictTotal}건이 아래 목록에 떠요. 바로 지우지 않고, 확인한 뒤 취소·알림을 보내요.</p>}
+              {stale && <p className="nd-warn" role="status">공지 문장이 바뀌었어요. [막기안 만들기]를 다시 누르거나 앞 문장으로 되돌려 주세요.</p>}
               <div className="nd-actions">
-                <button type="button" className="adm-btn" onClick={() => blockAll(d)}>이대로 {d.rows.length}건 막기</button>
-                <button type="button" className="adm-btn line" onClick={() => onEdit(d.rows[0], d)}>{d.rows.length > 1 ? '첫 건을 양식에서 고치기' : '양식에서 고치기'}</button>
+                <button type="button" className="adm-btn" disabled={stale} onClick={() => blockAll(d)}>이대로 {d.rows.length}건 막기</button>
+                <button type="button" className="adm-btn line" disabled={stale} onClick={() => onEdit(d.rows[0], d)}>{d.rows.length > 1 ? '첫 건을 양식에서 고치기' : '양식에서 고치기'}</button>
               </div>
               <p className="adm-foot">학생 화면에는 "{reasonStatus(d.reason)}"으로 보여요. 지금은 규칙으로 읽어요(나중에 AI로 바꿔요).</p>
             </div>

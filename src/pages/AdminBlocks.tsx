@@ -46,7 +46,8 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
   // 막기안에서 넘어오면 양식이 보이게 내리고 첫 칸에 손이 가게
   useEffect(() => {
     if (!preset) return
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ref.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
     ref.current?.querySelector<HTMLSelectElement>('#blk-room')?.focus({ preventScroll: true })
   }, [preset])
 

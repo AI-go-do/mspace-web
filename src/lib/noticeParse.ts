@@ -208,7 +208,8 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
 
   // 날짜
   // "방 1/2"처럼 방 이름 바로 뒤 한 자리 숫자 목록은 날짜(1월 2일)가 아니라 방 번호로 본다
-  const roomLists = [...t.matchAll(/(?:창작실|방)\s*\d(?:\s*[,·/~\-–]\s*\d)*(?!\d)/g)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }))
+  // "방 1/12"처럼 목록 뒤에 /·. 와 숫자가 더 붙으면 날짜이므로 앞부분(방 1)만 따로 가리지 않는다
+  const roomLists = [...t.matchAll(/(?:창작실|방)\s*\d(?:\s*[,·/~\-–]\s*\d)*(?!\d|\s*[/.]\s*\d)/g)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }))
   const dates = findDates(t, today).filter((d) => !roomLists.some((r) => d.start < r.end && r.start < d.end))
   if (dates.length === 0) {
     const r = findRooms(t); spans.push(...r.spans)
@@ -282,6 +283,10 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   const rows: DraftRow[] = []
   const days: YMD[] = []
   for (let d = first.value; cmp(d, lastDay) <= 0 && days.length < 32; d = addDays(d, 1)) days.push(d)
+  // 시각이 있는 기간은 날마다 한 줄이라 32일에서 자른다. 잘린 날이 막히지 않은 채 "막았어요"가 되지 않게 되묻는다
+  if (endClock !== null && cmp(days[days.length - 1], lastDay) < 0) {
+    return { ...empty('시각이 있는 기간은 32일까지 읽을 수 있어요. 공지를 나누어 넣어 주세요.'), reason: r.reason, memo }
+  }
   const daily = endClock !== null && days.length > 1
   const spansOf: [Date, Date][] = daily
     ? days.map((d) => [at(d, startClock), at(d, endClock!)])

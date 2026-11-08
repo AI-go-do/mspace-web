@@ -105,6 +105,13 @@ describe('공지 한 줄 → 막기안', () => {
     expect(slash.notes.join(' ')).not.toContain('여러 개')
     // 방 이름 뒤라도 두 자리 날짜는 그대로 날짜
     expect(parseNotice('3번 방 11/12 점검', now).rows.map((r) => r.roomId)).toEqual([3])
+    // 방 이름 바로 뒤라도 "1/12"·"1.12"는 1번 방이 아니라 1월 12일
+    for (const n of ['3번 방 1/12 점검', '3번 방 1.12 점검']) {
+      const jan = parseNotice(n, now)
+      expect(jan.problem).toBeNull()
+      expect(jan.rows.map((r) => r.roomId)).toEqual([3])
+      expect(jan.rows[0].startAt).toBe(kst('2027-01-12T00:00:00'))
+    }
     const d = parseNotice('11/12 15:00, 3번 방 점검', now)
     expect(d.rows.map((r) => r.roomId)).toEqual([3])
     expect(d.notes.join(' ')).not.toContain('0번 방')
@@ -120,6 +127,14 @@ describe('공지 한 줄 → 막기안', () => {
     const d = parseNotice('2월 27일~2월 29일 9시~12시 3번 방 점검', feb)
     expect(d.rows).toEqual([])
     expect(d.problem).toContain('없는 날짜')
+  })
+
+  it('시각이 있는 기간이 32일을 넘으면 잘라서 막지 않고 되묻는다', () => {
+    const d = parseNotice('11/10~12/20 9시~12시 3번 방 점검', now)
+    expect(d.rows).toEqual([])
+    expect(d.problem).toContain('32일')
+    // 32일까지는 그대로 날마다 막는다
+    expect(parseNotice('11/10~12/11 9시~12시 3번 방 점검', now).rows).toHaveLength(32)
   })
 
   it('방 글자는 있는데 번호를 못 읽으면(역순 범위 등) 모든 방으로 넘겨짚지 않는다', () => {
