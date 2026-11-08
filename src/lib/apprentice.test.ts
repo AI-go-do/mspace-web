@@ -126,6 +126,16 @@ describe('가짜 수습사원 저장소', () => {
     expect(_noticeForTest()?.result).toBe('reset')
     expect(_noticeForTest()?.text).not.toContain('→')
   })
+
+  it('레벨 3에서 되돌리면 레벨 2라 아직 먼저 처리한다고 안내한다', () => {
+    const s = _read()
+    const d = s.done[0]
+    _resetForTest({ ...s, trainees: s.trainees.map((t) => (t.kind === d.kind ? { ...t, level: 3 } : t)) })
+    undoAutoDone(d.id)
+    expect(_read().trainees.find((t) => t.kind === d.kind)!.level).toBe(2)
+    expect(_noticeForTest()?.text).toContain('아직 먼저 처리')
+    expect(_noticeForTest()?.text).not.toContain('먼저 물어봐요')
+  })
 })
 
 /** 저장소 지금 상태 */
