@@ -1,65 +1,60 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { decideProposal, resetApprentice, undoAutoDone, useApprentice } from '../api/apprentice'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { STREAK_TO_LEVEL_UP, traineeNote, WRONG_REASONS, type Proposal, type Trainee } from '../lib/apprentice'
 import { seoulClock } from '../lib/time'
+import { useCountUp } from '../lib/useCountUp'
 import './AdminApprentice.css'
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `방 ${id}`
 const hm = (iso: string) => seoulClock(new Date(iso))
+/** 카드가 빠져나가는 시간 (CSS .leaving과 같게) */
+const LEAVE_MS = 420
 
-function Notice() {
+export function Notice() {
   const { notice } = useApprentice()
-  return <p className="ap-notice" role="status" aria-live="polite">{notice?.text ?? ''}</p>
+  return <p key={notice?.text ?? ''} className="ap-notice" role="status" aria-live="polite">{notice?.text ?? ''}</p>
 }
 
-function InboxItem({ p, t }: { p: Proposal; t: Trainee }) {
+/** AI 처리안 한 건. [맞아요]면 파랑 체크, [아니에요]면 이유를 고르고 카드가 접히며 빠진다 */
+export function InboxItem({ p, t, i = 0 }: { p: Proposal; t: Trainee; i?: number }) {
   const [asking, setAsking] = useState(false)
+  const [leaving, setLeaving] = useState<'ok' | 'no' | null>(null)
+  const decide = (ok: boolean, reason?: string) => {
+    if (leaving) return
+    setLeaving(ok ? 'ok' : 'no')
+    setTimeout(() => decideProposal(p.id, ok, reason), LEAVE_MS)
+  }
   return (
-    <li className="ap-item">
-      <div className="ap-meta">
+    <li className={`card ap-item ${leaving ? `leaving ${leaving}` : ''}`} style={{ '--k': i } as CSSProperties}>
+      <div className="adm-meta">
         <span className="ap-tag">{t.name}</span>
         <span>{roomName(p.roomId)} · {hm(p.createdAt)}</span>
+        <span className={`ap-lv l${t.locked ? 'x' : t.level}`}>{t.locked ? '사람만' : `레벨 ${t.level}`}</span>
       </div>
       <h3>{p.title}</h3>
-      <p className="ap-plan"><b>AI 처리안</b> · {p.plan}</p>
+      <div className="ap-plan">
+        <span className="ap-spark" aria-hidden="true">✦</span>
+        <div><b>AI 처리안</b><p>{p.plan}</p></div>
+      </div>
       <ul className="ap-why">{p.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
       {t.locked && <p className="ap-lock">벌이 걸린 일이라 점수와 상관없이 늘 사람이 정해요</p>}
       {!asking ? (
         <div className="ap-acts">
-          <button type="button" className="ap-ok" onClick={() => decideProposal(p.id, true)}>맞아요, 이대로</button>
-          <button type="button" className="ap-no" onClick={() => setAsking(true)}>아니에요</button>
+          <button type="button" className="adm-btn" onClick={() => decide(true)}>맞아요, 이대로</button>
+          <button type="button" className="adm-btn line" onClick={() => setAsking(true)}>아니에요</button>
         </div>
       ) : (
-        <div className="ap-acts" role="group" aria-label="어디가 틀렸나요?">
-          <span className="muted">어디가 틀렸나요?</span>
+        <div className="ap-acts ask" role="group" aria-label="어디가 틀렸나요?">
+          <span className="adm-small">어디가 틀렸나요?</span>
           {WRONG_REASONS.map((r) => (
-            <button key={r} type="button" className="ap-chip" onClick={() => decideProposal(p.id, false, r)}>{r}</button>
+            <button key={r} type="button" className="adm-mini" onClick={() => decide(false, r)}>{r}</button>
           ))}
-          <button type="button" className="ap-no" onClick={() => setAsking(false)}>취소</button>
+          <button type="button" className="adm-link" onClick={() => setAsking(false)}>취소</button>
         </div>
       )}
+      {leaving && <span className={`ap-done-mark ${leaving}`} aria-hidden="true">{leaving === 'ok' ? '✓' : '↺'}</span>}
     </li>
-  )
-}
-
-/** "지금" 탭 오른쪽 결재함: AI 처리안을 사람이 [맞아요]/[아니에요]로 채점한다 */
-export function ApprenticeInbox() {
-  const { state } = useApprentice()
-  return (
-    <aside className="card ap-inbox" aria-labelledby="ap-inbox-h">
-      <h2 id="ap-inbox-h">사람이 볼 일 <span className="ap-count">{state.inbox.length}</span></h2>
-      <p className="ap-sub">AI가 처리안과 이유를 올려요. 맞으면 점수가 쌓이고, 점수가 쌓인 일은 AI가 먼저 처리해요.</p>
-      <Notice />
-      {state.inbox.length === 0 ? (
-        <div className="ap-empty"><b>지금은 사람이 볼 일이 없어요</b><span className="muted">AI가 처리한 일은 "AI 수습사원" 탭에 남아요</span></div>
-      ) : (
-        <ul className="ap-list">
-          {state.inbox.map((p) => <InboxItem key={p.id} p={p} t={state.trainees.find((t) => t.kind === p.kind)!} />)}
-        </ul>
-      )}
-      <p className="ap-mock muted">가짜 값 단계라 [맞아요]를 눌러도 학생에게 아무것도 보내지 않아요.</p>
-    </aside>
   )
 }
 
@@ -69,25 +64,35 @@ const LEVELS = [
   { level: 3, title: '혼자 해요', text: '기록은 남고 되돌릴 수 있어요' },
 ]
 
-function TraineeCard({ t, flash }: { t: Trainee; flash: 'up' | 'down' | null }) {
+/** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워지고, 레벨이 바뀌면 카드가 반짝인다 */
+function TraineeCard({ t, flash, i }: { t: Trainee; flash: 'up' | 'down' | null; i: number }) {
   const filled = t.locked ? 0 : t.level >= t.maxLevel ? STREAK_TO_LEVEL_UP : t.streak
+  const rate = t.total ? Math.round((t.right / t.total) * 100) : null
   return (
-    <li className={`ap-rec ${flash ? `fx-${flash}` : ''}`}>
+    <li className={`card ap-rec ${flash ? `fx-${flash}` : ''} ${t.locked ? 'locked' : ''}`} style={{ '--k': i } as CSSProperties}>
       <div className="ap-rec-top">
-        <b>{t.name}</b>
-        <span className={`ap-lv l${t.locked ? 'x' : t.level}`}>{t.locked ? '사람만' : `레벨 ${t.level}`}</span>
-        <span className="muted">맞힘 {t.right}/{t.total}</span>
+        <span className={`ap-lv-big l${t.locked ? 'x' : t.level}`} aria-hidden="true">{t.locked ? '🔒' : t.level}</span>
+        <div className="ap-rec-name">
+          <b>{t.name}</b>
+          <span className="adm-small">{t.locked ? '사람만 정해요' : `레벨 ${t.level} · 최고 ${t.maxLevel}`}</span>
+        </div>
+        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {t.right}/{t.total}</small></span>
       </div>
       <div className="ap-dots" role="img" aria-label={`연속 ${filled}/${STREAK_TO_LEVEL_UP}`}>
-        {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
+        {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, k) => <i key={k} className={k < filled ? 'on' : ''} style={{ '--d': k } as CSSProperties} />)}
       </div>
-      <small className="muted">{traineeNote(t)}</small>
+      <small className="adm-small">{traineeNote(t)}</small>
     </li>
   )
 }
 
+function Stat({ label, value }: { label: string; value: number }) {
+  const shown = useCountUp(value)
+  return <div className="ap-stat"><dt>{label}</dt><dd aria-label={`${value}건`}>{shown}<small>건</small></dd></div>
+}
+
 /**
- * "AI 수습사원" 탭: 레벨 설명, 일 종류별 인사 기록 카드, AI가 먼저 처리한 일(아침 보고)과 [되돌리기].
+ * "AI 수습사원": 레벨 설명, 일 종류별 인사 기록 카드, AI가 먼저 처리한 일(아침 보고)과 [되돌리기].
  * 경고·정지 같은 벌은 레벨 1 고정이라 늘 사람이 정한다
  */
 export function AdminApprentice() {
@@ -95,53 +100,58 @@ export function AdminApprentice() {
   const flashFor = (t: Trainee) => (notice?.kind === t.kind && (notice.result === 'up' || notice.result === 'down') ? notice.result : null)
   return (
     <section className="ap-wrap" aria-label="AI 수습사원">
-      <div className="ap-levels">
-        {LEVELS.map((l) => (
-          <div key={l.level} className="card ap-level">
-            <span className={`ap-lv l${l.level}`}>레벨 {l.level}</span>
-            <b>{l.title}</b>
-            <span className="muted">{l.text}</span>
-          </div>
+      <ol className="ap-steps">
+        {LEVELS.map((l, i) => (
+          <li key={l.level} className={`ap-step l${l.level}`} style={{ '--k': i } as CSSProperties}>
+            <span className="ap-step-no">{l.level}</span>
+            <div><b>{l.title}</b><span>{l.text}</span></div>
+          </li>
         ))}
-      </div>
+      </ol>
       <Notice />
       <div className="ap-two">
-        <section className="card ap-sec" aria-labelledby="ap-rec-h">
-          <h2 id="ap-rec-h">AI 인사 기록 카드</h2>
-          <p className="ap-sub">일 종류마다 따로 채점해요. {STREAK_TO_LEVEL_UP}번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려가요.</p>
-          <ul className="ap-recs">{state.trainees.map((t) => <TraineeCard key={t.kind} t={t} flash={flashFor(t)} />)}</ul>
+        <section className="ap-sec" aria-labelledby="ap-rec-h">
+          <div className="adm-sec-h">
+            <h2 id="ap-rec-h">인사 기록 카드</h2>
+            <p>{STREAK_TO_LEVEL_UP}번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려가요.</p>
+          </div>
+          <ul className="ap-recs">{state.trainees.map((t, i) => <TraineeCard key={t.kind} t={t} i={i} flash={flashFor(t)} />)}</ul>
         </section>
-        <section className="card ap-sec" aria-labelledby="ap-log-h">
-          <h2 id="ap-log-h">AI가 먼저 처리한 일 <span className="ap-tag">아침 보고</span></h2>
-          <p className="ap-sub">잘못됐으면 되돌리세요. 그 종류는 다시 먼저 물어봐요.</p>
-          {state.done.length === 0 ? <p className="muted ap-small">아직 AI가 먼저 처리한 일이 없어요.</p> : (
-            <ul className="ap-log">
-              {state.done.map((d) => {
-                const t = state.trainees.find((x) => x.kind === d.kind)!
-                return (
-                  <li key={d.id} className={d.undone ? 'undone' : ''}>
-                    <span className="ap-time">{hm(d.doneAt)}</span>
-                    <div className="ap-log-text">
-                      <b>{d.plan}</b>
-                      <span className="muted">{roomName(d.roomId)} · {t.name} · 레벨 {d.level}에서 처리</span>
-                    </div>
-                    {d.undone ? <span className="ap-tag">되돌림</span>
-                      : <button type="button" className="ap-no" onClick={() => undoAutoDone(d.id)}>되돌리기</button>}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+        <section className="ap-sec" aria-labelledby="ap-log-h">
+          <div className="adm-sec-h">
+            <h2 id="ap-log-h">AI가 먼저 처리한 일 <span className="ap-tag">아침 보고</span></h2>
+            <p>잘못됐으면 되돌리세요. 그 종류는 다시 먼저 물어봐요.</p>
+          </div>
           <dl className="ap-stats">
-            <div><dt>AI가 먼저 처리</dt><dd>{state.done.length}건</dd></div>
-            <div><dt>사람이 본 일</dt><dd>{state.stats.human}건</dd></div>
-            <div><dt>되돌림</dt><dd>{state.stats.undone}건</dd></div>
+            <Stat label="AI가 먼저 처리" value={state.done.length} />
+            <Stat label="사람이 본 일" value={state.stats.human} />
+            <Stat label="되돌림" value={state.stats.undone} />
           </dl>
+          <div className="card ap-log-card">
+            {state.done.length === 0 ? <p className="adm-small">아직 AI가 먼저 처리한 일이 없어요.</p> : (
+              <ul className="ap-log">
+                {state.done.map((d, i) => {
+                  const t = state.trainees.find((x) => x.kind === d.kind)!
+                  return (
+                    <li key={d.id} className={d.undone ? 'undone' : ''} style={{ '--k': i } as CSSProperties}>
+                      <span className="ap-time">{hm(d.doneAt)}</span>
+                      <div className="ap-log-text">
+                        <b>{d.plan}</b>
+                        <span className="adm-small">{roomName(d.roomId)} · {t.name} · 레벨 {d.level}에서 처리</span>
+                      </div>
+                      {d.undone ? <span className="ap-tag">되돌림</span>
+                        : <button type="button" className="adm-mini" onClick={() => undoAutoDone(d.id)}>되돌리기</button>}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
-      <p className="ap-mock muted">
+      <p className="adm-foot">
         가짜 값 단계예요. 기록은 이 브라우저에만 남고 학생에게 아무것도 보내지 않아요.{' '}
-        <button type="button" className="linkish" onClick={resetApprentice}>가짜 기록 처음으로</button>
+        <button type="button" className="adm-link" onClick={resetApprentice}>가짜 기록 처음으로</button>
       </p>
     </section>
   )
