@@ -93,5 +93,16 @@ describe('공지 한 줄 → 막기안', () => {
     expect(parseNotice('2월 30일 3번 방 점검', now).problem).toContain('날짜')
     expect(parseNotice('2027-02-29 3번 방 점검', now).problem).toContain('날짜')
     expect(() => parseNotice('11/12 24:30 3번 방 점검', now)).not.toThrow()
+    // 범위 끝이 없는 날이면 하루를 빠뜨리지 않고 되묻는다(2027년 2월)
+    const feb = new Date('2027-02-20T10:00:00+09:00')
+    const d = parseNotice('2월 27일~2월 29일 9시~12시 3번 방 점검', feb)
+    expect(d.rows).toEqual([])
+    expect(d.problem).toContain('없는 날짜')
+  })
+
+  it('방 글자는 있는데 번호를 못 읽으면(역순 범위 등) 모든 방으로 넘겨짚지 않는다', () => {
+    const d = parseNotice('11/12 8~6번 방 점검', now)
+    expect(d.rows).toEqual([])
+    expect(d.problem).toContain('방 번호')
   })
 })

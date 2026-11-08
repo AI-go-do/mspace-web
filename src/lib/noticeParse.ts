@@ -183,10 +183,14 @@ function findReason(text: string): { reason: BlockReason; memo: string; span: Sp
   return { reason: 'OTHER', memo: '', span: null }
 }
 
-/** 서울 시각. 없는 날(2027-02-29 등)은 Date가 다음 달로 넘기므로 Invalid Date로 돌려준다 */
+/** 해까지 정해진 뒤 실제로 있는 날인지(2027-02-29 같은 날은 Date가 다음 달로 넘겨 버린다) */
+const realDay = (v: YMD) => {
+  const t = new Date(Date.UTC(v.y, v.m - 1, v.d))
+  return t.getUTCMonth() === v.m - 1 && t.getUTCDate() === v.d
+}
+/** 서울 시각. 없는 날은 Invalid Date */
 const at = (v: YMD, c: Clock) => {
-  const real = new Date(Date.UTC(v.y, v.m - 1, v.d))
-  if (real.getUTCMonth() !== v.m - 1 || real.getUTCDate() !== v.d) return new Date(NaN)
+  if (!realDay(v)) return new Date(NaN)
   return new Date(`${iso(v)}T${String(c.h).padStart(2, '0')}:${String(c.min).padStart(2, '0')}:00+09:00`)
 }
 const SLOT = 30 * 60_000
@@ -210,6 +214,10 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   }
   const first = dates[0]
   const end = rangeEnd(t, first, dates, today)
+  // 범위 끝이 없는 날(2027년 2월 29일 등)이면 addDays가 3월로 넘겨 하루를 빠뜨리므로 여기서 되묻는다
+  if (!realDay(first.value) || (end && !realDay(end.value))) {
+    return empty('없는 날짜예요. 공지의 날짜를 확인해 주세요.')
+  }
   const lastDay = end && cmp(end.value, first.value) > 0 ? end.value : first.value
   spans.push({ start: first.start, end: first.end, kind: 'date' })
   if (end) spans.push({ start: end.start, end: end.end, kind: 'date' })
@@ -246,10 +254,12 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   spans.push(...rooms.spans)
   let ids = rooms.all ? [...ROOM_IDS] : rooms.ids
   // 공지가 방 번호를 적었는데 모두 없는 방이면 모든 방으로 넘겨짚지 않고 되묻는다
+  if (!rooms.all && rooms.spans.length > 0 && ids.length === 0) {
+    const which = rooms.unknown.length > 0 ? `${rooms.unknown.join(', ')}번 방은 없어요` : '방 번호를 읽지 못했어요'
+    return empty(`${which}(1~${ROOM_IDS.length}번). 공지의 방 번호를 확인해 주세요.`)
+  }
   if (!rooms.all && rooms.unknown.length > 0) {
-    const msg = `${rooms.unknown.join(', ')}번 방은 없어요(1~${ROOM_IDS.length}번).`
-    if (ids.length === 0) return empty(`${msg} 공지의 방 번호를 확인해 주세요.`)
-    notes.push(`${msg} 그 방은 빼고 읽었어요.`)
+    notes.push(`${rooms.unknown.join(', ')}번 방은 없어요(1~${ROOM_IDS.length}번). 그 방은 빼고 읽었어요.`)
   }
   if (ids.length === 0) {
     ids = [...ROOM_IDS]
