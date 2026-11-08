@@ -39,10 +39,8 @@ export default function Report() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const [reservationId] = useState<number | null>(() => reservationFrom(params.get('reservationId')))
+  // 주소의 방은 처음 고른 값일 뿐이다. 어질러짐의 "지금 쓰는 방만"은 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
   const [queryRoomId] = useState<number | null>(() => roomFrom(params.get('roomId')))
-  // 사용 중(IN_USE) 카드에서 예약 번호와 같이 들어왔을 때만 주소의 방을 지금 쓰는 방으로 본다.
-  // 그 밖(북마크·다른 링크)에는 모른다고 두고 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
-  const ownRoomId = reservationId !== null ? queryRoomId : null
   const [draft] = useState(() => loadReportDraft(reservationId))
   const [roomId, setRoomId] = useState<number | null>(draft?.roomId ?? queryRoomId)
   const [category, setCategory] = useState<ReportCategory | null>(draft?.category ?? null)
@@ -52,7 +50,7 @@ export default function Report() {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<SubmittedReport | null>(null)
 
-  const problem = reportProblem({ roomId, category, content, noiseConfirmed, ownRoomId })
+  const problem = reportProblem({ roomId, category, content, noiseConfirmed })
 
   // 입실 사진을 올리러 다녀와도 5분 안에 바로 보낼 수 있게 초안을 남긴다 (보내면 지움)
   useEffect(() => {

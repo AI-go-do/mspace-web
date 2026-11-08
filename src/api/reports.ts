@@ -58,12 +58,11 @@ export const MESSY_RULE = '어질러짐은 입실하고 5분 안에, 입실 사�
 
 /**
  * 보내기 전에 화면에서 막을 것. 없으면 null.
- * ownRoomId: 지금 쓰는 방(사용 중 카드에서 들어오면 주소에 있음). 모르면 null이고 그때는 core가 판단한다
+ * 어질러짐의 "지금 쓰는 방만"은 화면이 아는 방이 오래됐을 수 있어 막지 않고 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
  */
-export function reportProblem(r: { roomId: number | null; category: ReportCategory | null; content: string; noiseConfirmed: boolean; ownRoomId?: number | null }): string | null {
+export function reportProblem(r: { roomId: number | null; category: ReportCategory | null; content: string; noiseConfirmed: boolean }): string | null {
   if (r.roomId === null) return '신고할 방을 골라 주세요'
   if (r.category === null) return '무엇이 문제인지 골라 주세요'
-  if (r.category === 'MESSY' && r.ownRoomId != null && r.roomId !== r.ownRoomId) return '어질러짐은 지금 쓰는 방만 신고할 수 있어요'
   if (r.content.trim().length > MAX_REPORT_CONTENT) return `메모는 ${MAX_REPORT_CONTENT}자 이내로 적어 주세요`
   if (r.category === 'NOISE' && !r.noiseConfirmed) return '"정말 소란인가요?"를 체크해 주세요'
   return null

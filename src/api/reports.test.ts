@@ -16,12 +16,8 @@ describe('신고 보내기 전 확인 (FR-RPT-101)', () => {
     expect(reportProblem({ ...base, category: 'NOISE' })).toContain('소란')
     expect(reportProblem({ ...base, category: 'NOISE', noiseConfirmed: true })).toBeNull()
   })
-  it('어질러짐은 지금 쓰는 방이 아니면 막고, 쓰는 방을 모르면 core에 맡긴다 (core #96)', () => {
-    const messy = { ...base, category: 'MESSY' as const }
-    expect(reportProblem({ ...messy, ownRoomId: 3 })).toContain('지금 쓰는 방')
-    expect(reportProblem({ ...messy, ownRoomId: 2 })).toBeNull()
-    expect(reportProblem({ ...messy, ownRoomId: null })).toBeNull()
-    expect(reportProblem({ ...base, ownRoomId: 3 })).toBeNull()
+  it('어질러짐은 화면에서 방을 막지 않고 core에 맡긴다 (core #96)', () => {
+    expect(reportProblem({ ...base, category: 'MESSY' })).toBeNull()
   })
   it('메모가 500자를 넘으면 막는다(앞뒤 공백은 세지 않음)', () => {
     expect(reportProblem({ ...base, content: ` ${'가'.repeat(MAX_REPORT_CONTENT)} ` })).toBeNull()
