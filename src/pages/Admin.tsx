@@ -126,7 +126,7 @@ export default function Admin() {
         </header>
         <div key={`${member ?? 'none'}-${tab}`} className="adm-panel">
           {tab === 'now' && <AdminNow todo={counts} onOpenTodo={() => go('todo')} />}
-          {tab === 'todo' && <AdminTodo counts={counts} onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} />}
+          {tab === 'todo' && <AdminTodo counts={counts} onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
           {tab === 'ai' && <AdminApprentice />}
           {tab === 'rooms' && (
             <div className="adm-rooms">

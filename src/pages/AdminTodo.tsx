@@ -6,6 +6,7 @@ import { useApprentice } from '../api/apprentice'
 import type { Proposal } from '../lib/apprentice'
 import { InboxItem, Notice } from './AdminApprentice'
 import { ReportList } from './AdminReports'
+import { RestProposals } from './AdminRest'
 
 /**
  * "할 일": 사람이 정해야 하는 일을 한곳에. 신고 판정(core, 실제 API)과 AI 처리안(가짜 단계)을 같이 보여 준다.
@@ -62,7 +63,7 @@ export function useTodoCounts(): TodoCounts {
 type Filter = 'all' | 'reports' | 'ai'
 
 /** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게, 메뉴 배지와 칩 숫자가 늘 같게) */
-export function AdminTodo({ counts, onForceCheckout }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void }) {
+export function AdminTodo({ counts, onForceCheckout, onOpenRooms }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
   const [filter, setFilter] = useState<Filter>('all')
   const { state } = useApprentice()
   const ai = state.inbox.filter(inTodo)
@@ -74,6 +75,7 @@ export function AdminTodo({ counts, onForceCheckout }: { counts: TodoCounts; onF
 
   return (
     <section className="todo" aria-label="할 일">
+      <RestProposals onOpenRooms={onOpenRooms} />
       <div className="adm-chips" role="group" aria-label="보기">
         {FILTERS.map((f) => (
           <button key={f.id} type="button" className="adm-chip" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>

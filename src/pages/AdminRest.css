@@ -1,0 +1,57 @@
+/* 할 일 > 아픈 방 휴업안. 색은 tokens.css 4+2색만 */
+.rest { display: grid; gap: 12px; margin-bottom: 16px; }
+@media (min-width: 1100px) { .rest { grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); } }
+.rest-card {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: inset 4px 0 0 var(--yellow), var(--shadow-1); animation: rise-in 0.4s var(--ease-out) var(--d, 0ms) backwards;
+}
+.rest-top { display: flex; align-items: center; gap: 12px; }
+/* 아픈 방 번호: 노란 고리가 맥박처럼 퍼진다 */
+.rest-room {
+  position: relative; flex: none; width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  background: var(--yellow); color: var(--navy); font-weight: 900; font-size: 20px;
+}
+.rest-pulse { position: absolute; inset: 0; border-radius: 14px; box-shadow: 0 0 0 2px var(--yellow); animation: ring-out 1.8s var(--ease-out) infinite; }
+.rest-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rest-eyebrow { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--navy-70); }
+.rest-sample { padding: 1px 7px; border-radius: 6px; background: var(--yellow); color: var(--navy); font-size: 11px; }
+.rest-title h3 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
+.rest-why { margin: 0; font-size: 14px; }
+.rest-reports { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rest-reports li {
+  display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: 12px; font-size: 13.5px;
+  background: color-mix(in srgb, var(--yellow) 16%, var(--white)); animation: rise-in 0.35s var(--ease-out) var(--d, 0ms) backwards;
+}
+.rest-ago { flex: none; width: 58px; font-size: 12px; font-weight: 800; color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.rest-plan { margin: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--gray); }
+.rest-plan div { display: grid; grid-template-columns: 76px 1fr; gap: 8px; font-size: 13.5px; }
+.rest-plan dt { font-weight: 800; color: var(--navy-70); }
+.rest-plan dd { margin: 0; font-variant-numeric: tabular-nums; }
+.rest-plan small { display: block; color: var(--navy-70); font-size: 12px; }
+.rest-moves { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.rest-alt { display: block; font-size: 12px; font-weight: 800; color: var(--blue); }
+.rest-alt.none { color: var(--navy-70); }
+.rest-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 쉬게 한 뒤: 남색 카드에 z z z가 떠오른다 */
+.rest-card.done { flex-direction: row; align-items: center; gap: 14px; background: var(--navy); color: var(--white); box-shadow: var(--shadow-2); animation: pop 0.45s var(--ease-spring); }
+.rest-card.done.err { background: var(--white); color: var(--navy); box-shadow: inset 4px 0 0 var(--yellow), var(--shadow-1); }
+.rest-zzz { flex: none; width: 44px; height: 44px; border-radius: 14px; background: color-mix(in srgb, var(--white) 14%, transparent); display: flex; align-items: center; justify-content: center; gap: 1px; font-weight: 900; font-size: 16px; color: var(--sky); }
+.rest-zzz, .rest-zzz i { font-style: normal; animation: zzz 1.8s ease-in-out infinite; }
+.rest-zzz i { display: inline-block; font-size: 12px; }
+.rest-zzz i:nth-child(1) { animation-delay: 0.3s; }
+.rest-zzz i:nth-child(2) { animation-delay: 0.6s; font-size: 9px; }
+@keyframes zzz { 0%, 100% { transform: translateY(0); opacity: 0.6; } 50% { transform: translateY(-4px); opacity: 1; } }
+.rest-done-text { margin: 0; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.5; }
+.rest-done-text b { font-size: 15.5px; }
+.rest-card.done:not(.err) .rest-done-text span { opacity: 0.8; }
+.rest-go { flex: none; }
+@media (max-width: 560px) {
+  .rest-card.done { flex-wrap: wrap; }
+  .rest-card.done .rest-done-text { flex: 1 1 200px; }
+  .rest-card.done .rest-go { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rest *, .rest-card { animation: none !important; transition: none !important; }
+}
