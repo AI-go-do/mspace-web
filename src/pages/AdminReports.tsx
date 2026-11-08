@@ -88,6 +88,9 @@ function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [stamp, setStamp] = useState<string | null>(null)
+  // 도장이 찍히는 동안 카드가 사라지면(필터·칸 바꿈) 늦게 목록을 다시 부르지 않게 지운다
+  const stampTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(stampTimer.current), [])
   const judgeable = r.verdict === 'OPEN' && r.category !== 'NOISE'
   const camera = r.reporterReservationId === null
 
@@ -100,7 +103,7 @@ function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
       await judgeReport(r.id, opt.verdict, memberId)
       // 도장이 찍히는 모습을 잠깐 보여 주고 목록을 새로 받는다
       setStamp(opt.label)
-      setTimeout(onJudged, STAMP_MS)
+      stampTimer.current = setTimeout(onJudged, STAMP_MS)
     } catch (e) {
       setMsg(adminErrorMessage(e))
       onJudged()
