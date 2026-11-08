@@ -228,9 +228,9 @@ export function AdminStats() {
               <h2>알림 효과</h2>
               <dl className="stat-dl">
                 <div><dt>노쇼 직전 알림 뒤 입실</dt><dd>{alertEffectLabel(t.alerts.noShowCheckedIn, t.alerts.noShowWarned, t.alerts.noShowCheckedInRate)}</dd></div>
-                <div><dt>환기 알림 뒤 {t.alerts.resolvedWithinMinutes}분 안 CO2 내려감</dt><dd>{alertEffectLabel(t.alerts.ventilationResolved, t.alerts.ventilationChecked, t.alerts.ventilationResolvedRate)}</dd></div>
+                <div><dt>환기 알림 뒤 {t.alerts.resolvedWithinMinutes}분 안 CO2 기준({t.sensor.thresholdPpm}ppm) 이하</dt><dd>{alertEffectLabel(t.alerts.ventilationResolved, t.alerts.ventilationChecked, t.alerts.ventilationResolvedRate)}</dd></div>
               </dl>
-              <span className="muted admin-small">결과가 난 알림만 세요. 입실 마감이나 확인 시간이 아직 안 지난 알림은 빠져요.</span>
+              <span className="muted admin-small">결과가 난 알림만 세요. 아직 입실 안 했는데 입실 마감 전인 예약, 확인 시간이 아직 안 지난 환기 알림은 빠져요.</span>
             </section>
           )}
         </>
