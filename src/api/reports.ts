@@ -79,6 +79,7 @@ export interface ReportDraft {
 const DRAFT_KEY = 'mspace.reportDraft.v1'
 type DraftStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
+/** 탭 저장소. 막힌 환경(사생활 보호 창 등)이면 null */
 function sessionStore(): DraftStore | null {
   try { return globalThis.sessionStorage ?? null } catch { return null }
 }
@@ -96,10 +97,12 @@ export function loadReportDraft(reservationId: number | null, store: DraftStore 
   }
 }
 
+/** 신고 초안 저장. 저장 못 해도 신고 흐름은 막지 않는다 */
 export function saveReportDraft(d: ReportDraft, store: DraftStore | null = sessionStore()): void {
   try { store?.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* 저장 못 해도 신고는 그대로 */ }
 }
 
+/** 신고를 보낸 뒤 초안 지우기 */
 export function clearReportDraft(store: DraftStore | null = sessionStore()): void {
   try { store?.removeItem(DRAFT_KEY) } catch { /* 무시 */ }
 }
