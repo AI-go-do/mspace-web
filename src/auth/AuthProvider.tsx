@@ -1,8 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { ApiError, logout as apiLogout, onSessionEnd, refreshTokens } from '../api/client'
 import { accessAlive, dropLegacyTokens, readTokens } from './tokens'
-import Splash from './Splash'
+import Splash, { waitMinSplash } from './Splash'
 
 type Status = 'checking' | 'in' | 'out'
 
@@ -19,6 +19,7 @@ const AuthContext = createContext<Auth | null>(null)
  * 앱을 열 때 (FR-AUTH-002): 로그인 화면이 아니라 로딩 화면을 먼저 보여 주고
  * 메모리에 액세스 토큰이 없으면 refresh 쿠키로 새로 받아 본다(쿠키는 스크립트가 못 읽어서 보내 봐야 안다).
  * refresh가 401일 때만 로그인 화면으로 간다.
+ * refresh가 아주 빨리 끝나도 로딩 화면이 깜빡이고 사라지지 않게, 페이지를 연 때부터 잠깐은 보여 준다(MIN_SPLASH_MS).
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>(() => (accessAlive(readTokens()) ? 'in' : 'checking'))
@@ -29,16 +30,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status !== 'checking') return
-    refreshTokens()
-      // 그사이 로그인 화면에서 로그인했으면(이미 'in') 늦게 온 결과로 바꾸지 않는다
-      .then(() => setStatus((s) => (s === 'checking' ? 'in' : s)))
+    // refresh는 바로 시작하고, 결과는 최소 로딩 시간이 지난 뒤에 화면에 반영한다
+    const result: Promise<Status> = refreshTokens().then(
+      () => 'in',
       // refresh가 401이면 로그인 끝. 서버에 못 닿았으면(와이파이 등) 일단 들여보내고 화면이 오류를 보여 준다
-      .catch((e) => setStatus((s) => (s === 'checking' ? (e instanceof ApiError && e.status === 401 ? 'out' : 'in') : s)))
+      (e) => (e instanceof ApiError && e.status === 401 ? 'out' : 'in'),
+    )
+    void Promise.all([result, waitMinSplash()]).then(([next]) =>
+      // 그사이 로그인했거나(이미 'in') 세션이 끝났으면(이미 'out') 늦게 온 결과로 바꾸지 않는다
+      setStatus((s) => (s === 'checking' ? next : s)),
+    )
   }, [status])
 
-  useEffect(() => onSessionEnd(() => setStatus('out')), [])
+  // 로그인이 끝나면(로그아웃·refresh 401·다른 요청의 세션 끊김) 로그인 화면으로.
+  // 앱을 연 직후면 최소 로딩 시간까지만 기다린다(빠른 401에 로딩 화면이 깜빡이고 사라지지 않게).
+  // refresh 응답 본문을 기다리지 않으므로, 본문이 늦어도 로그인 화면이 바로 뜬다. 그 뒤에는 기다림 없이 바로 바뀐다
+  // 기다리는 사이 새로 로그인했으면(signedIn) 앞선 세션 끝남으로 새 로그인을 덮지 않는다
+  const signInSeq = useRef(0)
+  useEffect(
+    () =>
+      onSessionEnd(() => {
+        const seq = signInSeq.current
+        void waitMinSplash().then(() => {
+          if (signInSeq.current === seq) setStatus('out')
+        })
+      }),
+    [],
+  )
 
-  const signedIn = useCallback(() => setStatus('in'), [])
+  const signedIn = useCallback(() => {
+    signInSeq.current++
+    setStatus('in')
+  }, [])
   const logout = useCallback(() => apiLogout(), [])
 
   return <AuthContext.Provider value={{ status, signedIn, logout }}>{children}</AuthContext.Provider>

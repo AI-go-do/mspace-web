@@ -264,7 +264,7 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
       <div className="inuse-links">
         {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
         <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
-        <Link to={`/report?roomId=${r.room.id}`} className="inuse-link">방에 문제가 있나요?</Link>
+        <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link">방에 문제가 있나요?</Link>
       </div>
     </section>
   )

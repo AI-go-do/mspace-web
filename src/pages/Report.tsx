@@ -1,8 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { currentMemberId } from '../api/client'
 import {
-  CATEGORIES, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, submitReport,
+  CATEGORIES, clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
   type ReportCategory, type SubmittedReport,
 } from '../api/reports'
 import { BackIcon } from '../components/ReserveSteps'
@@ -24,6 +24,12 @@ function roomFrom(v: string | null): number | null {
   return ROOMS.includes(n) ? n : null
 }
 
+/** 주소의 ?reservationId= (지금 쓰는 예약). 없거나 틀리면 null */
+function reservationFrom(v: string | null): number | null {
+  const n = Number(v)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
 /**
  * 방 신고 (FR-RPT-101). 사용 중 카드의 "방에 문제가 있나요?"에서 들어온다(그 방이 골라진 채로).
  * 지금 그 방이나 옆 방을 쓰는 예약자만 보낼 수 있고, 판정 결과는 알림으로 온다.
@@ -32,15 +38,24 @@ function roomFrom(v: string | null): number | null {
 export default function Report() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const [roomId, setRoomId] = useState<number | null>(() => roomFrom(params.get('roomId')))
-  const [category, setCategory] = useState<ReportCategory | null>(null)
-  const [content, setContent] = useState('')
+  const [reservationId] = useState<number | null>(() => reservationFrom(params.get('reservationId')))
+  // 주소의 방은 처음 고른 값일 뿐이다. 어질러짐의 "지금 쓰는 방만"은 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
+  const [queryRoomId] = useState<number | null>(() => roomFrom(params.get('roomId')))
+  const [draft] = useState(() => loadReportDraft(reservationId))
+  const [roomId, setRoomId] = useState<number | null>(draft?.roomId ?? queryRoomId)
+  const [category, setCategory] = useState<ReportCategory | null>(draft?.category ?? null)
+  const [content, setContent] = useState(draft?.content ?? '')
   const [noiseConfirmed, setNoiseConfirmed] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<SubmittedReport | null>(null)
 
   const problem = reportProblem({ roomId, category, content, noiseConfirmed })
+
+  // 입실 사진을 올리러 다녀와도 5분 안에 바로 보낼 수 있게 초안을 남긴다 (보내면 지움)
+  useEffect(() => {
+    if (reservationId !== null && !done) saveReportDraft({ reservationId, roomId, category, content })
+  }, [reservationId, roomId, category, content, done])
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -50,10 +65,12 @@ export default function Report() {
     setError(null)
     try {
       const text = content.trim()
-      setDone(await submitReport({
+      const sent = await submitReport({
         roomId, category, content: text || undefined,
         noiseConfirmed: category === 'NOISE' ? noiseConfirmed : undefined,
-      }, memberId))
+      }, memberId)
+      clearReportDraft()
+      setDone(sent)
     } catch (err) {
       setError(reportErrorMessage(err))
     } finally {
@@ -121,6 +138,12 @@ export default function Report() {
               <input type="checkbox" checked={noiseConfirmed} disabled={sending} onChange={(e) => setNoiseConfirmed(e.target.checked)} />
               정말 소란인가요? 공부를 계속하기 어려울 만큼이에요
             </label>
+          )}
+          {category === 'MESSY' && (
+            <p className="muted report-note" role="note">
+              {MESSY_RULE}
+              {reservationId !== null && <> <Link to={`/me/${reservationId}`}>입실 사진 올리기</Link></>}
+            </p>
           )}
         </fieldset>
 
