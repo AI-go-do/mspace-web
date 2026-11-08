@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { blockConflicts, cancelConflicts, createBlock, releaseBlock, resetBlocks, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { timeRange } from '../lib/format'
 import { BLOCK_REASONS, BLOCK_RULES, isActive, reasonLabel, reasonStatus, type BlockReason, type RoomBlock } from '../lib/roomBlocks'
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
+import { NoticeDraftCard } from './AdminNoticeDraft'
 import './AdminBlocks.css'
 
 /** 00:00 ~ 23:30, 30분 칸 */
@@ -26,17 +27,29 @@ function nextSlot(now: Date): Date {
   return new Date(Math.ceil((now.getTime() + 1) / slot) * slot)
 }
 
-function BlockForm() {
-  const first = nextSlot(new Date())
-  const until = new Date(first.getTime() + 2 * 3_600_000)
-  const [roomId, setRoomId] = useState(ADMIN_ROOMS[0]?.roomId ?? 1)
+/** 공지 막기안에서 [양식에서 고치기]로 채울 값 */
+interface Preset { roomId: number; startAt: string; endAt: string; reason: BlockReason; memo: string }
+
+function BlockForm({ preset }: { preset?: Preset | null }) {
+  const first = preset ? new Date(preset.startAt) : nextSlot(new Date())
+  const until = preset ? new Date(preset.endAt) : new Date(first.getTime() + 2 * 3_600_000)
+  const [roomId, setRoomId] = useState(preset?.roomId ?? ADMIN_ROOMS[0]?.roomId ?? 1)
   const [startDate, setStartDate] = useState(seoulDate(first))
   const [startTime, setStartTime] = useState(seoulClock(first))
   const [endDate, setEndDate] = useState(seoulDate(until))
   const [endTime, setEndTime] = useState(seoulClock(until))
-  const [reason, setReason] = useState<BlockReason>('INSPECTION')
-  const [memo, setMemo] = useState('')
-  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const [reason, setReason] = useState<BlockReason>(preset?.reason ?? 'INSPECTION')
+  const [memo, setMemo] = useState(preset?.memo ?? '')
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(
+    preset ? { text: '공지 막기안으로 채웠어요. 고친 뒤 [기간 막기]를 눌러 주세요.', error: false } : null)
+  const ref = useRef<HTMLFormElement>(null)
+  // 막기안에서 넘어오면 양식이 보이게 내리고 첫 칸에 손이 가게
+  useEffect(() => {
+    if (!preset) return
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ref.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    ref.current?.querySelector<HTMLSelectElement>('#blk-room')?.focus({ preventScroll: true })
+  }, [preset])
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -52,7 +65,7 @@ function BlockForm() {
   }
 
   return (
-    <form className="card adm-card adm-form blk-form" onSubmit={submit} aria-label="기간 막기">
+    <form ref={ref} className={`card adm-card adm-form blk-form ${preset ? 'nd-filled' : ''}`} onSubmit={submit} aria-label="기간 막기">
       <div className="adm-card-h">
         <span className="adm-card-icon" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg>
@@ -149,12 +162,17 @@ function BlockItem({ b, now }: { b: RoomBlock; now: Date }) {
 /** 관리자 "기간 막기" 탭: 막기 + 목록(겹친 예약 확인·취소, 풀기) */
 export function AdminBlocks() {
   const { blocks } = useRoomBlocks()
+  // 공지 막기안 → 양식 채우기. 누를 때마다 양식을 새로 그려 값이 들어가게(seq를 key로)
+  const [preset, setPreset] = useState<{ seq: number; p: Preset } | null>(null)
   const now = new Date()
   const active = blocks.filter((b) => isActive(b, now))
   const past = blocks.filter((b) => !isActive(b, now))
   return (
     <section className="blk-wrap" aria-label="기간 막기">
-      <BlockForm />
+      <div className="blk-main">
+        <NoticeDraftCard onEdit={(row, d) => setPreset((x) => ({ seq: (x?.seq ?? 0) + 1, p: { ...row, reason: d.reason, memo: d.memo } }))} />
+        <BlockForm key={preset?.seq ?? 0} preset={preset?.p} />
+      </div>
       <div className="blk-side">
       <h2 className="blk-h">막힌 기간 <span className="adm-chip-n">{active.length}</span></h2>
       {active.length === 0 && (
