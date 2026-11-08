@@ -175,7 +175,10 @@ export default function Showcase() {
   const [playing, setPlaying] = useState(() => !reduced())
   const n = scenes.length
 
-  useEffect(() => { setI(0) }, [story.id])
+  // 이야기를 바꾸면 그 렌더에서 바로 첫 장면으로 (effect로 하면 한 번은 옛 번호로 그려져 장면 수가 다를 때 깨짐)
+  const [shownId, setShownId] = useState(story.id)
+  if (shownId !== story.id) { setShownId(story.id); setI(0) }
+  const at = shownId === story.id ? i : 0
   useEffect(() => {
     if (!playing) return
     const t = setTimeout(() => setI((x) => step(x, n, 1)), SCENE_MS)
@@ -185,13 +188,24 @@ export default function Showcase() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') setI((x) => step(x, n, 1))
       else if (e.key === 'ArrowLeft') setI((x) => step(x, n, -1))
-      else if (e.key === ' ') { e.preventDefault(); setPlaying((p) => !p) }
+      // 버튼·탭에 초점이 있으면 스페이스는 그 버튼을 누르는 키라 건드리지 않음
+      else if (e.key === ' ' && !(e.target instanceof Element && e.target.closest('button, a, input, textarea, select, [role="tab"]'))) {
+        e.preventDefault(); setPlaying((p) => !p)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [n])
+  // 보는 중에 '동작 줄이기'를 켜면 멈춤 (끄더라도 저절로 다시 돌리지는 않음)
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    const onChange = () => { if (mq.matches) setPlaying(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
-  const scene = story.scenes[i]
+  const scene = story.scenes[at]
   return (
     <main className="sc-page">
       <header className="sc-head">
@@ -213,18 +227,18 @@ export default function Showcase() {
       <p className="sc-pitch">{story.pitch}</p>
 
       <div className="sc-stage">
-        <div className="sc-caption" key={`${story.id}-${i}-c`} aria-live="polite">
+        <div className="sc-caption" key={`${story.id}-${at}-c`} aria-live="polite">
           <span className="sc-time">{scene.time}</span>
           <p>{scene.caption}</p>
         </div>
         <div className="sc-phone">
           <div className="sc-notch" aria-hidden="true" />
-          <div className="sc-screen" key={`${story.id}-${i}`}>{scenes[i]()}</div>
+          <div className="sc-screen" key={`${story.id}-${at}`}>{scenes[at]()}</div>
         </div>
         <div className="sc-dots" role="group" aria-label="장면">
           {story.scenes.map((s, j) => (
-            <button key={j} type="button" aria-label={`${j + 1}번 장면: ${s.caption}`} aria-current={j === i ? 'step' : undefined}
-              className={j === i ? `on ${playing ? 'run' : ''}` : j < i ? 'past' : ''} style={{ '--ms': `${SCENE_MS}ms` } as CSSProperties}
+            <button key={j} type="button" aria-label={`${j + 1}번 장면: ${s.caption}`} aria-current={j === at ? 'step' : undefined}
+              className={j === at ? `on ${playing ? 'run' : ''}` : j < at ? 'past' : ''} style={{ '--ms': `${SCENE_MS}ms` } as CSSProperties}
               onClick={() => setI(j)}><i /></button>
           ))}
         </div>
