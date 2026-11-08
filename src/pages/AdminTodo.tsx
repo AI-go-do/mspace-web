@@ -52,11 +52,11 @@ export function useTodoCounts(): TodoCounts {
 
 type Filter = 'all' | 'reports' | 'ai'
 
-export function AdminTodo({ onForceCheckout }: { onForceCheckout: (reservationId: number) => void }) {
+/** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게, 메뉴 배지와 칩 숫자가 늘 같게) */
+export function AdminTodo({ counts, onForceCheckout }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void }) {
   const [filter, setFilter] = useState<Filter>('all')
   const { state } = useApprentice()
   const ai = state.inbox.filter(inTodo)
-  const counts = useTodoCounts()
   const FILTERS: { id: Filter; label: string; n: number }[] = [
     { id: 'all', label: '전체', n: counts.total },
     { id: 'reports', label: '신고 판정', n: counts.reports },
