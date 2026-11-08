@@ -42,7 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   }, [status])
 
-  useEffect(() => onSessionEnd(() => setStatus('out')), [])
+  // 로그인이 끝나면(로그아웃·refresh 401) 바로 로그인 화면으로. 단, 앱을 열고 확인하는 중에는 위의 첫 refresh가
+  // 최소 로딩 시간 뒤에 'out'으로 바꾸므로 여기서는 기다린다(빠른 401에 로딩 화면이 깜빡이고 사라지지 않게)
+  useEffect(() => onSessionEnd(() => setStatus((s) => (s === 'checking' ? s : 'out'))), [])
 
   const signedIn = useCallback(() => setStatus('in'), [])
   const logout = useCallback(() => apiLogout(), [])
