@@ -166,8 +166,9 @@ export function undoAutoDone(id: string): void {
   const before = trainee(s, d.kind)
   const { next, result } = undoScore(before)
   // 같은 일을 두 번 되돌리면 이미 레벨 1이라 연속 기록만 0이 된다
+  const after = actsAlone(next) ? '아직 먼저 처리하지만 연속 기록은 0부터예요' : '다음부터 다시 먼저 물어봐요'
   const text = result === 'down'
-    ? `되돌렸어요 · ${next.name} 레벨 ${before.level} → ${next.level}. 다음부터 다시 먼저 물어봐요`
+    ? `되돌렸어요 · ${next.name} 레벨 ${before.level} → ${next.level}. ${after}`
     : `되돌렸어요 · ${next.name} 연속 기록이 0이 됐어요. 이미 레벨 ${next.level}이라 계속 먼저 물어봐요`
   set({
     ...s,
