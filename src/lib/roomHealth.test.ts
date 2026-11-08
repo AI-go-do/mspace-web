@@ -203,4 +203,15 @@ describe('isRoomsEnvironment (API 응답 검사)', () => {
     const { temperatureC: _t, ...noTemp } = env.rooms[0]
     expect(isRoomsEnvironment({ now: env.now, rooms: [noTemp] })).toBe(false)
   })
+
+  it('current·next가 있으면 시각·인원을 확인한다 (null은 된다)', () => {
+    const env = mockEnvironment(now, 10)
+    const r = env.rooms[0]
+    const ok = { reservationId: 1, startAt: '2026-11-08T14:00:00+09:00', endAt: '2026-11-08T16:00:00+09:00', people: 4 }
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: null, next: null }] })).toBe(true)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: ok }] })).toBe(true)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: { ...ok, endAt: '언젠가' } }] })).toBe(false)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, current: { startAt: ok.startAt } }] })).toBe(false)
+    expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, next: { startAt: ok.startAt } }] })).toBe(false)
+  })
 })

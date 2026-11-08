@@ -60,7 +60,8 @@ function load(): ApprenticeState {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const s = JSON.parse(raw) as ApprenticeState
-      if (isState(s)) return s
+      // 가짜 방에서 만든 처리안(p…)은 실제 센서 모드에서 되살리지 않는다. 처음 넣어 둔 예시(s…)만 남긴다
+      if (isState(s)) return ENV_SOURCE === 'mock' ? s : { ...s, inbox: s.inbox.filter((p) => !p.id.startsWith('p')) }
     }
   } catch {
     /* 저장소 없음·깨짐: 처음부터 */

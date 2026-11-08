@@ -49,6 +49,18 @@ export interface RoomsEnvironment {
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
 const isNumOrNull = (v: unknown) => v === null || isNum(v)
+const isDate = (v: unknown) => typeof v === 'string' && Number.isFinite(new Date(v).getTime())
+/** current·next는 없거나 null이어도 되고, 있으면 시각·인원이 맞아야 한다 */
+const isCurrent = (v: unknown) => {
+  if (v === undefined || v === null) return true
+  const c = v as Record<string, unknown>
+  return typeof v === 'object' && isNum(c.reservationId) && isDate(c.startAt) && isDate(c.endAt) && isNum(c.people)
+}
+const isNext = (v: unknown) => {
+  if (v === undefined || v === null) return true
+  const n = v as Record<string, unknown>
+  return typeof v === 'object' && isDate(n.startAt) && isNum(n.people)
+}
 
 /** 화면이 읽는 칸이 다 있는지. current·next·forecast만 빠져도 된다 */
 export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
@@ -62,7 +74,8 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && (r.co2 === null || (!!r.co2 && isNum(r.co2.ppm)))
     && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct)
     && Array.isArray(r.series) && r.series.every((p) => !!p && typeof p.at === 'string' && isNumOrNull(p.ppm))
-    && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isNum(f.ppm)))))
+    && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isNum(f.ppm))))
+    && isCurrent(r.current) && isNext(r.next))
 }
 
 /** 'api'로 빌드했을 때만 core를 부른다. 그 밖에는 가짜 값 */
