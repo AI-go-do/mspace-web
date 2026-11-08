@@ -41,3 +41,14 @@ describe('통계 숫자 모양 (core #74)', () => {
     expect(daysBefore('2026-01-01', 1)).toBe('2025-12-31')
   })
 })
+
+describe('알림 효과 문구 (core #93)', () => {
+  it('결과가 난 알림 수와 그중 효과 본 수, 비율', async () => {
+    const { alertEffectLabel } = await import('./admin')
+    expect(alertEffectLabel(9, 12, 0.75)).toBe('12건 중 9건 (75%)')
+  })
+  it('알림이 없었으면 0%가 아니라 아직 없다고', async () => {
+    const { alertEffectLabel } = await import('./admin')
+    expect(alertEffectLabel(0, 0, null)).toBe('아직 없어요')
+  })
+})

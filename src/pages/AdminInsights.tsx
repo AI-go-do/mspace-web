@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, daysBefore, getPenalties, getSourceCounts, getUsageStats, pct, SUSPENSION_REASON, SUSPENSION_SCOPE,
+  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getUsageStats, pct, SUSPENSION_REASON, SUSPENSION_SCOPE,
   WARNING_REASON, type Penalties, type SourceCounts, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
@@ -222,6 +222,17 @@ export function AdminStats() {
             </dl>
             <span className="muted admin-small">재실은 센서가 상태가 바뀔 때만 기록해서 근삿값이에요.</span>
           </section>
+
+          {t.alerts && (
+            <section className="card admin-sec">
+              <h2>알림 효과</h2>
+              <dl className="stat-dl">
+                <div><dt>노쇼 직전 알림 뒤 입실</dt><dd>{alertEffectLabel(t.alerts.noShowCheckedIn, t.alerts.noShowWarned, t.alerts.noShowCheckedInRate)}</dd></div>
+                <div><dt>환기 알림 뒤 {t.alerts.resolvedWithinMinutes}분 안 CO2 내려감</dt><dd>{alertEffectLabel(t.alerts.ventilationResolved, t.alerts.ventilationChecked, t.alerts.ventilationResolvedRate)}</dd></div>
+              </dl>
+              <span className="muted admin-small">결과가 난 알림만 세요. 입실 마감이나 확인 시간이 아직 안 지난 알림은 빠져요.</span>
+            </section>
+          )}
         </>
       )}
     </section>
