@@ -69,6 +69,20 @@ describe('proposalsFromRooms', () => {
     expect(kinds).toContain('overtime:2')
   })
 
+  it('더운 빈 방이라도 다음 예약이 없으면 다음 팀 준비 안내를 만들지 않는다', () => {
+    const base = views[0]
+    const hotEmpty = {
+      ...base,
+      flags: { co2Soon: false, co2Over: false, hot: true, dry: false, overtime: false, unbooked: false, offline: false, stuck: false },
+      status: { text: '비어 있음', tone: 'empty' as const },
+      temperatureC: 28.4,
+    }
+    const none = proposalsFromRooms([{ ...hotEmpty, slot: '다음 예약 없음', nextAt: null }], now)
+    expect(none.some((p) => p.kind === 'prep')).toBe(false)
+    const next = proposalsFromRooms([{ ...hotEmpty, slot: '다음 16:00 (예약 4명)', nextAt: '2026-11-08T16:00:00+09:00' }], now)
+    expect(next.filter((p) => p.kind === 'prep').map((p) => p.title)).toEqual(['16:00 (예약 4명) 예약 전에 방이 28.4°C예요'])
+  })
+
   it('근거는 3줄 안이고 방 안 사람 수(Q-17)를 넣지 않는다', () => {
     for (const p of proposalsFromRooms(views, now)) {
       expect(p.reasons.length).toBeLessThanOrEqual(3)
