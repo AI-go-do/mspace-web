@@ -152,6 +152,29 @@ export interface Usage {
     co2Readings: number; co2AvgPpm: number | null; co2MaxPpm: number | null; co2OverRate: number | null; thresholdPpm: number
     ventilationAlerts: number; occupiedMinutes: number; occupiedWithoutReservationMinutes: number
   }
+  /** 알림 효과 (core #93). 그 전 core(시연 서버 main 11-06 판)는 이 값을 안 줘서 선택 */
+  alerts?: UsageAlerts
+}
+
+/**
+ * 알림이 실제로 도움이 됐는지 (core #93, FR-NTF-104·FR-DEV-104).
+ * 노쇼 직전 알림을 받은 예약 중 결과가 난 것 → 그중 입실, 환기 알림 중 확인 시간이 지난 것 → 그중 CO2가 기준 아래로.
+ * 비율은 0–1, 분모가 0이면 null
+ */
+export interface UsageAlerts {
+  noShowWarned: number
+  noShowCheckedIn: number
+  noShowCheckedInRate: number | null
+  ventilationChecked: number
+  ventilationResolved: number
+  ventilationResolvedRate: number | null
+  resolvedWithinMinutes: number
+}
+
+/** "알림 12건 중 9건 (75%)". 알림이 없었으면 "아직 없어요" */
+export function alertEffectLabel(hit: number, total: number, rate: number | null): string {
+  if (total <= 0) return '아직 없어요'
+  return `${total}건 중 ${hit}건 (${pct(rate)})`
 }
 
 /** GET /api/stats/usage. 날짜는 서울 기준, to 포함, 최대 92일 */
