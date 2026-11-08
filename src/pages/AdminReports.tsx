@@ -48,7 +48,8 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
     return () => { active.current?.abort(); active.current = null }
   }, [load])
 
-  const judged = () => { load(); onJudged?.() }
+  // 판정이 끝나면 숫자(메뉴 배지)는 바로, 목록은 도장이 찍힌 뒤 카드가 다시 받는다
+  const judged = () => onJudged?.()
 
   return (
     <div className="rep-wrap">
@@ -69,7 +70,7 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
       <ul className="todo-list">
         {list?.map((r, i) => (
           <ReportCard key={`${r.id}-${r.verdict}`} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
-            onJudged={judged} onForceCheckout={onForceCheckout} />
+            onJudged={judged} onReload={load} onForceCheckout={onForceCheckout} />
         ))}
       </ul>
     </div>
@@ -77,20 +78,27 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
 }
 
 /** 신고 한 건. 펼치면 증거 사진과 판정 버튼. 판정하면 도장이 찍히고 목록에서 빠진다 */
-function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
+function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout }: {
   r: AdminReport
   i: number
   open: boolean
   onToggle: () => void
+  /** 판정 요청이 끝났다(성공·실패 모두). 카드가 이미 사라졌어도 부른다: 할 일 숫자를 다시 세게 */
   onJudged: () => void
+  /** 목록을 다시 받는다. 카드가 화면에 있을 때만 부른다(필터를 바꾼 뒤 옛 필터로 덮어쓰지 않게) */
+  onReload: () => void
   onForceCheckout: (reservationId: number) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [stamp, setStamp] = useState<string | null>(null)
-  // 도장이 찍히는 동안 카드가 사라지면(필터·칸 바꿈) 늦게 목록을 다시 부르지 않게 지운다
+  // 카드가 사라지면(필터·칸 바꿈) 도장 타이머를 지우고, 늦게 끝난 판정도 목록을 다시 부르지 않는다
+  const alive = useRef(true)
   const stampTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(stampTimer.current), [])
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false; clearTimeout(stampTimer.current) }
+  }, [])
   const judgeable = r.verdict === 'OPEN' && r.category !== 'NOISE'
   const camera = r.reporterReservationId === null
 
@@ -101,12 +109,16 @@ function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
     setMsg(null)
     try {
       await judgeReport(r.id, opt.verdict, memberId)
+      onJudged()
+      if (!alive.current) return
       // 도장이 찍히는 모습을 잠깐 보여 주고 목록을 새로 받는다
       setStamp(opt.label)
-      stampTimer.current = setTimeout(onJudged, STAMP_MS)
+      stampTimer.current = setTimeout(onReload, STAMP_MS)
     } catch (e) {
-      setMsg(adminErrorMessage(e))
       onJudged()
+      if (!alive.current) return
+      setMsg(adminErrorMessage(e))
+      onReload()
     } finally {
       setBusy(false)
     }
