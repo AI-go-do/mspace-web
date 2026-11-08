@@ -6,6 +6,7 @@ import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule
 import Spacey from '../components/Spacey'
 import { useAuth } from '../auth/AuthProvider'
 import { hasAgreed } from '../content/rules'
+import { demoOn } from '../lib/demo'
 import { timeRange, whenLabel } from '../lib/format'
 import { useIsAdmin } from '../lib/useIsAdmin'
 import { useMemberId } from '../lib/useMemberId'
@@ -172,6 +173,11 @@ function MyPageFor({ member }: { member: number | null }) {
         <Link to="/rules" className="my-row">
           <span className="my-row-text"><b>이용 규칙</b></span><Chevron />
         </Link>
+        {demoOn() && (
+          <Link to="/showcase" className="my-row">
+            <span className="my-row-text"><b>발표용 미리보기</b><span className="muted">학생 편 변호사 · 답 못 한 질문 수확</span></span><Chevron />
+          </Link>
+        )}
         {admin && (
           <Link to="/admin" className="my-row">
             <span className="my-row-text"><b>관리자</b><span className="muted">신고 판정 · 이용 현황</span></span><Chevron />

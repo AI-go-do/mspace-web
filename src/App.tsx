@@ -21,6 +21,7 @@ import ReservationDetail from './pages/ReservationDetail'
 import Report from './pages/Report'
 import Rules from './pages/Rules'
 import Schedule from './pages/Schedule'
+import Showcase from './pages/Showcase'
 import Reserve from './pages/Reserve'
 
 /** 로그인해야 쓰는 화면 */
@@ -32,6 +33,8 @@ export default function App() {
   const { pathname } = useLocation()
   // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
   const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  // 발표용 미리보기는 로그인·알림 바깥에서 띄운다(토큰 새로 받기 요청도, 진짜 알림 팝업도 화면에 끼지 않게)
+  if (pathname === '/showcase') return <div className="app app-full"><Showcase /></div>
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''} ${pathname === '/admin' ? 'app-wide' : ''}`}>

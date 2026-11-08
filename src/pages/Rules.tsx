@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getMyPenalty, penaltySummary, type MyPenalty } from '../api/penalties'
 import { useAuth } from '../auth/AuthProvider'
+import { PenaltyHistory } from '../components/PenaltyHistory'
 import { BOOKING_FACTS, ROOM_RULES } from '../content/rules'
+import { demoOn } from '../lib/demo'
 import { useMemberId } from '../lib/useMemberId'
 import './Rules.css'
 
 /**
  * FR-WEB-003 이용 규칙 (시안 RulesPage). 로그인 전에도 볼 수 있다.
  * 로그인했으면 위쪽에 "내 경고 N회"(GET /api/penalties/me, core #92)를 보여 준다.
+ * ?demo=1이면 그 아래에 경고마다 왜 받았는지·근거 기록·해명 쓰기(벌점 해명 카드, 웹 화면만)를 예시로 보여 준다.
  */
 export default function Rules() {
   const navigate = useNavigate()
@@ -24,6 +27,7 @@ export default function Rules() {
       </header>
 
       <MyPenaltyCard />
+      <MyWarnings />
 
       <section className="card rules-sec" aria-labelledby="booking-title">
         <h2 id="booking-title">예약 규칙</h2>
@@ -69,6 +73,13 @@ function MyPenaltyCard() {
   const member = useMemberId()
   if (status !== 'in' || member === null) return null
   return <PenaltyFor key={member} member={member} />
+}
+
+/** 벌점 해명 카드: core에 경고 내역 API가 없어 예시 화면(?demo=1)에서 로그인했을 때만 */
+function MyWarnings() {
+  const { status } = useAuth()
+  if (status !== 'in' || !demoOn()) return null
+  return <PenaltyHistory />
 }
 
 /** 한 회원의 경고 카드: 받는 중 → 결과, 실패하면 [다시 받기]. 화면을 떠나면 늦게 온 답은 버린다 */
