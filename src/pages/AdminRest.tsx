@@ -8,7 +8,8 @@ import { demoBrokenReports as demoReports, proposeRests, REST_RULES, type RestPr
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
 import { useMemberId } from '../lib/useMemberId'
-import { onReportsChanged, POLL_MS } from './AdminTodo'
+import { onReportsChanged } from '../lib/reportsBus'
+import { POLL_MS } from './AdminTodo'
 import './AdminRest.css'
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `방 ${id}`

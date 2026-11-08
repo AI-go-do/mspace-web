@@ -6,6 +6,7 @@ import {
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
 import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
+import { onReportsChanged, reportsChanged } from '../lib/reportsBus'
 import { seoulClock } from '../lib/time'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -48,7 +49,19 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
     return () => { active.current?.abort(); active.current = null }
   }, [load])
 
-  const judged = () => { load(); onJudged?.() }
+  // 판정이 끝나면 숫자(메뉴 배지)는 바로, 목록은 도장이 찍힐 동안 기다렸다가 다시 받는다.
+  // 기다림은 카드가 아니라 목록이 들고, 그때의 필터로 받는다(카드가 먼저 사라지거나 필터를 바꿔도 맞게)
+  const judged = () => { reportsChanged(); onJudged?.() }
+  const loadRef = useRef(load)
+  useEffect(() => { loadRef.current = load }, [load])
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined
+    const stop = onReportsChanged(() => {
+      clearTimeout(t)
+      t = setTimeout(() => loadRef.current(), STAMP_MS)
+    })
+    return () => { stop(); clearTimeout(t) }
+  }, [])
 
   return (
     <div className="rep-wrap">
@@ -68,8 +81,8 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
       )}
       <ul className="todo-list">
         {list?.map((r, i) => (
-          <ReportCard key={`${r.id}-${r.verdict}`} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
-            onJudged={judged} onForceCheckout={onForceCheckout} />
+          <ReportCard key={r.id} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
+            onJudged={judged} onReload={load} onForceCheckout={onForceCheckout} />
         ))}
       </ul>
     </div>
@@ -77,17 +90,35 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
 }
 
 /** 신고 한 건. 펼치면 증거 사진과 판정 버튼. 판정하면 도장이 찍히고 목록에서 빠진다 */
-function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
+function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout }: {
   r: AdminReport
   i: number
   open: boolean
   onToggle: () => void
+  /**
+   * 판정 요청이 끝났다(성공·실패 모두). 카드가 이미 사라졌어도 부른다.
+   * 할 일 숫자가 다시 세어지고, 떠 있는 신고 목록은 도장이 찍힐 동안 기다렸다가 새로 받는다
+   */
   onJudged: () => void
+  /** 목록을 바로 다시 받는다(실패했을 때). 카드가 화면에 있을 때만 부른다 */
+  onReload: () => void
   onForceCheckout: (reservationId: number) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [stamp, setStamp] = useState<string | null>(null)
+  // 판정 결과가 바뀌어 다시 받으면 도장만 지운다(카드는 그대로라 "이미 판정됨" 같은 안내는 남는다)
+  const [seenVerdict, setSeenVerdict] = useState(r.verdict)
+  if (seenVerdict !== r.verdict) {
+    setSeenVerdict(r.verdict)
+    setStamp(null)
+  }
+  // 카드가 사라진 뒤(필터·칸 바꿈) 늦게 끝난 판정은 도장·안내를 그리지 않는다
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false }
+  }, [])
   const judgeable = r.verdict === 'OPEN' && r.category !== 'NOISE'
   const camera = r.reporterReservationId === null
 
@@ -98,12 +129,14 @@ function ReportCard({ r, i, open, onToggle, onJudged, onForceCheckout }: {
     setMsg(null)
     try {
       await judgeReport(r.id, opt.verdict, memberId)
-      // 도장이 찍히는 모습을 잠깐 보여 주고 목록을 새로 받는다
-      setStamp(opt.label)
-      setTimeout(onJudged, STAMP_MS)
-    } catch (e) {
-      setMsg(adminErrorMessage(e))
       onJudged()
+      // 도장이 찍히는 모습을 잠깐 보여 준다(그동안 목록이 기다렸다가 새로 받는다)
+      if (alive.current) setStamp(opt.label)
+    } catch (e) {
+      onJudged()
+      if (!alive.current) return
+      setMsg(adminErrorMessage(e))
+      onReload()
     } finally {
       setBusy(false)
     }
@@ -249,7 +282,9 @@ export function ForceCheckoutForm({ initialId, focus = false }: { initialId: str
   // 신고 카드의 [강제 퇴실로]에서 왔으면 이 카드로 내려와 번호 칸을 바로 쓸 수 있게
   useEffect(() => {
     if (!focus) return
-    box.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 움직임 줄이기를 켠 사람에게는 부드럽게 굴리지 않고 바로 옮긴다
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    box.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
     box.current?.querySelector<HTMLInputElement>('#force-id')?.focus({ preventScroll: true })
   }, [focus])
 
