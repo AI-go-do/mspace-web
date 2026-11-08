@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { currentMemberId } from '../api/client'
+import { onReportsChanged } from '../lib/reportsBus'
 import { useMemberId } from '../lib/useMemberId'
 import { getReports } from '../api/admin'
 import { useApprentice } from '../api/apprentice'
@@ -13,9 +14,6 @@ import { ReportList } from './AdminReports'
  */
 export const inTodo = (p: Proposal) => p.kind !== 'report'
 
-/** 신고 판정이 끝나면 숫자를 다시 센다 */
-const listeners = new Set<() => void>()
-export const reportsChanged = () => listeners.forEach((fn) => fn())
 
 const POLL_MS = 60_000
 
@@ -51,13 +49,17 @@ export function useTodoCounts(): TodoCounts {
     }
     load()
     const t = setInterval(() => { if (document.visibilityState === 'visible') load() }, POLL_MS)
-    listeners.add(load)
-    return () => { stale = true; clearInterval(t); ctrl?.abort(); listeners.delete(load) }
+    // 신고 판정이 끝나면 숫자를 다시 센다
+    const stop = onReportsChanged(load)
+    return () => { stale = true; clearInterval(t); ctrl?.abort(); stop() }
   }, [member])
   const mineNow = res.member === member && member !== null
   const reports = mineNow ? res.n : null
   const failed = mineNow && res.failed
-  return { reports: reports ?? 0, reportsKnown: reports !== null && !failed, reportsFailed: failed, ai, total: (reports ?? 0) + ai }
+  const known = reports !== null && !failed
+  // 확인하지 못한 신고 수는 합계에 넣지 않는다(옛 숫자를 확인된 것처럼 보이지 않게). 합계는 그때 "AI 제안 수 이상"
+  const shown = known ? reports : 0
+  return { reports: shown, reportsKnown: known, reportsFailed: failed, ai, total: shown + ai }
 }
 
 type Filter = 'all' | 'reports' | 'ai'
@@ -67,9 +69,11 @@ export function AdminTodo({ counts, onForceCheckout }: { counts: TodoCounts; onF
   const [filter, setFilter] = useState<Filter>('all')
   const { state } = useApprentice()
   const ai = state.inbox.filter(inTodo)
-  const FILTERS: { id: Filter; label: string; n: number }[] = [
-    { id: 'all', label: '전체', n: counts.total },
-    { id: 'reports', label: '신고 판정', n: counts.reports },
+  // 신고 수를 확인하지 못했으면 신고 칩은 "?", 전체 칩은 "N+"
+  const unknown = !counts.reportsKnown
+  const FILTERS: { id: Filter; label: string; n: number | string }[] = [
+    { id: 'all', label: '전체', n: unknown ? `${counts.ai}+` : counts.total },
+    { id: 'reports', label: '신고 판정', n: unknown ? '?' : counts.reports },
     { id: 'ai', label: 'AI 제안', n: counts.ai },
   ]
 
@@ -86,7 +90,7 @@ export function AdminTodo({ counts, onForceCheckout }: { counts: TodoCounts; onF
         {filter !== 'ai' && (
           <section className="todo-col" aria-labelledby="todo-rep-h">
             <h2 id="todo-rep-h" className="todo-h"><span className="todo-h-dot d-rep" aria-hidden="true" />신고 판정 <small>학생·방 카메라 신고</small></h2>
-            <ReportList onForceCheckout={onForceCheckout} onJudged={reportsChanged} />
+            <ReportList onForceCheckout={onForceCheckout} />
           </section>
         )}
         {filter !== 'reports' && (

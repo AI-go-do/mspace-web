@@ -6,6 +6,7 @@ import {
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
 import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
+import { onReportsChanged, reportsChanged } from '../lib/reportsBus'
 import { seoulClock } from '../lib/time'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -48,8 +49,19 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
     return () => { active.current?.abort(); active.current = null }
   }, [load])
 
-  // 판정이 끝나면 숫자(메뉴 배지)는 바로, 목록은 도장이 찍힌 뒤 카드가 다시 받는다
-  const judged = () => onJudged?.()
+  // 판정이 끝나면 숫자(메뉴 배지)는 바로, 목록은 도장이 찍힐 동안 기다렸다가 다시 받는다.
+  // 기다림은 카드가 아니라 목록이 들고, 그때의 필터로 받는다(카드가 먼저 사라지거나 필터를 바꿔도 맞게)
+  const judged = () => { reportsChanged(); onJudged?.() }
+  const loadRef = useRef(load)
+  useEffect(() => { loadRef.current = load }, [load])
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined
+    const stop = onReportsChanged(() => {
+      clearTimeout(t)
+      t = setTimeout(() => loadRef.current(), STAMP_MS)
+    })
+    return () => { stop(); clearTimeout(t) }
+  }, [])
 
   return (
     <div className="rep-wrap">
@@ -83,9 +95,12 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
   i: number
   open: boolean
   onToggle: () => void
-  /** 판정 요청이 끝났다(성공·실패 모두). 카드가 이미 사라졌어도 부른다: 할 일 숫자를 다시 세게 */
+  /**
+   * 판정 요청이 끝났다(성공·실패 모두). 카드가 이미 사라졌어도 부른다.
+   * 할 일 숫자가 다시 세어지고, 떠 있는 신고 목록은 도장이 찍힐 동안 기다렸다가 새로 받는다
+   */
   onJudged: () => void
-  /** 목록을 다시 받는다. 카드가 화면에 있을 때만 부른다(필터를 바꾼 뒤 옛 필터로 덮어쓰지 않게) */
+  /** 목록을 바로 다시 받는다(실패했을 때). 카드가 화면에 있을 때만 부른다 */
   onReload: () => void
   onForceCheckout: (reservationId: number) => void
 }) {
@@ -98,12 +113,11 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
     setSeenVerdict(r.verdict)
     setStamp(null)
   }
-  // 카드가 사라지면(필터·칸 바꿈) 도장 타이머를 지우고, 늦게 끝난 판정도 목록을 다시 부르지 않는다
+  // 카드가 사라진 뒤(필터·칸 바꿈) 늦게 끝난 판정은 도장·안내를 그리지 않는다
   const alive = useRef(true)
-  const stampTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     alive.current = true
-    return () => { alive.current = false; clearTimeout(stampTimer.current) }
+    return () => { alive.current = false }
   }, [])
   const judgeable = r.verdict === 'OPEN' && r.category !== 'NOISE'
   const camera = r.reporterReservationId === null
@@ -116,10 +130,8 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
     try {
       await judgeReport(r.id, opt.verdict, memberId)
       onJudged()
-      if (!alive.current) return
-      // 도장이 찍히는 모습을 잠깐 보여 주고 목록을 새로 받는다
-      setStamp(opt.label)
-      stampTimer.current = setTimeout(onReload, STAMP_MS)
+      // 도장이 찍히는 모습을 잠깐 보여 준다(그동안 목록이 기다렸다가 새로 받는다)
+      if (alive.current) setStamp(opt.label)
     } catch (e) {
       onJudged()
       if (!alive.current) return
