@@ -43,9 +43,10 @@ export default function Reserve() {
   const [waitError, setWaitError] = useState<string | null>(null)
 
   const [date, setDate] = useState(() => (suggest.current && chips.some((c) => c.date === suggest.current!.date) ? suggest.current.date : today))
-  const [room, setRoom] = useState<RoomSlots | null>(null)
+  // 서버에서 받은 그대로의 시간표. 넘겨받은 칸을 빈 칸으로 여는 것은 받을 시간 안에만 아래에서 한다
+  const [loadedRoom, setRoom] = useState<RoomSlots | null>(null)
   // 자정 넘김용 다음 날 앞쪽 칸(끝으로만 쓴다). 못 받으면 빈 배열이라 자정을 넘겨 고를 수 없다
-  const [nextSlots, setNextSlots] = useState<Slot[]>([])
+  const [loadedNext, setNextSlots] = useState<Slot[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pick, setPick] = useState<Pick | null>(null)
   const [step, setStep] = useState<Step>('time')
@@ -53,6 +54,11 @@ export default function Reserve() {
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
   const [now, setNow] = useState(() => new Date())
+  // 넘겨받은 칸은 받을 시간 안에만 빈 칸으로 연다. 시간이 지나면 다시 예약됨으로 보인다(이미 받은 시간표도 바로)
+  const tick = useNow(relay ? 1000 : 60_000)
+  const offerLive = !!relay && relay.roomId === roomId && Date.parse(relay.expiresAt) > tick.getTime()
+  const room = useMemo(() => (offerLive ? withOffer(loadedRoom, relay) : loadedRoom), [offerLive, loadedRoom, relay])
+  const nextSlots = useMemo(() => (offerLive ? openOfferSlots(loadedNext, relay) : loadedNext), [offerLive, loadedNext, relay])
 
   // 골라 둔 칸이 화면 아래에 있으면 그리로 내려 보여 준다(한 번만)
   const scrollToPick = useRef(false)
@@ -77,15 +83,17 @@ export default function Reserve() {
     const next = lastDay
       ? Promise.resolve(freeNextDaySlots(nextDate))
       : getAvailability(nextDate)
-        .then((r) => openOfferSlots(r.data.rooms.find((x) => x.roomId === roomId)?.slots ?? [], relay?.roomId === roomId ? relay : null).slice(0, MAX_SLOTS - 1))
+        .then((r) => (r.data.rooms.find((x) => x.roomId === roomId)?.slots ?? []).slice(0, MAX_SLOTS - 1))
         .catch(() => [])
     next.then((n) => { if (seq === loadSeq.current) setNextSlots(n) })
     return getAvailability(date)
       .then((r) => {
         if (seq !== loadSeq.current) return
-        const found = withOffer(r.data.rooms.find((x) => x.roomId === roomId) ?? null, relay)
-        setRoom(found)
-        if (!found) setLoadError('없는 방이에요')
+        const raw = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+        setRoom(raw)
+        if (!raw) setLoadError('없는 방이에요')
+        // 골라 두기 검사는 넘겨받은 칸을 연 시간표로 한다
+        const found = withOffer(raw, relay)
         const s = suggest.current
         if (found && s && s.date === date) {
           suggest.current = null
@@ -103,7 +111,7 @@ export default function Reserve() {
             // 자정을 넘기는 칸(23:00–01:00, 릴레이로 넘겨받은 칸)은 다음 날 앞쪽 칸까지 받은 뒤 고른다.
             // 그 사이 학생이 직접 고른 칸이 있으면 덮지 않는다
             next.then((n) => {
-              if (seq === loadSeq.current && fits([...found.slots, ...n])) setPick((p) => p ?? { start: s.start, len: s.len })
+              if (seq === loadSeq.current && fits([...found.slots, ...openOfferSlots(n, relay?.roomId === roomId ? relay : null)])) setPick((p) => p ?? { start: s.start, len: s.len })
             })
           }
         }
@@ -134,9 +142,9 @@ export default function Reserve() {
       getAvailability(date, ctrl.signal)
         .then((r) => {
           if (ctrl.signal.aborted || seq !== loadSeq.current) return
-          const found = withOffer(r.data.rooms.find((x) => x.roomId === roomId) ?? null, relay)
-          setRoom(found)
-          if (!found) setLoadError('없는 방이에요') // 처음 불러오기와 같게
+          const raw = r.data.rooms.find((x) => x.roomId === roomId) ?? null
+          setRoom(raw)
+          if (!raw) setLoadError('없는 방이에요') // 처음 불러오기와 같게
         })
         .catch(() => {})
         .finally(() => {
@@ -174,18 +182,22 @@ export default function Reserve() {
   const lastSent = useRef<{ body: NewReservation; key: string } | null>(null)
 
   // 고른 칸이 넘겨받은 구간 안이면 릴레이 예약이다. 받을 시간은 1초마다 줄고, 지나면 예약 버튼을 막는다
-  const tick = useNow(relay ? 1000 : 60_000)
   const offer = relay ? offerPick(relay) : null
   const viaRelay = !!relay && relay.roomId === roomId && !!offer && !!pick && offer.date === date && pick.start >= offer.start && pick.start + pick.len <= offer.start + offer.len
   const relayLeft = relay ? Date.parse(relay.expiresAt) - tick.getTime() : 0
   const relayExpired = viaRelay && relayLeft <= 0
+  // 넘겨받은 구간에 걸치면서 밖으로 늘린 선택은 릴레이 예약도 보통 예약도 아니라 막는다(넘겨받은 칸 안에서만 고르게)
+  const offerPartial = !!relay && relay.roomId === roomId && !!offer && !!pick && offer.date === date && !viaRelay
+    && pick.start < offer.start + offer.len && offer.start < pick.start + pick.len
   // 예시 화면에서 받기를 끝까지 눌렀을 때 시트
   const [demoDone, setDemoDone] = useState(false)
 
   async function submit(resend?: { body: NewReservation; key: string }) {
     if (!resend && (!pick || !room)) return
     // 넘겨받은 칸의 받을 시간이 지났으면 새로 보내지 않는다(함께 쓸 사람·수칙 단계에 있는 사이 지나도). 같은 내용 다시 보내기는 그대로
-    if (!resend && relayExpired) return
+    if (!resend && (relayExpired || offerPartial)) return
+    // 화면 시계(1초)가 넘어가기 전에 눌러도 받을 시간이 지났으면 보내지 않는다
+    if (!resend && viaRelay && Date.parse(relay!.expiresAt) <= Date.now()) return
     if (busy) return
     setBusy(true)
     try {
@@ -221,7 +233,7 @@ export default function Reserve() {
   }
 
   function reserve() {
-    if (!pick || relayExpired) return
+    if (!pick || relayExpired || offerPartial) return
     if (!countOk) return setStep('members')
     if (!hasAgreed()) return setStep('rules')
     submit()
@@ -365,6 +377,7 @@ export default function Reserve() {
             <div className="rs-bar-row">
               <span className="rs-when">
                 {viaRelay && <span className="rs-relay">{relayExpired ? '받을 시간이 지났어요' : `릴레이로 받은 칸 · ${countdown(relayLeft)} 안에`}</span>}
+                {offerPartial && <span className="rs-relay">넘겨받은 칸 안에서만 고를 수 있어요</span>}
                 <span className="muted">{dayLabel(date)}{pick ? ` · ${lengthLabel(pick.len)}` : ''}</span>
                 <b>{clock}</b>
               </span>
@@ -373,7 +386,7 @@ export default function Reserve() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
               </button>
             </div>
-            <button type="button" className="btn-primary" disabled={!pick || busy || relayExpired} onClick={reserve}>
+            <button type="button" className="btn-primary" disabled={!pick || busy || relayExpired || offerPartial} onClick={reserve}>
               {busy ? '예약하는 중…' : relayExpired ? '다음 사람에게 넘어갔어요' : '예약하기'}
             </button>
           </div>
