@@ -6,12 +6,13 @@
 
 .sc-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 16px; background: var(--white); box-shadow: var(--shadow-1); }
 .sc-tabs button { position: relative; z-index: 1; min-height: var(--touch); border: 0; background: none; font: inherit; font-size: 14px; font-weight: 800; color: var(--navy-70); cursor: pointer; transition: color 0.25s; }
-.sc-tabs button[aria-selected='true'] { color: var(--white); }
+.sc-tabs button[aria-pressed='true'] { color: var(--white); }
 .sc-tabs-glow { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 12px; background: var(--grad-blue); box-shadow: var(--shadow-blue); transform: translateX(calc(var(--i) * 100%)); transition: transform 0.4s var(--ease-spring); }
 .sc-pitch { margin: 0; font-size: 14px; line-height: 1.55; }
 
 .sc-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.sc-caption { align-self: stretch; min-height: 64px; display: flex; gap: 10px; align-items: flex-start; animation: rise-in 0.35s var(--ease-out) backwards; }
+.sc-caption { align-self: stretch; min-height: 64px; }
+.sc-caption-in { display: flex; gap: 10px; align-items: flex-start; animation: rise-in 0.35s var(--ease-out) backwards; }
 .sc-time { flex: none; padding: 4px 10px; border-radius: 10px; background: var(--navy); color: var(--white); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sc-caption p { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.5; }
 

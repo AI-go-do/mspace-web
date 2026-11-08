@@ -183,13 +183,13 @@ export default function Showcase() {
     if (!playing) return
     const t = setTimeout(() => setI((x) => step(x, n, 1)), SCENE_MS)
     return () => clearTimeout(t)
-  }, [playing, i, n])
+  }, [playing, i, n, story.id])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') setI((x) => step(x, n, 1))
       else if (e.key === 'ArrowLeft') setI((x) => step(x, n, -1))
       // 버튼·탭에 초점이 있으면 스페이스는 그 버튼을 누르는 키라 건드리지 않음
-      else if (e.key === ' ' && !(e.target instanceof Element && e.target.closest('button, a, input, textarea, select, [role="tab"]'))) {
+      else if (e.key === ' ' && !(e.target instanceof Element && e.target.closest('button, a, input, textarea, select'))) {
         e.preventDefault(); setPlaying((p) => !p)
       }
     }
@@ -218,18 +218,21 @@ export default function Showcase() {
         </div>
       </header>
 
-      <div className="sc-tabs" role="tablist" aria-label="아이디어" style={{ '--i': STORIES.indexOf(story) } as CSSProperties}>
+      <div className="sc-tabs" role="group" aria-label="아이디어 고르기" style={{ '--i': STORIES.indexOf(story) } as CSSProperties}>
         <span className="sc-tabs-glow" aria-hidden="true" />
         {STORIES.map((s) => (
-          <button key={s.id} type="button" role="tab" aria-selected={s.id === story.id} onClick={() => setParams({ story: s.id }, { replace: true })}>{s.title}</button>
+          <button key={s.id} type="button" aria-pressed={s.id === story.id} onClick={() => setParams({ story: s.id }, { replace: true })}>{s.title}</button>
         ))}
       </div>
       <p className="sc-pitch">{story.pitch}</p>
 
       <div className="sc-stage">
-        <div className="sc-caption" key={`${story.id}-${at}-c`} aria-live="polite">
-          <span className="sc-time">{scene.time}</span>
-          <p>{scene.caption}</p>
+        {/* 읽어 주기 칸은 그대로 두고 안쪽만 바꿔 끼운다(칸째 바뀌면 화면 읽기 프로그램이 새 설명을 놓침) */}
+        <div className="sc-caption" aria-live="polite">
+          <div className="sc-caption-in" key={`${story.id}-${at}-c`}>
+            <span className="sc-time">{scene.time}</span>
+            <p>{scene.caption}</p>
+          </div>
         </div>
         <div className="sc-phone">
           <div className="sc-notch" aria-hidden="true" />
