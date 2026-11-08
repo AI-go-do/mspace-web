@@ -176,7 +176,7 @@ export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: (
         <Kpi label="주의" value={data ? warn : null} tone={warn ? 'yellow' : ''} hint="환기·더움·시간 넘김" />
         <Kpi label="확인 필요" value={data ? off : null} tone={off ? 'navy' : ''} hint="센서 멈춤·끊김" />
         <Kpi label="할 일" value={todo.total} tone={todo.total ? 'todo' : ''} onClick={onOpenTodo}
-          hint={!todo.reportsKnown ? `신고 수를 아직 못 받았어요 · AI 제안 ${todo.ai}`
+          hint={!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
             : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'} />
       </div>
       <div className="now-bar">

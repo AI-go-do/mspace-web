@@ -21,12 +21,13 @@ const POLL_MS = 60_000
 export type TodoCounts = { reports: number; reportsKnown: boolean; ai: number; total: number }
 
 /**
- * 메뉴 숫자: 판정 기다리는 신고 + AI 처리안. 신고 수를 한 번도 못 받았으면 reportsKnown=false
- * (0건과 "모름"을 구분해 "사람이 볼 일이 없어요"라고 잘못 말하지 않게). 다음 차례에 다시 센다
+ * 메뉴 숫자: 판정 기다리는 신고 + AI 처리안. 신고 수를 한 번도 못 받았거나 마지막 갱신이 실패하면
+ * reportsKnown=false (0건과 "모름"을 구분해 "사람이 볼 일이 없어요"라고 잘못 말하지 않게). 다음 차례에 다시 센다
  */
 export function useTodoCounts(): TodoCounts {
   const ai = useApprentice().state.inbox.filter(inTodo).length
   const [reports, setReports] = useState<number | null>(null)
+  const [failed, setFailed] = useState(false)
   useEffect(() => {
     let stale = false
     let ctrl: AbortController | null = null
@@ -38,8 +39,12 @@ export function useTodoCounts(): TodoCounts {
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), 10_000)
       getReports('OPEN', mine.signal, memberId)
-        .then((l) => { if (!stale && ctrl === mine) setReports(l.filter((r) => r.category !== 'NOISE').length) })
-        .catch(() => undefined)
+        .then((l) => {
+          if (stale || ctrl !== mine) return
+          setReports(l.filter((r) => r.category !== 'NOISE').length)
+          setFailed(false)
+        })
+        .catch(() => { if (!stale && ctrl === mine) setFailed(true) })
         .finally(() => clearTimeout(timer))
     }
     load()
@@ -47,7 +52,7 @@ export function useTodoCounts(): TodoCounts {
     listeners.add(load)
     return () => { stale = true; clearInterval(t); ctrl?.abort(); listeners.delete(load) }
   }, [])
-  return { reports: reports ?? 0, reportsKnown: reports !== null, ai, total: (reports ?? 0) + ai }
+  return { reports: reports ?? 0, reportsKnown: reports !== null && !failed, ai, total: (reports ?? 0) + ai }
 }
 
 type Filter = 'all' | 'reports' | 'ai'
