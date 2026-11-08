@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { ApiError, logout as apiLogout, onSessionEnd, refreshTokens } from '../api/client'
 import { accessAlive, dropLegacyTokens, readTokens } from './tokens'
@@ -45,9 +45,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 로그인이 끝나면(로그아웃·refresh 401·다른 요청의 세션 끊김) 로그인 화면으로.
   // 앱을 연 직후면 최소 로딩 시간까지만 기다린다(빠른 401에 로딩 화면이 깜빡이고 사라지지 않게).
   // refresh 응답 본문을 기다리지 않으므로, 본문이 늦어도 로그인 화면이 바로 뜬다. 그 뒤에는 기다림 없이 바로 바뀐다
-  useEffect(() => onSessionEnd(() => void waitMinSplash().then(() => setStatus('out'))), [])
+  // 기다리는 사이 새로 로그인했으면(signedIn) 앞선 세션 끝남으로 새 로그인을 덮지 않는다
+  const signInSeq = useRef(0)
+  useEffect(
+    () =>
+      onSessionEnd(() => {
+        const seq = signInSeq.current
+        void waitMinSplash().then(() => {
+          if (signInSeq.current === seq) setStatus('out')
+        })
+      }),
+    [],
+  )
 
-  const signedIn = useCallback(() => setStatus('in'), [])
+  const signedIn = useCallback(() => {
+    signInSeq.current++
+    setStatus('in')
+  }, [])
   const logout = useCallback(() => apiLogout(), [])
 
   return <AuthContext.Provider value={{ status, signedIn, logout }}>{children}</AuthContext.Provider>
