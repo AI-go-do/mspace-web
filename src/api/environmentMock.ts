@@ -1,0 +1,110 @@
+import { ADMIN_ROOMS, type AdminRoomConfig, type SensorKind } from '../config/adminRooms'
+import type { EnvPoint, RoomEnvironment, RoomsEnvironment } from './environment'
+
+/**
+ * 관리자 "지금" 탭 가짜 값 (core API가 생기기 전 시연용). 학생 이름·번호는 없다.
+ * 시각만으로 값이 정해져서(같은 시각 = 같은 값) 10초마다 다시 불러도 그래프가 튀지 않는다.
+ * 90분마다 같은 장면이 되풀이된다:
+ *  1번 CO2가 1분에 약 8ppm씩 올라 1000ppm을 넘었다가 환기로 내려감 · 2번 끝났는데 사람이 남음(시간 넘김)
+ *  3번 빈 방이 점점 더워짐(다음 예약 전) · 4번 CO2가 같은 값에 멈춤(센서 고장 의심)
+ *  5번 앞 45분은 보통, 뒤 45분은 예약이 없는데 CO2가 오름(무단 사용 의심)
+ */
+
+const MIN = 60_000
+const HALF_HOUR = 30 * MIN
+const CYCLE = 90
+
+/** 방·분마다 같은 값을 주는 흔들림 (-0.5 ~ 0.5) */
+function wobble(roomId: number, minute: number, salt = 0): number {
+  let h = (roomId * 374761393 + minute * 668265263 + salt * 2147483647) | 0
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  h ^= h >>> 16
+  return (h >>> 0) / 4294967296 - 0.5
+}
+
+interface Reading { ppm: number; temperatureC: number; humidityPct: number }
+
+/** 장면 번호(1~5, 그 밖은 보통 방)와 분(실수)으로 값 하나 */
+function reading(scene: number, roomId: number, t: number): Reading {
+  const phase = ((t % CYCLE) + CYCLE) % CYCLE
+  const n = Math.floor(t)
+  const jitter = (amp: number, salt: number) => wobble(roomId, n, salt) * amp
+  switch (scene) {
+    case 1: {
+      // 55분 동안 오르고(560 → 약 1030) 그 뒤 창문을 열어 내려간다
+      const ppm = phase < 55 ? 560 + 8.5 * phase : Math.max(600, 1027 - 20 * (phase - 55))
+      return { ppm: ppm + jitter(12, 1), temperatureC: 25 + 0.01 * phase + jitter(0.1, 2), humidityPct: 47 + jitter(2, 3) }
+    }
+    case 2:
+      return { ppm: 740 + 1.5 * (phase % 30) + jitter(12, 1), temperatureC: 24.1 + jitter(0.1, 2), humidityPct: 44 + jitter(2, 3) }
+    case 3:
+      // 빈 방: CO2는 바깥 공기 수준, 온도는 해가 들어 점점 오른다
+      return { ppm: 478 + jitter(8, 1), temperatureC: 26.9 + 0.02 * phase + jitter(0.05, 2), humidityPct: 39 + jitter(2, 3) }
+    case 4:
+      // 센서가 멈춘 방: 값이 그대로
+      return { ppm: 452, temperatureC: 22.6, humidityPct: 41 }
+    case 5:
+      if (phase >= 45) return { ppm: 500 + 6 * (phase - 45) + jitter(8, 1), temperatureC: 24.2 + jitter(0.1, 2), humidityPct: 48 + jitter(2, 3) }
+      return { ppm: 690 + 30 * Math.sin((phase / 45) * 2 * Math.PI) + jitter(12, 1), temperatureC: 24.8 + jitter(0.1, 2), humidityPct: 50 + jitter(2, 3) }
+    default:
+      return { ppm: 690 + 40 * Math.sin((phase / CYCLE) * 2 * Math.PI) + jitter(12, 1), temperatureC: 24.8 + jitter(0.1, 2), humidityPct: 50 + jitter(2, 3) }
+  }
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10
+
+function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): RoomEnvironment {
+  const has = (s: SensorKind) => cfg.sensors.includes(s)
+  const nowMs = now.getTime()
+  const tNow = nowMs / MIN
+  const point = (ms: number): EnvPoint => {
+    const r = reading(scene, cfg.roomId, ms / MIN)
+    return {
+      at: new Date(ms).toISOString(),
+      ppm: has('co2') ? Math.round(r.ppm) : null,
+      temperatureC: has('temperature') ? round1(r.temperatureC) : null,
+      humidityPct: has('humidity') ? Math.round(r.humidityPct) : null,
+    }
+  }
+  // 1분 칸 값 + 마지막은 지금 값
+  const lastMinute = Math.floor(tNow) * MIN
+  const series: EnvPoint[] = []
+  for (let i = minutes - 1; i >= 1; i--) series.push(point(lastMinute - i * MIN))
+  series.push(point(nowMs))
+  const live = series[series.length - 1]
+
+  // 예약: 30분 칸 기준으로 지금 시각에 맞춰 만든다
+  const slot = Math.floor(nowMs / HALF_HOUR) * HALF_HOUR
+  const iso = (ms: number) => new Date(ms).toISOString()
+  let current: RoomEnvironment['current'] = null
+  let next: RoomEnvironment['next'] = null
+  let occupied = false
+  if (scene === 1) { occupied = true; current = { reservationId: 1041, startAt: iso(slot - HALF_HOUR), endAt: iso(slot + 3 * HALF_HOUR), people: 5 } }
+  if (scene === 2) {
+    // 6분 넘게 지난 30분 칸에서 끝난 예약에 사람이 남아 있다
+    const end = Math.floor((nowMs - 6 * MIN) / HALF_HOUR) * HALF_HOUR
+    occupied = true; current = { reservationId: 1042, startAt: iso(end - 3 * HALF_HOUR), endAt: iso(end), people: 3 }
+  }
+  if (scene === 3) next = { startAt: iso(slot + 2 * HALF_HOUR), people: 4 }
+  const phase = (((nowMs / MIN) % CYCLE) + CYCLE) % CYCLE
+  if (scene === 5 && phase >= 45) occupied = true // 예약 없이 누가 들어와 있음
+  else if (scene >= 5) { occupied = true; current = { reservationId: 1043, startAt: iso(slot), endAt: iso(slot + 4 * HALF_HOUR), people: 7 } }
+
+  return {
+    roomId: cfg.roomId,
+    roomName: cfg.name,
+    presence: has('presence') ? (occupied ? 'OCCUPIED' : 'EMPTY') : 'UNKNOWN',
+    lastSignalAt: iso(nowMs - 4_000),
+    offline: false,
+    co2: live.ppm === null ? null : { ppm: live.ppm, at: live.at },
+    temperatureC: live.temperatureC ?? null,
+    humidityPct: live.humidityPct ?? null,
+    series,
+    current,
+    next,
+  }
+}
+
+export function mockEnvironment(now: Date, minutes: number, rooms: readonly AdminRoomConfig[] = ADMIN_ROOMS): RoomsEnvironment {
+  return { now: now.toISOString(), rooms: rooms.map((cfg, i) => room(cfg, i + 1, now, Math.max(2, minutes))) }
+}
