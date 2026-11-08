@@ -16,7 +16,9 @@ const live = (b: RoomBlock) => b.releasedAt === null
 const toSlotBlock = (b: RoomBlock): SlotBlock => ({ reason: b.reason, memo: b.memo, endAt: b.endAt })
 
 /** 한 방의 칸들 중 막힌 기간과 겹치는 칸을 예약 불가 + 사유로 바꾼다. 바꿀 게 없으면 받은 배열을 그대로 돌려준다 */
-export function applySlotBlocks(roomId: number, slots: Slot[], blocks: RoomBlock[]): Slot[] {
+export function applySlotBlocks(roomId: number, raw: Slot[], blocks: RoomBlock[]): Slot[] {
+  // core가 사유를 준 칸이 예약 가능으로 와도 막힌 칸으로 본다
+  const slots = raw.some((s) => s.block && s.available) ? raw.map((s) => (s.block && s.available ? { ...s, available: false } : s)) : raw
   const mine = blocks.filter((b) => b.roomId === roomId && live(b))
   if (!mine.length || !slots.length) return slots
   let changed = false
@@ -32,7 +34,8 @@ export function applySlotBlocks(roomId: number, slots: Slot[], blocks: RoomBlock
 }
 
 /** 방 하나에 막힌 기간을 덮는다. 지금 막혀 있으면 지금 쓸 수 없는 방(occupiedNow)으로도 본다 */
-export function applyBlocks(room: RoomSlots, blocks: RoomBlock[], now: Date): RoomSlots {
+export function applyBlocks(raw: RoomSlots, blocks: RoomBlock[], now: Date): RoomSlots {
+  const room = normalizeBlocks(raw)
   const slots = applySlotBlocks(room.roomId, room.slots, blocks)
   const nowBlock = blockNow(room.roomId, blocks, now)
   if (slots === room.slots && !nowBlock) return room
@@ -43,9 +46,22 @@ export function applyBlocks(room: RoomSlots, blocks: RoomBlock[], now: Date): Ro
   }
 }
 
+/**
+ * core가 사유를 넣어 준 응답도 한 모양으로 맞춘다: 지금 막힌 방은 지금 쓸 수 없는 방(occupiedNow), 막힌 칸은 예약 불가.
+ * 바꿀 게 없으면 받은 객체를 그대로 돌려준다
+ */
+export function normalizeBlocks(room: RoomSlots): RoomSlots {
+  const slots = applySlotBlocks(room.roomId, room.slots, [])
+  const fixNow = !!room.blockedNow && room.occupiedNow !== true
+  if (slots === room.slots && !fixNow) return room
+  return { ...room, slots, ...(fixNow ? { occupiedNow: true } : {}) }
+}
+
 export function applyBlocksAll(rooms: RoomSlots[], blocks: RoomBlock[], now: Date): RoomSlots[] {
-  if (!blocks.length) return rooms
-  return rooms.map((r) => applyBlocks(r, blocks, now))
+  const base = rooms.map(normalizeBlocks)
+  const changed = base.some((r, i) => r !== rooms[i])
+  if (!blocks.length) return changed ? base : rooms
+  return base.map((r) => applyBlocks(r, blocks, now))
 }
 
 /** 끝 시각: 기준 날(ref)과 같은 날이면 "12:00", 다른 날이면 "11/12 18:00". 자정에 끝나면 그 전날 "24:00"으로 본다 */

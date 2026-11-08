@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RoomSlots, Slot } from '../api/rooms'
 import type { RoomBlock } from './roomBlocks'
-import { applyBlocks, applyBlocksAll, applySlotBlocks, blockedSegments, blockLabel, blockRuns, untilLabel } from './studentBlocks'
+import { applyBlocks, applyBlocksAll, applySlotBlocks, blockedSegments, blockLabel, blockRuns, normalizeBlocks, untilLabel } from './studentBlocks'
 
 const t = (s: string) => new Date(`${s}+09:00`)
 const iso = (s: string) => t(s).toISOString()
@@ -87,5 +87,23 @@ describe('보이는 글', () => {
     const out = applySlotBlocks(5, day(), [block()])
     expect(blockedSegments(out, t('2026-11-09T08:00:00'))).toEqual([{ from: 9, to: 12 }])
     expect(blockedSegments(out, t('2026-11-09T10:10:00'))).toEqual([{ from: 10, to: 12 }])
+  })
+})
+
+describe('normalizeBlocks (core가 사유를 준 응답)', () => {
+  it('blockedNow가 있으면 occupiedNow=true, block이 있는 칸은 예약 불가로 맞춘다', () => {
+    const slots = day()
+    slots[18] = { ...slots[18], block: { reason: 'INSPECTION', memo: null, endAt: iso('2026-11-09T12:00:00') } }
+    const r = room({ occupiedNow: false, blockedNow: { reason: 'INSPECTION', memo: null, endAt: iso('2026-11-09T12:00:00') }, slots })
+    const out = normalizeBlocks(r)
+    expect(out.occupiedNow).toBe(true)
+    expect(out.slots[18].available).toBe(false)
+    // 막힌 기간 목록이 비어 있어도(예시 화면이 아니어도) 같은 모양
+    expect(applyBlocksAll([r], [], t('2026-11-09T10:00:00'))[0].occupiedNow).toBe(true)
+  })
+
+  it('맞출 게 없으면 같은 객체', () => {
+    const r = room()
+    expect(normalizeBlocks(r)).toBe(r)
   })
 })

@@ -191,7 +191,8 @@ export default function Reserve() {
     if (pickBlocked && !busy) setPick(null)
   }, [pickBlocked, busy])
   // 이 날 시간표에 걸린 막힌 기간 (시간표 위 안내 줄)
-  const runs = blockRuns(daySlots)
+  // 이미 끝난 막힌 기간은 안내하지 않는다(시간표에서도 지난 칸은 흐리게만 보인다)
+  const runs = blockRuns(daySlots).filter((r) => Date.parse(daySlots[r.to - 1].endAt) > now.getTime())
   const dayRef = new Date(`${date}T12:00:00+09:00`)
   const reach = Math.min(nextDayReach(pick?.start ?? null), slots.length - daySlots.length)
   const count = people.length + 1 // 대표자(나) 포함
