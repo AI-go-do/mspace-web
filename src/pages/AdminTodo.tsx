@@ -17,8 +17,10 @@ export const inTodo = (p: Proposal) => p.kind !== 'report'
 /** 신고 판정이 끝나면 숫자를 다시 센다 */
 const listeners = new Set<() => void>()
 export const reportsChanged = () => listeners.forEach((fn) => fn())
+/** 신고가 바뀌었을 때(판정·1분마다 다시 읽기) 같이 다시 읽고 싶은 곳이 붙는다 */
+export const onReportsChanged = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn) } }
 
-const POLL_MS = 60_000
+export const POLL_MS = 60_000
 
 export type TodoCounts = { reports: number; reportsKnown: boolean; ai: number; total: number }
 

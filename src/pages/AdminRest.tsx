@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getReports, type AdminReport } from '../api/admin'
 import { createBlock, mockReservations, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
@@ -8,6 +8,7 @@ import { demoBrokenReports as demoReports, proposeRests, REST_RULES, type RestPr
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
 import { useMemberId } from '../lib/useMemberId'
+import { onReportsChanged, POLL_MS } from './AdminTodo'
 import './AdminRest.css'
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `방 ${id}`
@@ -36,16 +37,31 @@ function when(p: Pick<RestProposal, 'startAt' | 'endAt'>): string {
  */
 export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const member = useMemberId()
-  const [reports, setReports] = useState<AdminReport[]>([])
+  // 누구의 신고인지 같이 들고, 회원이 바뀌면 앞 사람 신고로 제안하지 않는다
+  const [loaded, setLoaded] = useState<{ member: number | null; list: AdminReport[] }>({ member: null, list: [] })
+  const reports = loaded.member === member ? loaded.list : []
   const [skipped, setSkipped] = useState<string[]>(readSkipped)
   const [rested, setRested] = useState<{ p: RestProposal; error: string | null }[]>([])
   const { blocks, canceled } = useRoomBlocks()
+  const busy = useRef(new Set<string>())
 
+  // 할 일 숫자와 같은 때(1분마다, 판정 뒤) 다시 읽어 새 신고·판정된 신고를 맞춘다
   useEffect(() => {
     if (member === null) return
-    const ctrl = new AbortController()
-    getReports('OPEN', ctrl.signal, member).then(setReports).catch(() => { /* 신고 판정 칸이 오류를 보여 준다. 여기서는 제안만 안 함 */ })
-    return () => ctrl.abort()
+    let ctrl: AbortController | null = null
+    const load = () => {
+      ctrl?.abort()
+      const mine = new AbortController()
+      ctrl = mine
+      getReports('OPEN', mine.signal, member)
+        .then((list) => { if (ctrl === mine) setLoaded({ member, list }) })
+        // 신고 판정 칸이 오류를 보여 준다. 여기서는 옛 신고로 제안하지 않게 비우기만 한다
+        .catch(() => { if (ctrl === mine && !mine.signal.aborted) setLoaded({ member, list: [] }) })
+    }
+    load()
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load() }, POLL_MS)
+    const off = onReportsChanged(load)
+    return () => { clearInterval(t); off(); ctrl?.abort() }
   }, [member])
 
   const now = new Date()
@@ -61,6 +77,9 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   }
 
   function rest(p: RestProposal) {
+    // 빠르게 두 번 눌러도 한 번만 막는다
+    if (busy.current.has(p.key) || rested.some((x) => x.p.key === p.key)) return
+    busy.current.add(p.key)
     const r = createBlock({ roomId: p.roomId, startAt: new Date(p.startAt), endAt: new Date(p.endAt), reason: 'INSPECTION', memo: REST_MEMO })
     setRested((x) => [...x, { p, error: 'error' in r ? r.error : null }])
   }
