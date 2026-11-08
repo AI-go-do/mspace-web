@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getUsageStats, pct, SUSPENSION_REASON, SUSPENSION_SCOPE,
@@ -6,6 +6,8 @@ import {
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
+import { useCountUp } from '../lib/useCountUp'
+import { Skeleton } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
 const RANGES = [7, 30, 90]
@@ -20,10 +22,24 @@ function stamp(iso: string): string {
 /** 기간 고르기 칩 (7·30·90일) */
 function RangeChips({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
   return (
-    <div className="admin-filter" role="group" aria-label={label}>
+    <div className="adm-chips" role="group" aria-label={label}>
       {RANGES.map((d) => (
-        <button key={d} type="button" className="admin-chip" aria-pressed={value === d} onClick={() => onChange(d)}>최근 {d}일</button>
+        <button key={d} type="button" className="adm-chip" aria-pressed={value === d} onClick={() => onChange(d)}>최근 {d}일</button>
       ))}
+    </div>
+  )
+}
+
+/** 숫자 칸. 숫자는 세어 올라가고, 비율(0–1)이면 % 로 */
+function Tile({ label, value, rate, sub, hero, i = 0 }: { label: string; value: number | null; rate?: boolean; sub?: string; hero?: boolean; i?: number }) {
+  const n = value === null ? null : rate ? Math.round(value * 100) : value
+  const shown = useCountUp(n, 800)
+  return (
+    <div className={`card stat-tile ${hero ? 'hero' : ''}`} style={{ '--k': i } as CSSProperties}>
+      <span>{label}</span>
+      <b aria-hidden="true">{n === null ? '—' : <>{shown}{rate && <small>%</small>}</>}</b>
+      <span className="sr-only">{n === null ? '없음' : `${n}${rate ? '%' : ''}`}</span>
+      {sub && <small>{sub}</small>}
     </div>
   )
 }
@@ -54,20 +70,21 @@ export function AdminPenalties() {
   const ended = data?.suspensions.filter((s) => !s.active) ?? []
 
   return (
-    <section className="admin-body" aria-label="경고·정지">
+    <section className="rec-body" aria-label="경고·정지">
       <RangeChips value={days} onChange={setDays} label="기간" />
-      {error && <p role="alert" className="admin-msg err">{error}</p>}
-      {!data && !error && <p className="admin-msg muted" role="status">불러오는 중…</p>}
+      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {!data && !error && <Skeleton />}
       {data && (
         <>
           <div className="stat-tiles three">
-            <div className="card stat-tile"><span>지금 정지</span><b>{active.length}</b></div>
-            <div className="card stat-tile"><span>끝난 정지</span><b>{ended.length}</b></div>
-            <div className="card stat-tile"><span>경고</span><b>{data.warnings.length}</b></div>
+            <Tile hero label="지금 정지" value={active.length} />
+            <Tile label="끝난 정지" value={ended.length} i={1} />
+            <Tile label="경고" value={data.warnings.length} i={2} />
           </div>
+          <div className="rec-two">
           <section className="card admin-sec">
             <h2>정지</h2>
-            {data.suspensions.length === 0 && <p className="muted admin-small">이 기간에 정지가 없어요.</p>}
+            {data.suspensions.length === 0 && <p className="adm-small">이 기간에 정지가 없어요.</p>}
             <ul className="pen-list">
               {[...active, ...ended].map((s) => (
                 <li key={`${s.scope}${s.id}`} className={`pen-row ${s.active ? 'on' : ''}`}>
@@ -82,7 +99,7 @@ export function AdminPenalties() {
           </section>
           <section className="card admin-sec">
             <h2>경고</h2>
-            {data.warnings.length === 0 && <p className="muted admin-small">이 기간에 경고가 없어요.</p>}
+            {data.warnings.length === 0 && <p className="adm-small">이 기간에 경고가 없어요.</p>}
             <ul className="pen-list">
               {data.warnings.map((w) => (
                 <li key={w.id} className="pen-row">
@@ -95,6 +112,7 @@ export function AdminPenalties() {
               ))}
             </ul>
           </section>
+          </div>
         </>
       )}
     </section>
@@ -135,18 +153,18 @@ export function AdminStats() {
   const maxHour = Math.max(1, ...(stats?.byHour.map((h) => h.reservations) ?? [0]))
 
   return (
-    <section className="admin-body" aria-label="이용 통계">
+    <section className="rec-body" aria-label="이용 통계">
       <RangeChips value={days} onChange={setDays} label="기간" />
-      {error && <p role="alert" className="admin-msg err">{error}</p>}
-      {!stats && !error && <p className="admin-msg muted" role="status">불러오는 중…</p>}
+      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {!stats && !error && <Skeleton />}
       {stats && t && (
         <>
-          <span className="muted admin-small">{stats.from} ~ {stats.to} · {stats.days}일</span>
-          <div className="stat-tiles">
-            <div className="card stat-tile hero"><span>예약</span><b>{t.reservations.total}</b><small>취소 {t.reservations.canceled} 포함</small></div>
-            <div className="card stat-tile"><span>실제 이용률</span><b>{pct(t.rates.actualUse)}</b><small>입실 {t.reservations.used}건</small></div>
-            <div className="card stat-tile"><span>노쇼율</span><b>{pct(t.rates.noShow)}</b><small>노쇼 {t.reservations.noShow}건</small></div>
-            <div className="card stat-tile"><span>방 사용률</span><b>{pct(t.rates.utilization)}</b><small>하루 24시간 기준</small></div>
+          <span className="adm-small">{stats.from} ~ {stats.to} · {stats.days}일</span>
+          <div className="stat-tiles four">
+            <Tile hero label="예약" value={t.reservations.total} sub={`취소 ${t.reservations.canceled} 포함`} />
+            <Tile label="실제 이용률" value={t.rates.actualUse} rate sub={`입실 ${t.reservations.used}건`} i={1} />
+            <Tile label="노쇼율" value={t.rates.noShow} rate sub={`노쇼 ${t.reservations.noShow}건`} i={2} />
+            <Tile label="방 사용률" value={t.rates.utilization} rate sub="하루 24시간 기준" i={3} />
           </div>
           <div className="card stat-strip">
             <span><b>{minutesLabel(t.minutes.used)}</b>이용 시간</span>
@@ -155,6 +173,7 @@ export function AdminStats() {
             {source && <span><b>{source.agent}건</b>비서 예약</span>}
           </div>
 
+          <div className="rec-two">
           <section className="card admin-sec">
             <h2>방별 사용률</h2>
             <div className="hbar-list">
@@ -164,7 +183,7 @@ export function AdminStats() {
                   <div key={r.roomId} className="hbar-row" tabIndex={0}
                     title={`${r.roomName ?? `창작실 ${r.roomId}`}: 사용률 ${pct(r.rates.utilization)}, 예약 ${r.reservations.total}건, 노쇼 ${r.reservations.noShow}건`}>
                     <span className="hbar-label">{r.roomId}</span>
-                    <span className="hbar-track"><i style={{ width: `${Math.max(v * 100, v > 0 ? 2 : 0)}%` }} /></span>
+                    <span className="hbar-track"><i style={{ width: `${Math.max(v * 100, v > 0 ? 2 : 0)}%`, '--k': r.roomId } as CSSProperties} /></span>
                     <span className="hbar-value">{pct(r.rates.utilization)}</span>
                   </div>
                 )
@@ -191,12 +210,14 @@ export function AdminStats() {
             <div className="vbar" role="img" aria-label={`시간대별 예약. 가장 많은 때 ${stats.byHour.reduce((a, h) => (h.reservations > a.reservations ? h : a), stats.byHour[0] ?? { hour: 0, reservations: 0 }).hour}시`}>
               {stats.byHour.map((h) => (
                 <span key={h.hour} className="vbar-col" title={`${h.hour}시: 예약 ${h.reservations}건, 입실 ${h.used}건`}>
-                  <i style={{ height: `${(h.reservations / maxHour) * 100}%` }} />
+                  <i style={{ height: `${(h.reservations / maxHour) * 100}%`, '--k': h.hour } as CSSProperties} />
                 </span>
               ))}
             </div>
             <div className="vbar-axis" aria-hidden="true"><span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>24시</span></div>
           </section>
+          </div>
+          <div className="rec-two">
 
           <section className="card admin-sec">
             <h2>예약이 끝난 모양</h2>
@@ -220,8 +241,9 @@ export function AdminStats() {
               <div><dt>사람 있음(센서)</dt><dd>{minutesLabel(t.sensor.occupiedMinutes)}</dd></div>
               <div><dt>예약 없이 사람 있음</dt><dd>{minutesLabel(t.sensor.occupiedWithoutReservationMinutes)}</dd></div>
             </dl>
-            <span className="muted admin-small">재실은 센서가 상태가 바뀔 때만 기록해서 근삿값이에요.</span>
+            <span className="adm-small">재실은 센서가 상태가 바뀔 때만 기록해서 근삿값이에요.</span>
           </section>
+          </div>
 
           {t.alerts && (
             <section className="card admin-sec">
@@ -230,7 +252,7 @@ export function AdminStats() {
                 <div><dt>노쇼 직전 알림 뒤 입실</dt><dd>{alertEffectLabel(t.alerts.noShowCheckedIn, t.alerts.noShowWarned, t.alerts.noShowCheckedInRate)}</dd></div>
                 <div><dt>환기 알림 뒤 {t.alerts.resolvedWithinMinutes}분 안 CO2 기준({t.sensor.thresholdPpm}ppm) 이하</dt><dd>{alertEffectLabel(t.alerts.ventilationResolved, t.alerts.ventilationChecked, t.alerts.ventilationResolvedRate)}</dd></div>
               </dl>
-              <span className="muted admin-small">결과가 난 알림만 세요. 아직 입실 안 했는데 입실 마감 전인 예약, 확인 시간이 아직 안 지난 환기 알림은 빠져요.</span>
+              <span className="adm-small">결과가 난 알림만 세요. 아직 입실 안 했는데 입실 마감 전인 예약, 확인 시간이 아직 안 지난 환기 알림은 빠져요.</span>
             </section>
           )}
         </>

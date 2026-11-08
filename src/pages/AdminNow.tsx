@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
 import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
@@ -6,8 +6,9 @@ import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
 import { useRoomBlocks } from '../api/roomBlocks'
 import { blockNow, reasonStatus } from '../lib/roomBlocks'
-import { ApprenticeInbox } from './AdminApprentice'
+import { useCountUp } from '../lib/useCountUp'
 import { seoulClock } from '../lib/time'
+import type { TodoCounts } from './AdminTodo'
 import './AdminNow.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
@@ -50,7 +51,7 @@ export function Co2Chart({ view, limit = ENV_RULES.co2LimitPpm }: { view: RoomVi
         {lines.map((r, i) => (
           <g key={i}>
             <polygon points={`${r[0][0]},${H} ${pts(r)} ${r[r.length - 1][0]},${H}`} className="c-fill" />
-            <polyline points={pts(r)} className="c-line" vectorEffect="non-scaling-stroke" />
+            <polyline points={pts(r)} className="c-line" pathLength={1} vectorEffect="non-scaling-stroke" />
           </g>
         ))}
         {pred.length > 1 && <polyline points={pts(pred)} className="c-pred" vectorEffect="non-scaling-stroke" />}
@@ -73,10 +74,10 @@ function Value({ label, value, unit, note, hot, big }: { label: string; value: s
   )
 }
 
-export function RoomCard({ view, blocked }: { view: RoomView; blocked?: string | null }) {
+export function RoomCard({ view, blocked, i = 0 }: { view: RoomView; blocked?: string | null; i?: number }) {
   const { flags } = view
   return (
-    <article className={`card now-room t-${view.tone}`} aria-label={`${view.name} ${view.status.text}`}>
+    <article className={`card now-room t-${view.tone}`} aria-label={`${view.name} ${view.status.text}`} style={{ '--k': i } as CSSProperties}>
       <header className="nr-head">
         <span className="nr-no">{view.roomId}</span>
         <div className="nr-title">
@@ -97,12 +98,28 @@ export function RoomCard({ view, blocked }: { view: RoomView; blocked?: string |
   )
 }
 
+/** 위 숫자 칸 하나. 값이 바뀌면 세어 올라간다 */
+function Kpi({ label, value, of, tone, onClick, hint }: { label: string; value: number | null; of?: number; tone?: string; onClick?: () => void; hint?: string }) {
+  const shown = useCountUp(value ?? 0)
+  const body = (
+    <>
+      <span className="kpi-label">{label}</span>
+      <b className="kpi-num" aria-hidden="true">{value === null ? '–' : shown}{of !== undefined && <small>/ {of}</small>}</b>
+      <span className="sr-only">{value === null ? '모름' : `${value}${of !== undefined ? ` / ${of}` : ''}`}</span>
+      {hint && <span className="kpi-hint">{hint}</span>}
+    </>
+  )
+  return onClick
+    ? <button type="button" className={`card kpi ${tone ?? ''} as-btn`} onClick={onClick}>{body}<span className="kpi-go" aria-hidden="true">→</span></button>
+    : <div className={`card kpi ${tone ?? ''}`}>{body}</div>
+}
+
 /**
- * 관리자 "지금" 탭: 방마다 CO2·온도·습도·재실을 크게, 10초마다 새로 읽는다.
- * 지켜보는 화면보다 "어디를 봐야 하나"가 먼저 보이게 이상한 방은 테두리 색으로 표시한다(노랑 주의, 빨강 확인 필요).
+ * 관리자 "지금": 위에 숫자 넷(사용 중·주의·확인 필요·할 일), 아래 방마다 CO2·온도·습도·재실을 크게. 10초마다 새로 읽는다.
+ * 지켜보는 화면보다 "어디를 봐야 하나"가 먼저 보이게 이상한 방은 테두리 색으로 표시한다(노랑 주의, 남색 확인 필요).
  * 데이터는 api/environment 창구 하나에서만 받는다(지금은 가짜 값)
  */
-export function AdminNow() {
+export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: () => void }) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
   const [sample, setSample] = useState(ENV_SOURCE === 'mock')
   const [error, setError] = useState<string | null>(null)
@@ -153,34 +170,33 @@ export function AdminNow() {
 
   return (
     <section className="admin-now" aria-label="지금 방 상태">
+      <div className="kpis">
+        {/* 방 값을 한 번도 못 받았으면 0이 아니라 "–"(모름) */}
+        <Kpi label="사용 중" value={data ? used : null} of={views.length || ADMIN_ROOMS.length} tone="blue" />
+        <Kpi label="주의" value={data ? warn : null} tone={warn ? 'yellow' : ''} hint="환기·더움·시간 넘김" />
+        <Kpi label="확인 필요" value={data ? off : null} tone={off ? 'navy' : ''} hint="센서 멈춤·끊김" />
+        <Kpi label="할 일" value={todo.reportsKnown ? todo.total : null} tone={todo.total ? 'todo' : ''} onClick={onOpenTodo}
+          hint={!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
+            : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'} />
+      </div>
       <div className="now-bar">
         <span className="now-clock" role="status"><span className="now-dot" aria-hidden="true" />
-          {readAt ? <>지금 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다 새 값</span>
+          {readAt ? <>마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다 새 값</span>
         {sample && <span className="now-sample">가짜 값 · 시연용</span>}
+        <span className="now-legend">
+          <i className="lg-line" />측정 <i className="lg-pred" />{ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(최근 추세)' : ''} <i className="lg-limit" />환기 기준 {ENV_RULES.co2LimitPpm}
+        </span>
       </div>
-      {error && <p role="alert" className="admin-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
-      <div className="now-grid">
-      <ApprenticeInbox />
+      {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
+      {!data && !error && <div className="now-rooms">{Array.from({ length: 5 }, (_, i) => <div key={i} className="card now-room skel" />)}</div>}
       {views.length > 0 && (
         <div className="now-rooms">
-          {views.map((v) => {
+          {views.map((v, i) => {
             const b = data ? blockNow(v.roomId, blocks, new Date(data.now)) : null
-            return <RoomCard key={v.roomId} view={v} blocked={b ? reasonStatus(b.reason) : null} />
+            return <RoomCard key={v.roomId} i={i} view={v} blocked={b ? reasonStatus(b.reason) : null} />
           })}
-          <article className="card now-sum">
-            <b>방 {views.length}개 한눈에</b>
-            <p>사용 중 <b className="big">{used}</b> / {views.length}</p>
-            <p>
-              <span className="sum-chip t-warn">주의 {warn}</span>
-              <span className="sum-chip t-off">확인 필요 {off}</span>
-            </p>
-            <p className="muted">
-              선: 측정값 · 점선: {ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(젯슨 예측 전이라 최근 10분 추세)' : ''} · 노란 점선: 환기 기준 {ENV_RULES.co2LimitPpm}ppm
-            </p>
-          </article>
         </div>
       )}
-      </div>
     </section>
   )
 }
