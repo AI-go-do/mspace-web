@@ -21,6 +21,7 @@ import ReservationDetail from './pages/ReservationDetail'
 import Report from './pages/Report'
 import Rules from './pages/Rules'
 import Schedule from './pages/Schedule'
+import Showcase from './pages/Showcase'
 import Reserve from './pages/Reserve'
 
 /** 로그인해야 쓰는 화면 */
@@ -31,7 +32,7 @@ const auth = (page: ReactNode) => <RequireAuth>{page}</RequireAuth>
 export default function App() {
   const { pathname } = useLocation()
   // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
-  const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname === '/showcase' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
   return (
     <AuthProvider>
       <div className={`app ${fullScreen ? 'app-full' : ''} ${pathname === '/admin' ? 'app-wide' : ''}`}>
@@ -52,6 +53,8 @@ export default function App() {
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Assistant />)} />
           <Route path="/rules" element={<Rules />} />
+          {/* 발표용 미리보기: 장면만 보여 주고 서버에 묻지 않아 로그인 없이 연다 */}
+          <Route path="/showcase" element={<Showcase />} />
           <Route path="/report" element={auth(<Report />)} />
           <Route path="/admin" element={auth(<Admin />)} />
           <Route path="/now" element={auth(<Instant />)} />
