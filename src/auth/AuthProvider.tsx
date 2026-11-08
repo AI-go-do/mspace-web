@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { ApiError, logout as apiLogout, onSessionEnd, refreshTokens } from '../api/client'
 import { accessAlive, dropLegacyTokens, readTokens } from './tokens'
@@ -28,23 +28,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dropLegacyTokens()
   }, [])
 
+  // 확인하는 중에 로그인이 끝났는지(refresh 401, 다른 요청의 세션 끊김). 최소 로딩 시간 뒤에 반영한다
+  const endedWhileChecking = useRef(false)
+
   useEffect(() => {
     if (status !== 'checking') return
+    endedWhileChecking.current = false
     // refresh는 바로 시작하고, 결과는 최소 로딩 시간이 지난 뒤에 화면에 반영한다
     const result: Promise<Status> = refreshTokens().then(
       () => 'in',
       // refresh가 401이면 로그인 끝. 서버에 못 닿았으면(와이파이 등) 일단 들여보내고 화면이 오류를 보여 준다
       (e) => (e instanceof ApiError && e.status === 401 ? 'out' : 'in'),
     )
-    void Promise.all([result, waitMinSplash()]).then(([next]) =>
-      // 그사이 로그인했거나(이미 'in') 세션이 끝났으면 늦게 온 결과로 바꾸지 않는다
-      setStatus((s) => (s === 'checking' ? next : s)),
-    )
+    void Promise.all([result, waitMinSplash()]).then(([next]) => {
+      const settled: Status = endedWhileChecking.current ? 'out' : next
+      // 그사이 로그인 화면에서 로그인했으면(이미 'in') 늦게 온 결과로 바꾸지 않는다
+      setStatus((s) => (s === 'checking' ? settled : s))
+    })
   }, [status])
 
-  // 로그인이 끝나면(로그아웃·refresh 401) 바로 로그인 화면으로. 단, 앱을 열고 확인하는 중에는 위의 첫 refresh가
-  // 최소 로딩 시간 뒤에 'out'으로 바꾸므로 여기서는 기다린다(빠른 401에 로딩 화면이 깜빡이고 사라지지 않게)
-  useEffect(() => onSessionEnd(() => setStatus((s) => (s === 'checking' ? s : 'out'))), [])
+  // 로그인이 끝나면(로그아웃·refresh 401) 바로 로그인 화면으로. 단, 앱을 열고 확인하는 중에는 기록만 해 두고
+  // 위의 첫 refresh 흐름이 최소 로딩 시간 뒤에 'out'으로 바꾼다(빠른 401에 로딩 화면이 깜빡이고 사라지지 않게)
+  useEffect(
+    () =>
+      onSessionEnd(() => {
+        endedWhileChecking.current = true
+        setStatus((s) => (s === 'checking' ? s : 'out'))
+      }),
+    [],
+  )
 
   const signedIn = useCallback(() => setStatus('in'), [])
   const logout = useCallback(() => apiLogout(), [])
