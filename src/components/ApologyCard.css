@@ -1,0 +1,20 @@
+/* 방의 사과 카드 (Q-19). 색은 tokens.css만: 노랑 띠 = 내 일(경고가 바뀜), 글은 남색 */
+.apology {
+  position: relative; margin: -28px 12px 0; padding: 14px 16px 16px; border-radius: 22px;
+  background: var(--white); box-shadow: var(--shadow-2); border-left: 6px solid var(--yellow);
+  display: flex; flex-direction: column; gap: 6px;
+  animation: apology-in 0.5s 0.1s var(--ease-spring) backwards;
+}
+/* 비서 카드 아래에 오면 겹치지 않고 이어진다. 사과 카드 아래 방 현황도 평범하게 */
+.butler + .apology { margin-top: 12px; }
+.apology + .today { margin-top: 12px; }
+.apology-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.apology-mascot { width: 32px; height: 32px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--sky) 30%, var(--white)); flex: none; }
+.apology-eyebrow { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; color: var(--navy-70); }
+.apology-badge { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--yellow); color: var(--navy); }
+.apology-title { margin: 4px 0 0; font-size: 17px; letter-spacing: -0.02em; line-height: 1.35; }
+.apology-body { margin: 0; font-size: 14px; color: var(--navy-70); line-height: 1.5; }
+.apology-actions { margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.apology-actions > * { min-height: var(--touch); display: flex; align-items: center; justify-content: center; text-align: center; }
+@keyframes apology-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }

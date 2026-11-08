@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { getSchedule, type Schedule } from '../api/schedule'
+import ApologyCard from '../components/ApologyCard'
 import ButlerCard from '../components/ButlerCard'
 import { butlerSuggestion } from '../lib/butler'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
@@ -11,6 +12,7 @@ import { useCountUp } from '../lib/useCountUp'
 import { useMemberId } from '../lib/useMemberId'
 import { useWatched } from '../lib/watch'
 import { useUnreadCount } from '../lib/useUnreadCount'
+import { useApology } from '../lib/useApology'
 import './Home.css'
 
 /**
@@ -41,6 +43,8 @@ export default function Home() {
   // 내 시간표(비서 서버). undefined = 아직 못 받음(비서가 꺼져 있어도 홈은 그대로), null = 아직 안 넣음
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined)
   const unread = useUnreadCount()
+  // 방의 사과(Q-19): 장치 오류로 붙은 노쇼 경고를 방이 물렀으면 맨 위에서 먼저 사과한다
+  const { apology, close: closeApology } = useApology()
   // 빈방 지켜보기: 사용 중인 방 줄의 눈 표시. 켜 두면 그 방이 비는 순간 비서 카드가 먼저 말을 건다
   const member = useMemberId()
   const { watched, toggle, unwatch } = useWatched(member, now)
@@ -145,6 +149,7 @@ export default function Home() {
       </header>
 
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
+      {apology && <ApologyCard key={apology.id} n={apology} now={now} onClose={closeApology} />}
 
       <section className="card today" aria-labelledby="today-title">
         <div className="today-head">
