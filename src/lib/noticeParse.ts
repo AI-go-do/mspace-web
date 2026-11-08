@@ -221,7 +221,9 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   const lastDay = end && cmp(end.value, first.value) > 0 ? end.value : first.value
   spans.push({ start: first.start, end: first.end, kind: 'date' })
   if (end) spans.push({ start: end.start, end: end.end, kind: 'date' })
-  const otherDates = dates.filter((d) => d !== first && d.start !== end?.start)
+  // "11월 12일 목요일"처럼 같은 날을 두 번 적은 것은 다른 날짜로 세지 않는다
+  const readDays = new Set([iso(first.value), ...(end ? [iso(end.value)] : [])])
+  const otherDates = dates.filter((d) => d !== first && d.start !== end?.start && !readDays.has(iso(d.value)))
   if (otherDates.length) notes.push(`날짜가 여러 개라 첫 날짜${end ? '(범위)' : ''}만 읽었어요. 나머지는 따로 막아 주세요.`)
 
   // 시각: 날짜 안에 들어간 숫자는 빼고, 처음 두 개를 시작·끝으로
@@ -250,7 +252,9 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   }
 
   // 방
-  const rooms = findRooms(t)
+  // 날짜·시각 안의 숫자(11/12, 13:05)를 방 번호로 읽지 않게 같은 길이의 공백으로 가린다(위치는 그대로)
+  const masked = [...dates, ...findTimes(t)].reduce((acc, h) => acc.slice(0, h.start) + ' '.repeat(h.end - h.start) + acc.slice(h.end), t)
+  const rooms = findRooms(masked)
   spans.push(...rooms.spans)
   let ids = rooms.all ? [...ROOM_IDS] : rooms.ids
   // 공지가 방 번호를 적었는데 모두 없는 방이면 모든 방으로 넘겨짚지 않고 되묻는다

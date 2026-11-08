@@ -89,9 +89,25 @@ describe('공지 한 줄 → 막기안', () => {
     expect(d.notes.join(' ')).toContain('7번 방은 없어요')
   })
 
+  it('같은 날을 요일로 한 번 더 적어도 "날짜가 여러 개"라고 하지 않는다', () => {
+    const d = parseNotice('11월 12일 목요일 9시~12시 5번 방 점검', now)
+    expect(d.problem).toBeNull()
+    expect(d.notes.join(' ')).not.toContain('여러 개')
+  })
+
+  it('날짜·시각 안의 숫자는 방 번호로 읽지 않는다', () => {
+    expect(parseNotice('11/12, 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
+    expect(parseNotice('11.12 · 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
+    expect(parseNotice('11/12 13:05, 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
+    const d = parseNotice('11/12 15:00, 3번 방 점검', now)
+    expect(d.rows.map((r) => r.roomId)).toEqual([3])
+    expect(d.notes.join(' ')).not.toContain('0번 방')
+  })
+
   it('없는 날짜·24시 넘는 시각은 오류 없이 되묻는다', () => {
     expect(parseNotice('2월 30일 3번 방 점검', now).problem).toContain('날짜')
-    expect(parseNotice('2027-02-29 3번 방 점검', now).problem).toContain('날짜')
+    // 2월 29일은 날짜 모양으로는 통과하지만 내년(2027)은 평년이라 없는 날짜
+    expect(parseNotice('2월 29일 3번 방 점검', now).problem).toContain('없는 날짜')
     expect(() => parseNotice('11/12 24:30 3번 방 점검', now)).not.toThrow()
     // 범위 끝이 없는 날이면 하루를 빠뜨리지 않고 되묻는다(2027년 2월)
     const feb = new Date('2027-02-20T10:00:00+09:00')
