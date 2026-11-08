@@ -1,8 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { currentMemberId } from '../api/client'
 import {
-  CATEGORIES, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, submitReport,
+  CATEGORIES, clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
   type ReportCategory, type SubmittedReport,
 } from '../api/reports'
 import { BackIcon } from '../components/ReserveSteps'
@@ -38,18 +38,26 @@ function reservationFrom(v: string | null): number | null {
 export default function Report() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  // 사용 중 카드에서 들어오면 주소의 방 = 지금 쓰는 방
-  const [ownRoomId] = useState<number | null>(() => roomFrom(params.get('roomId')))
   const [reservationId] = useState<number | null>(() => reservationFrom(params.get('reservationId')))
-  const [roomId, setRoomId] = useState<number | null>(ownRoomId)
-  const [category, setCategory] = useState<ReportCategory | null>(null)
-  const [content, setContent] = useState('')
+  const [queryRoomId] = useState<number | null>(() => roomFrom(params.get('roomId')))
+  // 사용 중(IN_USE) 카드에서 예약 번호와 같이 들어왔을 때만 주소의 방을 지금 쓰는 방으로 본다.
+  // 그 밖(북마크·다른 링크)에는 모른다고 두고 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
+  const ownRoomId = reservationId !== null ? queryRoomId : null
+  const [draft] = useState(() => loadReportDraft(reservationId))
+  const [roomId, setRoomId] = useState<number | null>(draft?.roomId ?? queryRoomId)
+  const [category, setCategory] = useState<ReportCategory | null>(draft?.category ?? null)
+  const [content, setContent] = useState(draft?.content ?? '')
   const [noiseConfirmed, setNoiseConfirmed] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<SubmittedReport | null>(null)
 
   const problem = reportProblem({ roomId, category, content, noiseConfirmed, ownRoomId })
+
+  // 입실 사진을 올리러 다녀와도 5분 안에 바로 보낼 수 있게 초안을 남긴다 (보내면 지움)
+  useEffect(() => {
+    if (reservationId !== null && !done) saveReportDraft({ reservationId, roomId, category, content })
+  }, [reservationId, roomId, category, content, done])
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -59,10 +67,12 @@ export default function Report() {
     setError(null)
     try {
       const text = content.trim()
-      setDone(await submitReport({
+      const sent = await submitReport({
         roomId, category, content: text || undefined,
         noiseConfirmed: category === 'NOISE' ? noiseConfirmed : undefined,
-      }, memberId))
+      }, memberId)
+      clearReportDraft()
+      setDone(sent)
     } catch (err) {
       setError(reportErrorMessage(err))
     } finally {

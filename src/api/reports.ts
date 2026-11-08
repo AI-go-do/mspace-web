@@ -69,6 +69,42 @@ export function reportProblem(r: { roomId: number | null; category: ReportCatego
   return null
 }
 
+/** 입실 사진을 올리러 다녀와도 고른 종류·메모가 남게 (같은 예약일 때만 되살림) */
+export interface ReportDraft {
+  reservationId: number
+  roomId: number | null
+  category: ReportCategory | null
+  content: string
+}
+
+const DRAFT_KEY = 'mspace.reportDraft.v1'
+type DraftStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+function sessionStore(): DraftStore | null {
+  try { return globalThis.sessionStorage ?? null } catch { return null }
+}
+
+/** 이 예약의 신고 초안. 없거나 다른 예약 것이면 null */
+export function loadReportDraft(reservationId: number | null, store: DraftStore | null = sessionStore()): ReportDraft | null {
+  if (reservationId === null || !store) return null
+  try {
+    const d = JSON.parse(store.getItem(DRAFT_KEY) ?? 'null') as ReportDraft | null
+    if (!d || d.reservationId !== reservationId) return null
+    const category = CATEGORIES.some((c) => c.value === d.category) ? d.category : null
+    return { reservationId, roomId: typeof d.roomId === 'number' ? d.roomId : null, category, content: typeof d.content === 'string' ? d.content : '' }
+  } catch {
+    return null
+  }
+}
+
+export function saveReportDraft(d: ReportDraft, store: DraftStore | null = sessionStore()): void {
+  try { store?.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* 저장 못 해도 신고는 그대로 */ }
+}
+
+export function clearReportDraft(store: DraftStore | null = sessionStore()): void {
+  try { store?.removeItem(DRAFT_KEY) } catch { /* 무시 */ }
+}
+
 /** 신고 오류를 학생이 읽을 문장으로 */
 export function reportErrorMessage(e: unknown): string {
   if (!(e instanceof ApiError)) return '연결이 끊겼어요. 잠시 후 다시 보내 주세요.'

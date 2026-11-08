@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from './client'
-import { MAX_REPORT_CONTENT, reportErrorMessage, reportProblem } from './reports'
+import { clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, saveReportDraft } from './reports'
 
 const base = { roomId: 2, category: 'BROKEN' as const, content: '', noiseConfirmed: false }
 
@@ -40,5 +40,28 @@ describe('신고 오류 문구', () => {
   })
   it('모르는 code는 서버 문구', () => {
     expect(reportErrorMessage(new ApiError(400, 'INVALID_REQUEST', '서버 문구'))).toBe('서버 문구')
+  })
+})
+
+describe('신고 초안 (입실 사진 올리러 다녀와도 남게)', () => {
+  function memStore() {
+    const m = new Map<string, string>()
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) }, removeItem: (k: string) => { m.delete(k) } }
+  }
+  it('같은 예약이면 되살리고, 다른 예약이거나 지운 뒤면 없다', () => {
+    const store = memStore()
+    saveReportDraft({ reservationId: 7, roomId: 2, category: 'MESSY', content: '쓰레기' }, store)
+    expect(loadReportDraft(7, store)).toEqual({ reservationId: 7, roomId: 2, category: 'MESSY', content: '쓰레기' })
+    expect(loadReportDraft(8, store)).toBeNull()
+    expect(loadReportDraft(null, store)).toBeNull()
+    clearReportDraft(store)
+    expect(loadReportDraft(7, store)).toBeNull()
+  })
+  it('깨진 값이나 모르는 종류는 버린다', () => {
+    const store = memStore()
+    store.setItem('mspace.reportDraft.v1', '{깨짐')
+    expect(loadReportDraft(7, store)).toBeNull()
+    store.setItem('mspace.reportDraft.v1', JSON.stringify({ reservationId: 7, roomId: 2, category: 'FIRE', content: 1 }))
+    expect(loadReportDraft(7, store)).toEqual({ reservationId: 7, roomId: 2, category: null, content: '' })
   })
 })
