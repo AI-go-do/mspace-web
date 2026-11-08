@@ -9,6 +9,7 @@
 .map-legend i { width: 10px; height: 10px; border-radius: 3px; }
 .map-legend .lg-free { background: color-mix(in srgb, var(--sky) 45%, var(--white)); }
 .map-legend .lg-busy { background: var(--taken); }
+.map-legend .lg-blocked { background: repeating-linear-gradient(-45deg, var(--blocked) 0 3px, color-mix(in srgb, var(--blocked) 55%, var(--white)) 3px 6px); }
 .map-legend .lg-on { background: var(--blue); }
 .map-workshop {
   height: 44px; border-radius: 12px; border: 1.5px dashed var(--taken);
@@ -26,6 +27,7 @@
 }
 .map-room.free .map-no { color: var(--blue); }
 .map-room.busy { border-color: transparent; background: var(--gray); color: var(--navy-70); box-shadow: none; }
+.map-room.blocked:not(.on) { background: repeating-linear-gradient(-45deg, var(--gray) 0 8px, color-mix(in srgb, var(--blocked) 18%, var(--gray)) 8px 16px); }
 .map-room.on { border-color: transparent; background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
 .map-room.on .map-no { color: var(--white); }
 .map-no { flex: none; width: 28px; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }

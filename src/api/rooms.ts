@@ -1,11 +1,24 @@
 import { api, ApiError } from './client'
 import { mockAvailability } from './mock'
+import type { BlockReason } from '../lib/roomBlocks'
 
 // GET /api/rooms/availability?date=YYYY-MM-DD 응답 (core RoomAvailabilityService.DayAvailability)
 export interface Slot {
   startAt: string
   endAt: string
   available: boolean
+  /**
+   * 관리자가 막은 칸이면 그 사유 (Q-23 제안, core #95 초안). 예전 core에는 없어서 선택 값.
+   * 그 전까지는 예시 화면에서만 lib/studentBlocks가 채운다
+   */
+  block?: SlotBlock | null
+}
+/** 막힌 칸·방의 사유. memo는 관리자가 학생에게 보이려고 적은 짧은 말 */
+export interface SlotBlock {
+  reason: BlockReason
+  memo: string | null
+  /** 막힌 기간이 끝나는 시각 */
+  endAt: string
 }
 export interface RoomSlots {
   roomId: number
@@ -17,6 +30,8 @@ export interface RoomSlots {
    * available만으로는 알 수 없어서 따로 온다. 예전 core·예시 데이터에는 없어서 선택 값
    */
   occupiedNow?: boolean
+  /** 지금 이 방이 막혀 있으면 그 사유 (core #95 초안, 선택 값). 막혀 있으면 occupiedNow도 true */
+  blockedNow?: SlotBlock | null
   slots: Slot[]
 }
 export interface DayAvailability {

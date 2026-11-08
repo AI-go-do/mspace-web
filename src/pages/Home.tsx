@@ -15,6 +15,8 @@ import { useWatched } from '../lib/watch'
 import { useUnreadCount } from '../lib/useUnreadCount'
 import { useApology } from '../lib/useApology'
 import { useRelayOffer } from '../lib/useRelay'
+import { applyBlocksAll, blockedSegments, blockLabel } from '../lib/studentBlocks'
+import { useStudentBlocks } from '../lib/useStudentBlocks'
 import './Home.css'
 
 /**
@@ -52,6 +54,8 @@ export default function Home() {
   const { watched, toggle, unwatch } = useWatched(member, now)
   // 빈방 릴레이(Q-18): 기다리던 칸이 나에게 넘어오면 받을 시간이 짧아서 맨 위에 먼저 보인다
   const { offer, decline } = useRelayOffer(now)
+  // 관리자가 막은 기간(Q-23): 막힌 칸은 예약으로, 지금 막힌 방은 "점검 중"처럼 사유로 보인다
+  const blocks = useStudentBlocks()
 
   useEffect(() => {
     let alive = true
@@ -88,7 +92,7 @@ export default function Home() {
     }
   }, [])
 
-  const rooms = [...(day?.rooms ?? [])].sort((a, b) => b.roomId - a.roomId)
+  const rooms = applyBlocksAll([...(day?.rooms ?? [])], blocks, now).sort((a, b) => b.roomId - a.roomId)
   /**
    * 지금 상태를 아는 방만 비어 있음·사용 중으로 본다. 서버가 occupiedNow를 안 줬거나(예전 core)
    * 지금 시각이 시간표 밖이면(날이 바뀌고 새 시간표가 아직 없음) 알 수 없음으로 둔다
@@ -181,13 +185,15 @@ export default function Home() {
             {rooms.map((r) => {
               const pct = nowPercent(r.slots, now)
               const free = known(r) && isFreeNow(r.slots, now, r.occupiedNow)
-              const status = !known(r) ? '상태 확인 중' : free ? '지금 비어 있음' : '사용 중'
+              const status = r.blockedNow ? blockLabel(r.blockedNow, now) : !known(r) ? '상태 확인 중' : free ? '지금 비어 있음' : '사용 중'
               const segs = takenSegments(r.slots, now)
+              const blockSegs = blockedSegments(r.slots, now)
               const day0 = r.slots.length ? Date.parse(r.slots[0].startAt) : 0
               const mySegs = mineToday.filter((m) => m.room.id === r.roomId)
                 .map((m) => ({ from: Math.max(0, (Date.parse(m.startAt) - day0) / 3_600_000), to: Math.min(24, (Date.parse(m.endAt) - day0) / 3_600_000) }))
               // 막대는 aria-hidden이라, 예약 구간을 링크 이름에 글로 넣는다
               const schedule = (mySegs.length ? `내 예약 ${mySegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}, ` : '') + (segs.length ? `남은 예약 ${segs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '남은 예약 없음')
+                + (blockSegs.length ? `, 예약 막힘 ${blockSegs.map((s) => `${hm(s.from)}–${hm(s.to)}`).join(', ')}` : '')
               const watching = watched.includes(r.roomId)
               return (
                 <span key={r.roomId} className="room-line">
@@ -199,6 +205,9 @@ export default function Home() {
                       {segs.map((s) => (
                         <i key={s.from} className="seg" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}
+                      {blockSegs.map((s) => (
+                        <i key={`b${s.from}`} className="seg blocked" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
+                      ))}
                       {mySegs.map((s) => (
                         <i key={`m${s.from}`} className="seg mine" style={{ left: `${(s.from / 24) * 100}%`, width: `${((s.to - s.from) / 24) * 100}%` }} />
                       ))}
@@ -208,7 +217,7 @@ export default function Home() {
                   </span>
                 </Link>
                 {/* 사용 중인 방만: 눈 표시를 켜 두면 비는 순간 비서 카드가 먼저 말을 건다 (링크 안에 버튼을 넣을 수 없어 옆에 둔다) */}
-                {known(r) && !free && (
+                {known(r) && !free && !r.blockedNow && (
                   <button type="button" className={`watch-btn ${watching ? 'on' : ''}`} aria-pressed={watching}
                     aria-label={`창작실 ${r.roomId} 비면 알려 주기`} onClick={() => toggle(r.roomId)}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
