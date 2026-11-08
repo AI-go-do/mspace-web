@@ -5,6 +5,7 @@ import { getAvailability, type DayAvailability, type RoomSlots } from '../api/ro
 import { getSchedule, type Schedule } from '../api/schedule'
 import ApologyCard from '../components/ApologyCard'
 import ButlerCard from '../components/ButlerCard'
+import { RelayCard } from '../components/Relay'
 import { butlerSuggestion } from '../lib/butler'
 import { isFreeNow, nowPercent, seoulClock, seoulDate, takenSegments } from '../lib/time'
 import { roomLink } from '../lib/slots'
@@ -13,6 +14,7 @@ import { useMemberId } from '../lib/useMemberId'
 import { useWatched } from '../lib/watch'
 import { useUnreadCount } from '../lib/useUnreadCount'
 import { useApology } from '../lib/useApology'
+import { useRelayOffer } from '../lib/useRelay'
 import './Home.css'
 
 /**
@@ -48,6 +50,8 @@ export default function Home() {
   // 빈방 지켜보기: 사용 중인 방 줄의 눈 표시. 켜 두면 그 방이 비는 순간 비서 카드가 먼저 말을 건다
   const member = useMemberId()
   const { watched, toggle, unwatch } = useWatched(member, now)
+  // 빈방 릴레이(Q-18): 기다리던 칸이 나에게 넘어오면 받을 시간이 짧아서 맨 위에 먼저 보인다
+  const { offer, decline } = useRelayOffer(now)
 
   useEffect(() => {
     let alive = true
@@ -148,6 +152,7 @@ export default function Home() {
         </div>
       </header>
 
+      {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
       {apology && <ApologyCard key={apology.id} n={apology} now={now} onClose={closeApology} />}
 

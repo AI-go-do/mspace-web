@@ -22,6 +22,8 @@ export interface NewReservation {
   endAt: string
   /** 대표자 본인은 빼고 적는다 */
   participantStudentIds: string[]
+  /** 빈방 릴레이로 넘겨받은 칸이면 그 번호(Q-18 제안, core #94). core가 잡아 둔 칸을 이 사람만 예약하게 */
+  relayOfferId?: number
 }
 
 /**
