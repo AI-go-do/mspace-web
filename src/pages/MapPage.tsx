@@ -4,6 +4,8 @@ import { getAvailability, type RoomSlots } from '../api/rooms'
 import { nowState, seoulClock, seoulDate } from '../lib/time'
 import { roomLink } from '../lib/slots'
 import { useNow } from '../lib/useNow'
+import { applyBlocksAll, blockLabel } from '../lib/studentBlocks'
+import { useStudentBlocks } from '../lib/useStudentBlocks'
 import { REQUEST_TIMEOUT_MS } from './MyReservations'
 import './MapPage.css'
 
@@ -19,6 +21,8 @@ export default function MapPage() {
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
+  // 관리자가 막은 기간(Q-23): 지금 막힌 방은 "점검 중 · 12:00까지"처럼 사유로 보인다
+  const blocks = useStudentBlocks()
 
   useEffect(() => {
     let alive = true
@@ -63,7 +67,12 @@ export default function MapPage() {
     }
   }, [])
 
-  const ordered = [...(rooms ?? [])].sort((a, b) => b.roomId - a.roomId)
+  const ordered = applyBlocksAll([...(rooms ?? [])], blocks, now).sort((a, b) => b.roomId - a.roomId)
+  // 지금 상태 한 줄. 막힌 방은 사유와 풀리는 시각, 아니면 비어 있음·사용 중
+  const stateOf = (r: RoomSlots) => {
+    const st = nowState(r.slots, now, r.occupiedNow)
+    return r.blockedNow ? { free: false, blocked: true, text: blockLabel(r.blockedNow, now) } : { ...st, blocked: false }
+  }
   const room = ordered.find((r) => r.roomId === picked)
 
   return (
@@ -79,6 +88,7 @@ export default function MapPage() {
         <div className="map-legend">
           <span><i className="lg-free" />비어 있음</span>
           <span><i className="lg-busy" />사용 중</span>
+          {ordered.some((r) => r.blockedNow) && <span><i className="lg-blocked" />막힘</span>}
           <span><i className="lg-on" />선택</span>
         </div>
         <div className="map-workshop">3D프린터 공작실 · 예약 대상 아님</div>
@@ -92,11 +102,11 @@ export default function MapPage() {
         <div className="map-floor">
           <div className="map-rooms">
             {ordered.map((r) => {
-              const st = nowState(r.slots, now, r.occupiedNow)
+              const st = stateOf(r)
               const on = r.roomId === picked
               return (
                 <button key={r.roomId} type="button" aria-pressed={on}
-                  className={`map-room ${st.free ? 'free' : 'busy'} ${on ? 'on' : ''}`}
+                  className={`map-room ${st.free ? 'free' : 'busy'} ${st.blocked ? 'blocked' : ''} ${on ? 'on' : ''}`}
                   aria-label={`창작실 ${r.roomId}, ${r.minPeople}–${r.maxPeople}명, ${st.text}`}
                   onClick={() => setPicked(r.roomId)}>
                   <span className="map-no">{r.roomId}</span>
@@ -118,7 +128,7 @@ export default function MapPage() {
         <div className="map-bar">
           <div className="map-bar-row" key={room.roomId}>
             <b>창작실 {room.roomId}</b>
-            <span className="muted">{room.minPeople}–{room.maxPeople}명 · {nowState(room.slots, now, room.occupiedNow).text}</span>
+            <span className="muted">{room.minPeople}–{room.maxPeople}명 · {stateOf(room).text}{room.blockedNow?.memo ? ` (${room.blockedNow.memo})` : ''}</span>
           </div>
           {/* 지금 비어 있으면 지금 바로 쓰기가 기본(11/6 스크럼), 아니면 시간 고르기 */}
           {roomLink(room, now).startsWith('/now')

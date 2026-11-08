@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { celebrate } from '../lib/celebrate'
@@ -11,6 +11,8 @@ import { hasAgreed } from '../content/rules'
 import { addDays, instantEnds, MAX_SLOTS, nextTakenAt } from '../lib/slots'
 import { isFreeNow, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
+import { applyBlocksAll, blockLabel } from '../lib/studentBlocks'
+import { useStudentBlocks } from '../lib/useStudentBlocks'
 import './Instant.css'
 
 type Step = 'pick' | 'members' | 'rules'
@@ -23,7 +25,10 @@ type Step = 'pick' | 'members' | 'rules'
 export default function Instant() {
   const navigate = useNavigate()
   const now = useNow(15_000)
-  const [rooms, setRooms] = useState<RoomSlots[] | null>(null)
+  const [rawRooms, setRooms] = useState<RoomSlots[] | null>(null)
+  // 관리자가 막은 기간(Q-23): 지금 막힌 방은 빈 방 목록에서 빠지고, 막히기 전까지만 끝 시각을 고를 수 있다
+  const blocks = useStudentBlocks()
+  const rooms = useMemo(() => rawRooms && applyBlocksAll(rawRooms, blocks, now), [rawRooms, blocks, now])
   // 서버에 닿지 못해 예시를 보여 주는 중이면 실제로 시작하지 않는다
   const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,6 +105,8 @@ export default function Instant() {
 
   const free = (rooms ?? []).filter((r) => isFreeNow(r.slots, now, r.occupiedNow)).sort((a, b) => a.roomId - b.roomId)
   const room = free.find((r) => r.roomId === roomId) ?? null
+  // 고른 방이 관리자가 막은 기간이면 그 사유 ("점검 중 · 12:00까지")
+  const blockedAsked = rooms?.find((r) => r.roomId === roomId)?.blockedNow ?? null
   const ends = room ? instantEnds(room.slots, now) : []
   // 고른 끝 시각이 시간이 지나 못 쓰게 되면 지운다
   const end = ends.find((e) => e.endAt === endAt && e.ok) ? endAt : null
@@ -220,7 +227,7 @@ export default function Instant() {
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
         {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
         {rooms && roomId !== null && !room && (
-          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요. 다른 빈 방을 고르거나 {busy ? '시간을 골라 예약' : <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>}해 주세요.</p>
+          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요{blockedAsked ? `(${blockLabel(blockedAsked, now)})` : ''}. 다른 빈 방을 고르거나 {busy ? '시간을 골라 예약' : <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>}해 주세요.</p>
         )}
         {free.map((r) => {
           const ok = canStart(r)

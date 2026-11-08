@@ -11,6 +11,9 @@ import { currentMemberId } from '../api/client'
 import { WaitSheet } from '../components/Relay'
 import { useNow } from '../lib/useNow'
 import { useWaits } from '../lib/useRelay'
+import { applyBlocks, applySlotBlocks, blockRuns, untilLabel } from '../lib/studentBlocks'
+import { reasonStatus } from '../lib/roomBlocks'
+import { useStudentBlocks } from '../lib/useStudentBlocks'
 import type { SuggestPick } from '../components/ButlerCard'
 import { BackIcon, DeniedSheet, Members, RulesAgree, newKey } from '../components/ReserveSteps'
 import { deniedFor, type Denied } from '../content/denied'
@@ -57,8 +60,17 @@ export default function Reserve() {
   // 넘겨받은 칸은 받을 시간 안에만 빈 칸으로 연다. 시간이 지나면 다시 예약됨으로 보인다(이미 받은 시간표도 바로)
   const tick = useNow(relay ? 1000 : 60_000)
   const offerLive = !!relay && relay.roomId === roomId && Date.parse(relay.expiresAt) > tick.getTime()
-  const room = useMemo(() => (offerLive ? withOffer(loadedRoom, relay) : loadedRoom), [offerLive, loadedRoom, relay])
-  const nextSlots = useMemo(() => (offerLive ? openOfferSlots(loadedNext, relay) : loadedNext), [offerLive, loadedNext, relay])
+  // 관리자가 막은 기간(Q-23): 막힌 칸은 고를 수 없고 사유가 보인다(넘겨받은 칸이어도 막힌 쪽이 이긴다).
+  // core가 칸에 사유를 넣어 주기 전에는 예시 화면에서만 덮는다
+  const blocks = useStudentBlocks()
+  const room = useMemo(() => {
+    const r = offerLive ? withOffer(loadedRoom, relay) : loadedRoom
+    return r && applyBlocks(r, blocks, now)
+  }, [offerLive, loadedRoom, relay, blocks, now])
+  const nextSlots = useMemo(
+    () => applySlotBlocks(roomId, offerLive ? openOfferSlots(loadedNext, relay) : loadedNext, blocks),
+    [offerLive, loadedNext, relay, roomId, blocks],
+  )
 
   // 골라 둔 칸이 화면 아래에 있으면 그리로 내려 보여 준다(한 번만)
   const scrollToPick = useRef(false)
@@ -173,6 +185,15 @@ export default function Reserve() {
   // 하루 칸 뒤에 다음 날 앞쪽 칸을 이어 붙인다. 앞 48칸만 시작으로 고를 수 있다
   const slots = daySlots.length === DAY_SLOTS ? [...daySlots, ...nextSlots] : daySlots
   const free = slots.map((s) => s.available && Date.parse(s.startAt) >= now.getTime())
+  // 골라 둔 칸(비서 제안·릴레이로 미리 골라진 칸 포함)이 막힌 기간에 걸리면 고른 것을 지운다
+  const pickBlocked = !!pick && slots.slice(pick.start, pick.start + pick.len).some((s) => !!s.block)
+  useEffect(() => {
+    if (pickBlocked && !busy) setPick(null)
+  }, [pickBlocked, busy])
+  // 이 날 시간표에 걸린 막힌 기간 (시간표 위 안내 줄)
+  // 이미 끝난 막힌 기간은 안내하지 않는다(시간표에서도 지난 칸은 흐리게만 보인다)
+  const runs = blockRuns(daySlots).filter((r) => Date.parse(daySlots[r.to - 1].endAt) > now.getTime())
+  const dayRef = new Date(`${date}T12:00:00+09:00`)
   const reach = Math.min(nextDayReach(pick?.start ?? null), slots.length - daySlots.length)
   const count = people.length + 1 // 대표자(나) 포함
   const min = room?.minPeople ?? 1
@@ -266,7 +287,7 @@ export default function Reserve() {
     if (waitAt === null || waitBusy) return
     // 시트를 열어 둔 사이 칸이 시작했거나 비었으면 걸지 않는다
     const slot = daySlots[waitAt]
-    if (!slot || slot.available || Date.parse(slot.startAt) <= Date.now()) {
+    if (!slot || slot.available || !!slot.block || Date.parse(slot.startAt) <= Date.now()) {
       setWaitError('이 칸은 더 이상 기다릴 수 없어요. 다른 칸을 골라 주세요')
       return
     }
@@ -290,8 +311,12 @@ export default function Reserve() {
       }
       setRoom(fresh)
       const at = Date.parse(slot.startAt)
-      const freshSlots = fresh.slots
+      const freshSlots = applySlotBlocks(roomId, fresh.slots, blocks)
       const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
+      if (i >= 0 && freshSlots[i].block) {
+        setWaitError('이 칸은 관리자가 막아 두어 기다릴 수 없어요. 다른 칸을 골라 주세요')
+        return
+      }
       if (i < 0 || freshSlots[i].available) {
         setWaitError('방금 이 칸이 비었어요. 시트를 닫고 칸을 눌러 바로 예약해 주세요')
         return
@@ -346,6 +371,7 @@ export default function Reserve() {
               <h2 id="grid-title">하루 전체 · 30분 칸</h2>
               <span className="legend">
                 <span><i className="lg lg-taken-slot" />예약됨</span>
+                {runs.length > 0 && <span><i className="lg lg-blocked-slot" />막힘</span>}
                 <span><i className="lg lg-pick" />선택</span>
               </span>
             </div>
@@ -355,17 +381,29 @@ export default function Reserve() {
                 <button type="button" className="btn-line" onClick={() => load()}>다시 불러오기</button>
               </div>
             )}
+            {runs.length > 0 && (
+              <ul className="rs-blocks" aria-label="예약할 수 없는 시간">
+                {runs.map((r) => (
+                  <li key={r.from}>
+                    <b>{slotClock(r.from)}–{untilLabel(r.block.endAt, dayRef)} {reasonStatus(r.block.reason)}</b>
+                    <span className="muted"> · 예약할 수 없어요{r.block.memo ? ` (${r.block.memo})` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="slot-grid">
               {daySlots.map((s, i) => {
                 const past = Date.parse(s.startAt) < now.getTime()
-                const taken = !past && !s.available
+                // 관리자가 막은 칸은 예약된 칸과 다르게 보이고, 기다리기도 걸 수 없다(누가 놓을 예약이 아니라서)
+                const blocked = !past && !!s.block
+                const taken = !past && !s.available && !blocked
                 const on = !!pick && i >= pick.start && i < pick.start + pick.len
                 const waiting = taken && waitingAt.has(Date.parse(s.startAt))
                 // 빈방 릴레이: 예약된 칸도 눌러서 기다리기를 걸 수 있다(이미 기다리는 칸은 아래 줄에서 그만둔다)
                 const waitable = canWait && taken && !waiting
-                const label = `${slotClock(i)} ${waiting ? '예약됨, 기다리는 중' : taken ? (waitable ? '예약됨, 눌러서 기다리기' : '예약됨') : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
+                const label = `${slotClock(i)} ${blocked ? `${reasonStatus(s.block!.reason)}, 예약할 수 없음` : waiting ? '예약됨, 기다리는 중' : taken ? (waitable ? '예약됨, 눌러서 기다리기' : '예약됨') : past ? '지난 시간' : on ? '선택됨' : '비어 있음'}`
                 return (
-                  <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''} ${waitable ? 'can-wait' : ''} ${waiting ? 'waiting' : ''}`}
+                  <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${blocked ? 'blocked' : ''} ${past ? 'past' : ''} ${on ? 'on' : ''} ${waitable ? 'can-wait' : ''} ${waiting ? 'waiting' : ''}`}
                     style={on ? { '--k': i - pick!.start } as CSSProperties : undefined}
                     disabled={busy || (!free[i] && !waitable)} aria-pressed={on} aria-label={label}
                     onClick={() => (waitable ? (setWaitError(null), setWaitAt(i)) : setPick(tapSlot(pick, i, free, DAY_SLOTS)))}>
@@ -380,11 +418,12 @@ export default function Reserve() {
                 <div className="slot-grid">
                   {slots.slice(DAY_SLOTS, DAY_SLOTS + reach).map((s, k) => {
                     const i = DAY_SLOTS + k
-                    const taken = !s.available
+                    const blocked = !!s.block
+                    const taken = !s.available && !blocked
                     const on = !!pick && i >= pick.start && i < pick.start + pick.len
-                    const label = `다음 날 ${slotClock(k)} ${taken ? '예약됨' : on ? '선택됨' : '비어 있음'}`
+                    const label = `다음 날 ${slotClock(k)} ${blocked ? `${reasonStatus(s.block!.reason)}, 예약할 수 없음` : taken ? '예약됨' : on ? '선택됨' : '비어 있음'}`
                     return (
-                      <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${on ? 'on' : ''}`}
+                      <button key={s.startAt} type="button" className={`slot ${taken ? 'taken' : ''} ${blocked ? 'blocked' : ''} ${on ? 'on' : ''}`}
                         style={on ? { '--k': i - pick!.start } as CSSProperties : undefined}
                         disabled={busy || !free[i]} aria-pressed={on} aria-label={label} onClick={() => setPick(tapSlot(pick, i, free, DAY_SLOTS))}>
                         {slotClock(k)}

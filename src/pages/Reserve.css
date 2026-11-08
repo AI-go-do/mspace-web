@@ -22,6 +22,7 @@
 .rs-grid-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .lg-taken-slot { background: var(--taken); }
 .lg-pick { background: var(--blue); }
+.lg-blocked-slot { background: var(--blocked); }
 .slot-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .slot {
   height: var(--touch); border-radius: 10px; border: 0; background: var(--gray); font-weight: 500;
@@ -34,6 +35,8 @@
   color: var(--navy-70); cursor: default;
 }
 .slot.past { background: transparent; color: rgba(21, 35, 61, 0.3); cursor: default; }
+/* 관리자가 막은 칸(공사·점검·대관): 예약된 칸보다 진하게, 글씨는 흰색으로 */
+.slot.blocked { background: var(--blocked); color: var(--white); cursor: default; }
 .slot.on { background: var(--grad-blue); color: var(--white); font-weight: 700; box-shadow: var(--shadow-blue); }
 
 .rs-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -127,3 +130,8 @@
 .rs-now-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .rs-now-text b { font-size: 16px; }
 .rs-now-go { flex: none; padding: 10px 16px; border-radius: 14px; background: var(--blue); color: var(--white); font-size: 14px; font-weight: 700; }
+
+/* 이 날 막힌 기간 안내 (Q-23) */
+.rs-blocks { margin: 0; padding: 10px 12px; list-style: none; display: flex; flex-direction: column; gap: 4px;
+  border-radius: 12px; background: var(--gray); font-size: 13px; }
+.rs-blocks b { font-variant-numeric: tabular-nums; }
