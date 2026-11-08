@@ -1,0 +1,112 @@
+/* 벌점 해명 카드 (이용 규칙 화면 "내 경고" 아래). 색은 tokens.css 4+2색만 */
+.ph { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.ph-head { display: flex; align-items: center; gap: 8px; }
+.ph-head h2 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; }
+.ph-lead { margin: 0; font-size: 13px; line-height: 1.55; color: var(--navy-70); }
+.ph-lead b { color: var(--navy); }
+.ph-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.ph-item {
+  position: relative; overflow: hidden; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px;
+  background: color-mix(in srgb, var(--blue) 4%, var(--white)); box-shadow: inset 0 0 0 1px var(--line);
+  animation: rise-in 0.4s var(--ease-out) var(--d, 0ms) backwards;
+}
+/* 해명할 수 있는 경고는 왼쪽에 노란 띠 */
+.ph-item.t-open { box-shadow: inset 4px 0 0 var(--yellow), inset 0 0 0 1px var(--line); }
+.ph-item.t-done { background: color-mix(in srgb, var(--sky) 14%, var(--white)); }
+.ph-top { display: flex; align-items: center; gap: 8px; }
+.ph-kind { padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 800; background: var(--navy); color: var(--white); }
+.ph-kind.k-NO_SHOW { background: var(--blue); }
+.ph-pill { margin-left: auto; padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 800; background: var(--gray); color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.ph-pill.p-open { background: var(--yellow); color: var(--navy); }
+.ph-pill.p-wait { background: var(--navy); color: var(--white); }
+.ph-pill.p-done { background: var(--sky); color: var(--navy); }
+.ph-when { font-size: 15px; font-variant-numeric: tabular-nums; }
+/* 무른 경고는 줄이 그어진다 */
+.ph-when.struck { background: linear-gradient(var(--navy-70), var(--navy-70)) no-repeat 0 55% / 100% 1.5px; color: var(--navy-70); animation: strike 0.6s 0.3s var(--ease-out) backwards; }
+@keyframes strike { from { background-size: 0 1.5px; } }
+.ph-why { margin: 0; font-size: 13.5px; line-height: 1.5; }
+
+.ph-toggle {
+  align-self: flex-start; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 36px; padding: 0; border: 0; background: none;
+  font: inherit; font-size: 13px; font-weight: 800; color: var(--blue); cursor: pointer;
+}
+.ph-toggle svg { transition: transform 0.25s var(--ease-out); }
+.ph-toggle svg.up { transform: rotate(180deg); }
+.ph-hint { padding: 2px 8px; border-radius: 7px; font-size: 11.5px; background: color-mix(in srgb, var(--sky) 35%, var(--white)); color: var(--navy); animation: pop 0.4s var(--ease-spring) backwards; }
+
+/* 근거 기록: 세로 시간선. 학생에게 유리한 기록은 하늘색 점 */
+.ph-tl { list-style: none; margin: 0; padding: 2px 0 2px 14px; display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--taken); }
+.ph-tl li { position: relative; display: grid; grid-template-columns: 44px auto 1fr; gap: 2px 8px; align-items: baseline; font-size: 13px; line-height: 1.45; animation: rise-in 0.35s var(--ease-out) var(--d, 0ms) backwards; }
+.ph-tl li::before { content: ''; position: absolute; left: -21px; top: 5px; width: 12px; height: 12px; border-radius: 6px; background: var(--white); box-shadow: inset 0 0 0 3px var(--taken); }
+.ph-tl li.for::before { box-shadow: inset 0 0 0 6px var(--sky); animation: pop 0.4s var(--ease-spring) calc(var(--d, 0ms) + 120ms) backwards; }
+.ph-tl time { font-weight: 800; font-variant-numeric: tabular-nums; }
+.ph-src { font-size: 11.5px; font-weight: 700; color: var(--navy-70); }
+.ph-txt { grid-column: 1 / -1; padding-left: 52px; margin-top: -2px; }
+.ph-tl li.for .ph-txt { font-weight: 700; }
+.ph-write { height: 48px; margin-top: 4px; }
+
+/* 해명 진행 */
+.ph-appeal { position: relative; display: flex; flex-direction: column; gap: 8px; margin-top: 2px; padding: 12px; border-radius: 14px; background: var(--white); box-shadow: inset 0 0 0 1px var(--line); }
+.ph-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 11.5px; font-weight: 800; color: var(--navy-70); }
+.ph-steps li { display: flex; flex-direction: column; gap: 6px; text-align: center; }
+.ph-steps li::before { content: ''; height: 6px; border-radius: 3px; background: var(--gray); }
+.ph-steps li.on { color: var(--navy); }
+.ph-steps li.on::before { background: var(--blue); transform-origin: left; animation: grow-x 0.5s var(--ease-out) backwards; }
+.ph-steps li.on:nth-child(2)::before { animation-delay: 0.15s; }
+.ph-steps li.on:nth-child(3)::before { animation-delay: 0.3s; }
+/* 관리자가 보고 있는 칸: 줄이 반짝이며 흐른다 */
+.ph-steps li.cur::before { background: linear-gradient(90deg, var(--gray), var(--sky), var(--gray)); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+.s-ACCEPTED .ph-steps li:nth-child(3).on::before { background: var(--sky); }
+.ph-said { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.5; }
+.ph-said .muted { font-size: 11.5px; }
+.ph-answer { margin: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; background: color-mix(in srgb, var(--sky) 22%, var(--white)); }
+.ph-answer b { font-size: 11.5px; }
+.ph-wait { margin: 0; font-size: 12px; }
+/* 방금 보낸 해명: 도장이 쿵 */
+.ph-stamp {
+  position: absolute; right: 12px; bottom: 12px; padding: 4px 12px; border-radius: 10px; border: 2.5px solid var(--blue); color: var(--blue);
+  font-weight: 900; font-size: 15px; letter-spacing: 0.08em; transform: rotate(-12deg); opacity: 0.85;
+  animation: stamp 0.5s var(--ease-spring) 0.2s backwards;
+}
+@keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.2); } }
+
+.ph-foot { margin: 0; font-size: 12px; line-height: 1.5; color: var(--navy-70); }
+.ph-link { border: 0; background: none; padding: 0; font: inherit; font-weight: 800; color: var(--blue); text-decoration: underline; cursor: pointer; }
+
+/* 해명 쓰기 시트 */
+.ph-sheet { max-height: 92dvh; overflow-y: auto; }
+.ph-butler { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 16px; background: color-mix(in srgb, var(--blue) 6%, var(--white)); }
+.ph-butler-face { flex: none; width: 36px; height: 36px; border-radius: 18px; background: var(--white); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-1); animation: bob 2.4s ease-in-out infinite; }
+.ph-butler p { font-size: 13.5px; }
+.ph-pick { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; }
+.ph-pick legend { font-size: 13px; font-weight: 800; margin-bottom: 6px; }
+.ph-pick label {
+  display: grid; grid-template-columns: 22px 44px 1fr; gap: 8px; align-items: center; min-height: var(--touch); padding: 8px 12px; border-radius: 12px;
+  background: var(--gray); font-size: 13px; line-height: 1.4; cursor: pointer; transition: background-color 0.2s, box-shadow 0.2s;
+}
+.ph-pick label.on { background: color-mix(in srgb, var(--sky) 28%, var(--white)); box-shadow: inset 0 0 0 1.5px var(--sky); }
+.ph-pick input { width: 18px; height: 18px; accent-color: var(--blue); margin: 0; }
+.ph-pick time { font-weight: 800; font-variant-numeric: tabular-nums; }
+.ph-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; }
+.ph-label small { font-weight: 600; color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.ph-text {
+  width: 100%; border: 0; border-radius: 14px; padding: 12px 14px; font: inherit; font-size: 14px; line-height: 1.6; resize: vertical;
+  background: var(--gray); color: var(--navy); box-shadow: inset 0 0 0 1px var(--line);
+}
+.ph-text:focus { outline: 3px solid var(--sky); outline-offset: 1px; }
+.ph-text.typing { caret-color: var(--blue); box-shadow: inset 0 0 0 1.5px var(--sky); }
+.ph-privacy { font-size: 12px !important; }
+.ph-err { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--yellow); font-size: 13px; font-weight: 700; }
+.ph-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 8px 0; }
+.ph-done-mark {
+  width: 64px; height: 64px; border-radius: 32px; display: flex; align-items: center; justify-content: center;
+  background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); animation: pop 0.5s var(--ease-spring) backwards;
+}
+.ph-done-mark path { stroke-dasharray: 1; stroke-dashoffset: 0; animation: draw 0.45s 0.2s var(--ease-out) backwards; }
+.ph-done-mark svg { overflow: visible; }
+.ph-done .btn-primary { margin-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ph *, .ph *::before, .ph-sheet *, .ph-sheet *::before { animation: none !important; transition: none !important; }
+}
