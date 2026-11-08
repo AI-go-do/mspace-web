@@ -99,6 +99,12 @@ describe('공지 한 줄 → 막기안', () => {
     expect(parseNotice('11/12, 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
     expect(parseNotice('11.12 · 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
     expect(parseNotice('11/12 13:05, 3번 방 점검', now).rows.map((r) => r.roomId)).toEqual([3])
+    // 방 이름 뒤 "1/2"는 날짜가 아니라 1·2번 방
+    const slash = parseNotice('11/12 방 1/2 점검', now)
+    expect([...new Set(slash.rows.map((r) => r.roomId))]).toEqual([1, 2])
+    expect(slash.notes.join(' ')).not.toContain('여러 개')
+    // 방 이름 뒤라도 두 자리 날짜는 그대로 날짜
+    expect(parseNotice('3번 방 11/12 점검', now).rows.map((r) => r.roomId)).toEqual([3])
     const d = parseNotice('11/12 15:00, 3번 방 점검', now)
     expect(d.rows.map((r) => r.roomId)).toEqual([3])
     expect(d.notes.join(' ')).not.toContain('0번 방')

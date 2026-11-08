@@ -207,7 +207,9 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   if (!t.trim()) return empty('공지 문장을 붙여 넣어 주세요.')
 
   // 날짜
-  const dates = findDates(t, today)
+  // "방 1/2"처럼 방 이름 바로 뒤 한 자리 숫자 목록은 날짜(1월 2일)가 아니라 방 번호로 본다
+  const roomLists = [...t.matchAll(/(?:창작실|방)\s*\d(?:\s*[,·/~\-–]\s*\d)*(?!\d)/g)].map((m) => ({ start: m.index!, end: m.index! + m[0].length }))
+  const dates = findDates(t, today).filter((d) => !roomLists.some((r) => d.start < r.end && r.start < d.end))
   if (dates.length === 0) {
     const r = findRooms(t); spans.push(...r.spans)
     return empty('날짜를 못 찾았어요. "11월 12일", "11/12", "내일", "다음 주 수요일"처럼 적어 주세요.')
