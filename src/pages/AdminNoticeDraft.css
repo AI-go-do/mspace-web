@@ -6,7 +6,7 @@
 @keyframes filled { 0%, 40% { box-shadow: 0 0 0 4px var(--sky), var(--shadow-1); } }
 .nd { display: flex; flex-direction: column; gap: 10px; }
 .nd-icon { background: var(--yellow) !important; color: var(--navy) !important; }
-.nd-text { min-height: 64px; resize: vertical; line-height: 1.55; font: inherit; font-size: 14.5px; }
+.nd-text { min-height: 64px; resize: vertical; font: inherit; font-size: 14.5px; line-height: 1.55; }
 .nd-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; }
 .nd-ex { min-height: 32px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--gray); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background-color 0.2s, transform 0.12s var(--ease-out); }
 .nd-ex:hover { background: color-mix(in srgb, var(--sky) 30%, var(--white)); }

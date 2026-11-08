@@ -46,7 +46,9 @@ function withYear(m: number, d: number, today: YMD): YMD {
   return cmp(v, addDays(today, -60)) < 0 ? { ...v, y: today.y + 1 } : v
 }
 
-const validDay = (m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= 31
+// 달마다 마지막 날(2월은 29일까지 받고, 해가 정해진 뒤 at()이 틀린 날을 Invalid Date로 거른다)
+const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const validDay = (m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= MONTH_DAYS[m - 1]
 
 interface Hit<T> { value: T; start: number; end: number }
 
@@ -116,7 +118,7 @@ function findTimes(text: string): Hit<Clock & { meridiem: string | null }>[] {
   for (const m of text.matchAll(/(오전|오후|낮|저녁|밤|아침)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시\s*(?:(\d{1,2})\s*분|(반))?)/g)) {
     const h = Number(m[2])
     const min = m[3] ? Number(m[3]) : m[4] ? Number(m[4]) : m[5] ? 30 : 0
-    if (h > 24 || min > 59) continue
+    if (h > 24 || min > 59 || (h === 24 && min > 0)) continue
     const start = m.index! + (m[0].length - m[0].trimStart().length)
     out.push({ value: { h, min, meridiem: m[1] ?? null }, start, end: m.index! + m[0].length })
   }
@@ -136,7 +138,7 @@ function to24(t: Clock & { meridiem: string | null }, notes: string[]): Clock {
 }
 
 /** 방: "1·2번 방", "1, 3번 방", "1~3번 방", "창작실 3", "전체 방" */
-function findRooms(text: string): { ids: number[]; spans: Span[]; all: boolean } {
+function findRooms(text: string): { ids: number[]; unknown: number[]; spans: Span[]; all: boolean } {
   const ids = new Set<number>()
   const spans: Span[] = []
   let all = false
@@ -156,7 +158,8 @@ function findRooms(text: string): { ids: number[]; spans: Span[]; all: boolean }
     all = true
     spans.push({ start: m.index!, end: m.index! + m[0].length, kind: 'room' })
   }
-  return { ids: [...ids].filter((i) => ROOM_IDS.includes(i)).sort((a, b) => a - b), spans, all }
+  const sorted = [...ids].sort((a, b) => a - b)
+  return { ids: sorted.filter((i) => ROOM_IDS.includes(i)), unknown: sorted.filter((i) => !ROOM_IDS.includes(i)), spans, all }
 }
 
 const REASONS: { reason: BlockReason; words: RegExp }[] = [
@@ -180,7 +183,12 @@ function findReason(text: string): { reason: BlockReason; memo: string; span: Sp
   return { reason: 'OTHER', memo: '', span: null }
 }
 
-const at = (v: YMD, c: Clock) => new Date(`${iso(v)}T${String(c.h).padStart(2, '0')}:${String(c.min).padStart(2, '0')}:00+09:00`)
+/** 서울 시각. 없는 날(2027-02-29 등)은 Date가 다음 달로 넘기므로 Invalid Date로 돌려준다 */
+const at = (v: YMD, c: Clock) => {
+  const real = new Date(Date.UTC(v.y, v.m - 1, v.d))
+  if (real.getUTCMonth() !== v.m - 1 || real.getUTCDate() !== v.d) return new Date(NaN)
+  return new Date(`${iso(v)}T${String(c.h).padStart(2, '0')}:${String(c.min).padStart(2, '0')}:00+09:00`)
+}
 const SLOT = 30 * 60_000
 const floorSlot = (d: Date) => new Date(Math.floor(d.getTime() / SLOT) * SLOT)
 const ceilSlot = (d: Date) => new Date(Math.ceil(d.getTime() / SLOT) * SLOT)
@@ -237,6 +245,12 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   const rooms = findRooms(t)
   spans.push(...rooms.spans)
   let ids = rooms.all ? [...ROOM_IDS] : rooms.ids
+  // 공지가 방 번호를 적었는데 모두 없는 방이면 모든 방으로 넘겨짚지 않고 되묻는다
+  if (!rooms.all && rooms.unknown.length > 0) {
+    const msg = `${rooms.unknown.join(', ')}번 방은 없어요(1~${ROOM_IDS.length}번).`
+    if (ids.length === 0) return empty(`${msg} 공지의 방 번호를 확인해 주세요.`)
+    notes.push(`${msg} 그 방은 빼고 읽었어요.`)
+  }
   if (ids.length === 0) {
     ids = [...ROOM_IDS]
     notes.push('방 번호가 없어 모든 방으로 읽었어요. 맞는지 꼭 확인해 주세요.')
@@ -256,6 +270,10 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   const spansOf: [Date, Date][] = daily
     ? days.map((d) => [at(d, startClock), at(d, endClock!)])
     : [[at(days[0], startClock), endClock ? at(lastDay, endClock) : at(addDays(lastDay, 1), { h: 0, min: 0 })]]
+  // 2월 30일 같은 없는 날·시각은 Date가 넘겨 버리거나 Invalid Date가 되니 여기서 멈춘다
+  if (spansOf.some(([s, e]) => Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()))) {
+    return { ...empty('날짜나 시각을 읽을 수 없어요. 공지의 날짜와 시각을 확인해 주세요.'), reason: r.reason, memo }
+  }
   for (const [s0, e0] of spansOf) {
     const s = floorSlot(s0); const e = ceilSlot(e0)
     if (s.getTime() !== s0.getTime() || e.getTime() !== e0.getTime()) {

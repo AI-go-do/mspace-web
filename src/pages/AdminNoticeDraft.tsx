@@ -40,14 +40,17 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
 
   function blockAll(d: NoticeDraft) {
     const errors: string[] = []
+    const failed: DraftRow[] = []
     let ok = 0
     for (const r of d.rows) {
       const res = createBlock({ roomId: r.roomId, startAt: new Date(r.startAt), endAt: new Date(r.endAt), reason: d.reason, memo: d.memo })
-      if ('error' in res) errors.push(`${roomName(r.roomId)} ${period(r)}: ${res.error}`)
+      if ('error' in res) { errors.push(`${roomName(r.roomId)} ${period(r)}: ${res.error}`); failed.push(r) }
       else ok++
     }
     setDone({ ok, errors })
     if (errors.length === 0) { setDraft(null); setText('') }
+    // 일부만 막혔으면 막기안에는 못 막은 줄만 남겨, 다시 눌러도 막힌 줄을 또 막지 않게
+    else if (ok > 0) setDraft((cur) => cur && { ...cur, d: { ...cur.d, rows: failed } })
   }
 
   const now = new Date()

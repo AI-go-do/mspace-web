@@ -77,4 +77,21 @@ describe('공지 한 줄 → 막기안', () => {
     expect(parts.map((p) => p.text).join('')).toBe(t)
     expect(parts.filter((p) => p.kind).map((p) => p.kind)).toEqual(['date', 'room', 'reason'])
   })
+  it('없는 방 번호만 적으면 모든 방으로 넘겨짚지 않고 되묻는다', () => {
+    const d = parseNotice('11/12 6번 방 점검', now)
+    expect(d.rows).toEqual([])
+    expect(d.problem).toContain('6번 방은 없어요')
+  })
+
+  it('있는 방과 없는 방이 섞이면 없는 방만 빼고 알려 준다', () => {
+    const d = parseNotice('11/12 2, 7번 방 점검', now)
+    expect(d.rows.map((r) => r.roomId)).toEqual([2])
+    expect(d.notes.join(' ')).toContain('7번 방은 없어요')
+  })
+
+  it('없는 날짜·24시 넘는 시각은 오류 없이 되묻는다', () => {
+    expect(parseNotice('2월 30일 3번 방 점검', now).problem).toContain('날짜')
+    expect(parseNotice('2027-02-29 3번 방 점검', now).problem).toContain('날짜')
+    expect(() => parseNotice('11/12 24:30 3번 방 점검', now)).not.toThrow()
+  })
 })
