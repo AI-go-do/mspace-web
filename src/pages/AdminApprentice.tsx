@@ -88,7 +88,7 @@ function TraineeCard({ t, flash, i }: { t: Trainee; flash: 'up' | 'down' | null;
 
 function Stat({ label, value }: { label: string; value: number }) {
   const shown = useCountUp(value)
-  return <div className="ap-stat"><dt>{label}</dt><dd aria-label={`${value}건`}>{shown}<small>건</small></dd></div>
+  return <div className="ap-stat"><dt>{label}</dt><dd><span aria-hidden="true">{shown}<small>건</small></span><span className="sr-only">{value}건</span></dd></div>
 }
 
 /**

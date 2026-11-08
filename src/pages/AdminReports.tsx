@@ -68,7 +68,7 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
       )}
       <ul className="todo-list">
         {list?.map((r, i) => (
-          <ReportCard key={r.id} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
+          <ReportCard key={`${r.id}-${r.verdict}`} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
             onJudged={judged} onForceCheckout={onForceCheckout} />
         ))}
       </ul>

@@ -37,7 +37,8 @@ function Tile({ label, value, rate, sub, hero, i = 0 }: { label: string; value: 
   return (
     <div className={`card stat-tile ${hero ? 'hero' : ''}`} style={{ '--k': i } as CSSProperties}>
       <span>{label}</span>
-      <b aria-label={n === null ? '없음' : `${n}${rate ? '%' : ''}`}>{n === null ? '—' : <>{shown}{rate && <small>%</small>}</>}</b>
+      <b aria-hidden="true">{n === null ? '—' : <>{shown}{rate && <small>%</small>}</>}</b>
+      <span className="sr-only">{n === null ? '없음' : `${n}${rate ? '%' : ''}`}</span>
       {sub && <small>{sub}</small>}
     </div>
   )
