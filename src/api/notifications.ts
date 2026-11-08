@@ -54,8 +54,8 @@ export function markNotificationRead(id: number, member?: number | null): Promis
 export function markAllNotificationsRead(member?: number | null): Promise<{ count: number }> {
   const real = api<{ count: number }>('/api/notifications/read-all', { method: 'POST', member })
   if (!demoOn()) return real
-  readDemo()
-  return real
+  // 서버가 읽음으로 바꿨을 때만 예시도 읽음으로(실패하면 화면이 "못 바꿨어요"를 보이고 아무것도 바뀌지 않게)
+  return real.then((r) => { readDemo(); return r })
 }
 
 /** 읽음 상태가 바뀌었다고 홈 종 버튼에 알리는 브라우저 이벤트 이름 */
