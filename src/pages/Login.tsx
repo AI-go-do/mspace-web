@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError, login, requestEmailCode } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import Splash from '../auth/Splash'
 import { readLastEmail, saveLastEmail } from '../auth/tokens'
 import Spacey from '../components/Spacey'
 import './Login.css'
@@ -43,6 +44,9 @@ export default function Login() {
     return () => clearInterval(t)
   }, [step])
 
+  // 앱을 /login으로 열어도(로그아웃 뒤 다시 열기, 저장한 주소) 자동 로그인을 확인하는 동안은 로딩 화면을 보여 준다.
+  // 확인되면 위에서 'in'으로 바뀌어 메인으로 가고, refresh가 401일 때만 아래 로그인 화면이 보인다 (FR-AUTH-002)
+  if (status === 'checking') return <Splash />
   if (status === 'in') return <Navigate to={from} replace />
 
   const elapsed = Math.floor((now - sentAt) / 1000)
