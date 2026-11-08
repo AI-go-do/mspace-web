@@ -151,6 +151,15 @@ describe('공지 한 줄 → 막기안', () => {
     expect(parseNotice('11월 30일~2일 3번 방 공사', now).rows).toEqual([{ roomId: 3, startAt: kst('2026-11-30T00:00:00'), endAt: kst('2026-12-03T00:00:00') }])
   })
 
+  it('범위 끝의 해는 오늘이 아니라 첫날에서 센다(해 넘김)', () => {
+    const jan = new Date('2026-01-10T10:00:00+09:00')
+    for (const n of ['12월 31일~2일 3번 방 공사', '12/31~1/2 3번 방 공사']) {
+      const d = parseNotice(n, jan)
+      expect(d.problem).toBeNull()
+      expect(d.rows).toEqual([{ roomId: 3, startAt: kst('2026-12-31T00:00:00'), endAt: kst('2027-01-03T00:00:00') }])
+    }
+  })
+
   it('방 글자는 있는데 번호를 못 읽으면(역순 범위 등) 모든 방으로 넘겨짚지 않는다', () => {
     const d = parseNotice('11/12 8~6번 방 점검', now)
     expect(d.rows).toEqual([])

@@ -92,18 +92,23 @@ function findDates(text: string, today: YMD): Hit<YMD>[] {
 }
 
 /** 12일~14일, 11/12~11/14, 12일부터 14일까지 처럼 앞 날짜 바로 뒤의 끝 날짜 */
-function rangeEnd(text: string, from: Hit<YMD>, dates: Hit<YMD>[], today: YMD): Hit<YMD> | null {
+// 해는 오늘이 아니라 범위 첫날에서 센다: 1월에 "12월 31일~1월 2일"을 넣어도 끝은 첫날 다음 해 1월
+function rangeEnd(text: string, from: Hit<YMD>, dates: Hit<YMD>[]): Hit<YMD> | null {
   const rest = text.slice(from.end)
   const sep = rest.match(/^\s*(?:\([^)]{1,3}\))?\s*(?:~|-|–|부터|에서)\s*/)
   if (!sep) return null
   const at = from.end + sep[0].length
   const next = dates.find((h) => h.start === at)
-  if (next) return next
+  if (next) {
+    // "12/31~1/2"처럼 달이 앞서면 해를 넘긴 것(같은 달 안에서 앞서면 그대로 두어 "끝이 앞"으로 되묻는다)
+    const wraps = next.value.m < from.value.m && next.value.y <= from.value.y
+    return wraps ? { ...next, value: { ...next.value, y: from.value.y + 1 } } : next
+  }
   const day = text.slice(at).match(/^(\d{1,2})\s*일/)
   if (day) {
     const d = Number(day[1])
     // "30일~2일"처럼 앞보다 작으면 다음 달
-    const v = d >= from.value.d ? { ...from.value, d } : withYear(from.value.m % 12 + 1, d, today)
+    const v = d >= from.value.d ? { ...from.value, d } : { y: from.value.y + (from.value.m === 12 ? 1 : 0), m: from.value.m % 12 + 1, d }
     if (!validDay(v.m, d)) return null
     return { value: v, start: at, end: at + day[0].length }
   }
@@ -216,7 +221,7 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
     return empty('날짜를 못 찾았어요. "11월 12일", "11/12", "내일", "다음 주 수요일"처럼 적어 주세요.')
   }
   const first = dates[0]
-  const end = rangeEnd(t, first, dates, today)
+  const end = rangeEnd(t, first, dates)
   // 범위 끝이 없는 날(2027년 2월 29일 등)이면 addDays가 3월로 넘겨 하루를 빠뜨리므로 여기서 되묻는다
   if (!realDay(first.value) || (end && !realDay(end.value))) {
     return empty('없는 날짜예요. 공지의 날짜를 확인해 주세요.')
