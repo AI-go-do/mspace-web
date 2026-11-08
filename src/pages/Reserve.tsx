@@ -303,12 +303,12 @@ export default function Reserve() {
         .catch(() => null)
         .finally(() => clearTimeout(timer))
       const at = Date.parse(slot.startAt)
-      const freshSlots = fresh?.slots ?? daySlots
+      const freshSlots = fresh ? applySlotBlocks(roomId, fresh.slots, blocks) : daySlots
       const i = freshSlots.findIndex((x) => Date.parse(x.startAt) === at)
       // 그 사이 날짜를 바꿨으면 새 날짜 시간표를 덮지 않는다
       if (seq !== loadSeq.current) return
       if (fresh) setRoom(fresh)
-      if (i < 0 || freshSlots[i].available) {
+      if (i < 0 || freshSlots[i].available || !!freshSlots[i].block) {
         setWaitError('방금 이 칸이 비었어요. 시트를 닫고 칸을 눌러 바로 예약해 주세요')
         return
       }
