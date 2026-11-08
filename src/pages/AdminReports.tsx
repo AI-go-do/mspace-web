@@ -69,7 +69,7 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
       )}
       <ul className="todo-list">
         {list?.map((r, i) => (
-          <ReportCard key={`${r.id}-${r.verdict}`} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
+          <ReportCard key={r.id} r={r} i={i} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)}
             onJudged={judged} onReload={load} onForceCheckout={onForceCheckout} />
         ))}
       </ul>
@@ -92,6 +92,12 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [stamp, setStamp] = useState<string | null>(null)
+  // 판정 결과가 바뀌어 다시 받으면 도장만 지운다(카드는 그대로라 "이미 판정됨" 같은 안내는 남는다)
+  const [seenVerdict, setSeenVerdict] = useState(r.verdict)
+  if (seenVerdict !== r.verdict) {
+    setSeenVerdict(r.verdict)
+    setStamp(null)
+  }
   // 카드가 사라지면(필터·칸 바꿈) 도장 타이머를 지우고, 늦게 끝난 판정도 목록을 다시 부르지 않는다
   const alive = useRef(true)
   const stampTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)

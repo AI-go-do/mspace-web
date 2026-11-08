@@ -19,7 +19,8 @@ export const reportsChanged = () => listeners.forEach((fn) => fn())
 
 const POLL_MS = 60_000
 
-export type TodoCounts = { reports: number; reportsKnown: boolean; ai: number; total: number }
+/** reportsKnown: 신고 수를 확인했나(불러오는 중·실패면 false). reportsFailed: 마지막 요청이 실패했나 */
+export type TodoCounts = { reports: number; reportsKnown: boolean; reportsFailed: boolean; ai: number; total: number }
 
 /**
  * 메뉴 숫자: 판정 기다리는 신고 + AI 처리안. 신고 수를 한 번도 못 받았거나 마지막 갱신이 실패하면
@@ -56,7 +57,7 @@ export function useTodoCounts(): TodoCounts {
   const mineNow = res.member === member && member !== null
   const reports = mineNow ? res.n : null
   const failed = mineNow && res.failed
-  return { reports: reports ?? 0, reportsKnown: reports !== null && !failed, ai, total: (reports ?? 0) + ai }
+  return { reports: reports ?? 0, reportsKnown: reports !== null && !failed, reportsFailed: failed, ai, total: (reports ?? 0) + ai }
 }
 
 type Filter = 'all' | 'reports' | 'ai'
