@@ -1,5 +1,5 @@
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import type { BlockReason } from './roomBlocks'
+import { BLOCK_RULES, type BlockReason } from './roomBlocks'
 import { seoulDate } from './time'
 
 /**
@@ -282,10 +282,10 @@ export function parseNotice(text: string, now: Date): NoticeDraft {
   // 기간: 시각이 있고 여러 날이면 날마다 같은 시각, 아니면 첫날 시작부터 끝날 끝까지 한 번에
   const rows: DraftRow[] = []
   const days: YMD[] = []
-  for (let d = first.value; cmp(d, lastDay) <= 0 && days.length < 32; d = addDays(d, 1)) days.push(d)
-  // 시각이 있는 기간은 날마다 한 줄이라 32일에서 자른다. 잘린 날이 막히지 않은 채 "막았어요"가 되지 않게 되묻는다
-  if (endClock !== null && cmp(days[days.length - 1], lastDay) < 0) {
-    return { ...empty('시각이 있는 기간은 32일까지 읽을 수 있어요. 공지를 나누어 넣어 주세요.'), reason: r.reason, memo }
+  // 기간 막기 규칙(한 번에 31일)을 넘으면 일부만 막거나 막기에서 모두 거절되지 않게 미리 되묻는다(시각이 있든 없든)
+  for (let d = first.value; cmp(d, lastDay) <= 0 && days.length <= BLOCK_RULES.maxDays; d = addDays(d, 1)) days.push(d)
+  if (days.length > BLOCK_RULES.maxDays) {
+    return { ...empty(`한 번에 ${BLOCK_RULES.maxDays}일까지 막을 수 있어요. 공지를 나누어 넣어 주세요.`), reason: r.reason, memo }
   }
   const daily = endClock !== null && days.length > 1
   const spansOf: [Date, Date][] = daily

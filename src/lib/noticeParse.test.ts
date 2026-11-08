@@ -129,12 +129,15 @@ describe('공지 한 줄 → 막기안', () => {
     expect(d.problem).toContain('없는 날짜')
   })
 
-  it('시각이 있는 기간이 32일을 넘으면 잘라서 막지 않고 되묻는다', () => {
-    const d = parseNotice('11/10~12/20 9시~12시 3번 방 점검', now)
-    expect(d.rows).toEqual([])
-    expect(d.problem).toContain('32일')
-    // 32일까지는 그대로 날마다 막는다
-    expect(parseNotice('11/10~12/11 9시~12시 3번 방 점검', now).rows).toHaveLength(32)
+  it('기간이 31일(기간 막기 한도)을 넘으면 잘라서 막지 않고 되묻는다', () => {
+    for (const n of ['11/10~12/20 9시~12시 3번 방 점검', '11/10~12/11 9시~12시 3번 방 점검', '11/10~12/11 3번 방 공사']) {
+      const d = parseNotice(n, now)
+      expect(d.rows).toEqual([])
+      expect(d.problem).toContain('31일')
+    }
+    // 31일까지는 그대로: 시각이 있으면 날마다, 없으면 한 번에
+    expect(parseNotice('11/10~12/10 9시~12시 3번 방 점검', now).rows).toHaveLength(31)
+    expect(parseNotice('11/10~12/10 3번 방 공사', now).rows).toEqual([{ roomId: 3, startAt: kst('2026-11-10T00:00:00'), endAt: kst('2026-12-11T00:00:00') }])
   })
 
   it('방 글자는 있는데 번호를 못 읽으면(역순 범위 등) 모든 방으로 넘겨짚지 않는다', () => {
