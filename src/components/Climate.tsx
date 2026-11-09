@@ -153,7 +153,6 @@ export function ClimateCard({ view, now, top }: { view: RoomView; now: Date; top
     <section className={`card cl-card l-${level} ${top ? 'cl-top' : ''}`} aria-labelledby="cl-title">
       <header className="cl-card-head">
         <span className="cl-eyebrow">내 방 공기 · {view.name}</span>
-        <WeatherChip w={weather} />
         {level === 'soon' && <span className="cl-badge">숨 막히기 {eta}분 전</span>}
         {level === 'over' && <span className="cl-badge">환기 필요</span>}
       </header>
@@ -170,6 +169,7 @@ export function ClimateCard({ view, now, top }: { view: RoomView; now: Date; top
         <div className="cl-small">
           <span><small>온도</small><b>{view.temperatureC?.toFixed(1) ?? '–'}°C</b></span>
           <span><small>습도</small><b>{view.humidityPct ?? '–'}%</b></span>
+          <WeatherChip w={weather} />
         </div>
       </div>
       <ClimatePanel view={view} now={now} by="STUDENT" compact />

@@ -128,3 +128,4 @@
 .cl-weather.hot { background: color-mix(in srgb, #dc2626 14%, var(--white)); color: #b91c1c; }
 .cl-weather.hot::before { content: '☀'; }
 .cl > .cl-weather { align-self: flex-start; }
+.cl-small .cl-weather { flex-direction: row; align-self: center; margin-left: auto; }
