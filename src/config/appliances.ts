@@ -41,6 +41,10 @@ export const CLIMATE_RULES = {
   autoRetryMinutes: 1,
   /** 가짜 명령이 "보내는 중"으로 보이는 시간 */
   mockDelayMs: 900,
+  /** "숨 막히기 N분 전" 알림을 한 예약에 보내는 최대 횟수 (처음 한 번 + 내려갔다 다시 오를 때 한 번) */
+  co2AlertMax: 2,
+  /** 알림 뒤 CO2 경고가 이 시간 넘게 사라져 있어야 다시 오를 때 한 번 더 보낸다 (기준 언저리에서 오르내릴 때 알림이 쏟아지지 않게) */
+  co2AlertRearmMinutes: 10,
 }
 
 /**
