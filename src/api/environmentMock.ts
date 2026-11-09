@@ -22,7 +22,7 @@ function wobble(roomId: number, minute: number, salt = 0): number {
   return (h >>> 0) / 4294967296 - 0.5
 }
 
-interface Reading { ppm: number; temperatureC: number; humidityPct: number }
+interface Reading { ppm: number; temperatureC: number; humidityPct: number; doorOpen?: boolean }
 
 /** 장면 번호(1~5, 그 밖은 보통 방)와 분(실수)으로 값 하나 */
 function reading(scene: number, roomId: number, t: number): Reading {
@@ -32,14 +32,16 @@ function reading(scene: number, roomId: number, t: number): Reading {
   switch (scene) {
     case 1: {
       // 55분 동안 오르고(560 → 약 1030) 그 뒤 창문을 열어 내려간다
+      // 문을 열어 둔 13분 동안 CO2가 빠르게 내려간다
       const ppm = phase < 55 ? 560 + 8.5 * phase : Math.max(600, 1027 - 20 * (phase - 55))
-      return { ppm: ppm + jitter(12, 1), temperatureC: 25 + 0.01 * phase + jitter(0.1, 2), humidityPct: 47 + jitter(2, 3) }
+      return { ppm: ppm + jitter(12, 1), temperatureC: 25 + 0.01 * phase + jitter(0.1, 2), humidityPct: 47 + jitter(2, 3), doorOpen: phase >= 55 && phase < 68 }
     }
     case 2:
       return { ppm: 740 + 1.5 * (phase % 30) + jitter(12, 1), temperatureC: 24.1 + jitter(0.1, 2), humidityPct: 44 + jitter(2, 3) }
     case 3:
       // 빈 방: CO2는 바깥 공기 수준, 온도는 해가 들어 점점 오른다
-      return { ppm: 478 + jitter(8, 1), temperatureC: 26.9 + 0.02 * phase + jitter(0.05, 2), humidityPct: 39 + jitter(2, 3) }
+      // 빈 방인데 문이 열린 채로 남는 때가 있다(45분 중 35분)
+      return { ppm: 478 + jitter(8, 1), temperatureC: 26.9 + 0.02 * phase + jitter(0.05, 2), humidityPct: 39 + jitter(2, 3), doorOpen: phase % 45 >= 10 }
     case 4:
       // 센서가 멈춘 방: 값이 그대로
       return { ppm: 452, temperatureC: 22.6, humidityPct: 41 }
@@ -64,6 +66,7 @@ function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): 
       ppm: has('co2') ? Math.round(r.ppm) : null,
       temperatureC: has('temperature') ? round1(r.temperatureC) : null,
       humidityPct: has('humidity') ? Math.round(r.humidityPct) : null,
+      ...(has('door') ? { doorOpen: r.doorOpen ?? false } : {}),
     }
   }
   // 1분 칸 값 + 마지막은 지금 값
@@ -88,7 +91,8 @@ function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): 
   if (scene === 3) next = { startAt: iso(slot + 2 * HALF_HOUR), people: 4 }
   const phase = (((nowMs / MIN) % CYCLE) + CYCLE) % CYCLE
   if (scene === 5 && phase >= 45) occupied = true // 예약 없이 누가 들어와 있음
-  else if (scene >= 5) { occupied = true; current = { reservationId: 1043, startAt: iso(slot), endAt: iso(slot + 4 * HALF_HOUR), people: 7 } }
+  // 예약이 시작되고 8분 동안은 아무도 없다(입실 안 함)
+  else if (scene >= 5) { occupied = nowMs - slot >= 8 * MIN; current = { reservationId: 1043, startAt: iso(slot), endAt: iso(slot + 4 * HALF_HOUR), people: 7 } }
 
   return {
     roomId: cfg.roomId,
@@ -102,7 +106,17 @@ function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): 
     series,
     current,
     next,
+    door: has('door') ? doorState(series) : undefined,
   }
+}
+
+/** 마지막 분부터 거꾸로 같은 문 상태가 이어진 처음 시각 */
+function doorState(series: EnvPoint[]): RoomEnvironment['door'] {
+  const last = series[series.length - 1]
+  const open = last.doorOpen ?? false
+  let i = series.length - 1
+  while (i > 0 && (series[i - 1].doorOpen ?? false) === open) i--
+  return { open, since: series[i].at }
 }
 
 export function mockEnvironment(now: Date, minutes: number, rooms: readonly AdminRoomConfig[] = ADMIN_ROOMS): RoomsEnvironment {

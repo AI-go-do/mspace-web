@@ -17,7 +17,11 @@ import { POLL_MS } from '../lib/poll'
 export const inTodo = (p: Proposal) => p.kind !== 'report'
 
 /** reportsKnown: 신고 수를 확인했나(불러오는 중·실패면 false). reportsFailed: 마지막 요청이 실패했나 */
-export type TodoCounts = { reports: number; reportsKnown: boolean; reportsFailed: boolean; ai: number; total: number }
+export type TodoCounts = {
+  reports: number; reportsKnown: boolean; reportsFailed: boolean; ai: number; total: number
+  /** 방마다 판정 기다리는 신고 수 ("지금" 화면 방 표시용). 확인 못 했으면 빈 칸 */
+  byRoom: Record<number, number>
+}
 
 /**
  * 메뉴 숫자: 판정 기다리는 신고 + AI 처리안. 신고 수를 한 번도 못 받았거나 마지막 갱신이 실패하면
@@ -27,8 +31,8 @@ export function useTodoCounts(): TodoCounts {
   const ai = useApprentice().state.inbox.filter(inTodo).length
   const member = useMemberId()
   // 누구의 숫자인지 같이 들고, 로그인한 회원이 바뀌면 앞 사람 숫자는 버린다(모름으로 돌아감)
-  const [res, setRes] = useState<{ member: number | null; n: number | null; failed: boolean }>(
-    { member: null, n: null, failed: false })
+  const [res, setRes] = useState<{ member: number | null; n: number | null; failed: boolean; byRoom: Record<number, number> }>(
+    { member: null, n: null, failed: false, byRoom: {} })
   useEffect(() => {
     let stale = false
     let ctrl: AbortController | null = null
@@ -41,9 +45,12 @@ export function useTodoCounts(): TodoCounts {
       getReports('OPEN', mine.signal, member)
         .then((l) => {
           if (stale || ctrl !== mine) return
-          setRes({ member, n: l.filter((r) => r.category !== 'NOISE').length, failed: false })
+          const counted = l.filter((r) => r.category !== 'NOISE')
+          const byRoom: Record<number, number> = {}
+          for (const r of counted) byRoom[r.roomId] = (byRoom[r.roomId] ?? 0) + 1
+          setRes({ member, n: counted.length, failed: false, byRoom })
         })
-        .catch(() => { if (!stale && ctrl === mine) setRes((p) => ({ member, n: p.member === member ? p.n : null, failed: true })) })
+        .catch(() => { if (!stale && ctrl === mine) setRes((p) => ({ member, n: p.member === member ? p.n : null, failed: true, byRoom: p.member === member ? p.byRoom : {} })) })
         .finally(() => clearTimeout(timer))
     }
     load()
@@ -58,7 +65,7 @@ export function useTodoCounts(): TodoCounts {
   const known = reports !== null && !failed
   // 확인하지 못한 신고 수는 합계에 넣지 않는다(옛 숫자를 확인된 것처럼 보이지 않게). 합계는 그때 "AI 제안 수 이상"
   const shown = known ? reports : 0
-  return { reports: shown, reportsKnown: known, reportsFailed: failed, ai, total: shown + ai }
+  return { reports: shown, reportsKnown: known, reportsFailed: failed, ai, total: shown + ai, byRoom: known ? res.byRoom : {} }
 }
 
 type Filter = 'all' | 'reports' | 'ai'
