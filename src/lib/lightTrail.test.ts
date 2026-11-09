@@ -91,3 +91,12 @@ describe('조도 쌓기: 오래된 값과 탭 이동', () => {
     expect(trailFor(7)).not.toBe(trailFor(8))
   })
 })
+
+describe('조도 쌓기: core가 빈 분별 조도를 줄 때', () => {
+  it('series의 light가 모두 null이면 받은 최신 값을 쌓는다', () => {
+    const trail: LightTrail = new Map()
+    const series = [0, 1].map((i) => ({ at: iso(t0 + i * MIN), ppm: null, temperatureC: null, humidityPct: null, light: null }))
+    const out = withLightTrail(env(t0 + MIN + 5_000, room({ light: 400, series })), trail, 60)
+    expect(out.rooms[0].series[1].light).toBe(400)
+  })
+})

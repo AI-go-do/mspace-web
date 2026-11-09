@@ -29,10 +29,10 @@ export function withLightTrail(data: RoomsEnvironment, trail: LightTrail, keepMi
   return {
     ...data,
     rooms: data.rooms.map((r) => {
-      // core가 분별 조도를 이미 주면 손대지 않는다
-      if (r.series.some((p) => p.light !== undefined)) return r
+      // core가 분별 조도를 이미 주면 손대지 않는다(전부 null이면 안 준 것으로 본다. 0은 실제 값)
+      if (r.series.some((p) => p.light !== undefined && p.light !== null)) return r
       // 조도 보고가 끊긴 채 같은 값이 계속 오면, 측정하지 않은 분을 그 값으로 채우지 않는다
-      const fresh = !r.lightAt || nowMinute - minuteOf(r.lightAt) <= LIGHT_STALE_MINUTES
+      const fresh = !r.lightAt || Date.parse(data.now) - Date.parse(r.lightAt) <= LIGHT_STALE_MINUTES * MIN
       const light = fresh ? r.light ?? null : null
       const occupied = r.presence === 'UNKNOWN' ? null : r.presence === 'OCCUPIED'
       const list = (trail.get(r.roomId) ?? []).filter((s) => s.minute > nowMinute - keepMinutes)
