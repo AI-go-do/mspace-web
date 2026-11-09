@@ -27,7 +27,7 @@
 
 .cl-devs { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
 .cl-dev {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--gray);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--gray);
   transition: background 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
 }
 .cl-dev.on { background: color-mix(in srgb, var(--sky) 26%, var(--white)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 30%, transparent); }
@@ -105,3 +105,13 @@
 /* 방 상세 창: 아래 줄에 넓게 */
 .rd-climate { grid-column: 1 / -1; order: 3; }
 .rd-climate h3 small { font-size: 12px; font-weight: 700; margin-left: 6px; }
+
+/* 에어컨 냉방·난방 고르기 */
+.cl-mode { flex-basis: 100%; display: flex; gap: 6px; padding-left: 46px; }
+.cl-mode button {
+  flex: 1; height: 30px; border: 0; border-radius: 10px; background: var(--white); color: var(--navy-70);
+  font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+}
+.cl-mode button.on { background: var(--blue); color: var(--white); }
+.cl-mode button:nth-child(2).on { background: #e8743b; }
+.cl-mode button:disabled { cursor: default; }

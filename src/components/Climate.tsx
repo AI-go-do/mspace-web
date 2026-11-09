@@ -50,7 +50,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
     sendApplianceCommand(view.roomId, a.id, cmd, by, { member, now: new Date() })
-      .then(() => setFlash(`${a.name} ${cmd.power === 'ON' ? '켰어요' : '껐어요'}`))
+      .then(() => setFlash(cmd.power === 'OFF' ? `${a.name} 껐어요` : cmd.mode === 'HEAT' ? `${a.name} 난방으로 켰어요` : cmd.mode === 'COOL' ? `${a.name} 냉방으로 켰어요` : `${a.name} 켰어요`))
       .catch((e: Error) => setError(`${josa(a.name, '을', '를')} 바꾸지 못했어요. ${e.message}`))
   }
   // 손으로 켤 때 에어컨 모드: 추우면 난방, 아니면 냉방
@@ -99,6 +99,19 @@ export function ClimatePanel({ view, now, by, member, compact }: {
                 aria-label={`${a.name} ${on ? '끄기' : '켜기'}`} onClick={() => send(a, on ? { power: 'OFF' } : manualOn(a))}>
                 <i aria-hidden="true" />
               </button>
+              {/* 에어컨은 켜진 뒤 냉방·난방을 바로 바꿀 수 있다 (11월처럼 추운 날은 난방) */}
+              {a.kind === 'ac' && on && (
+                <span className="cl-mode" role="group" aria-label="에어컨 모드">
+                  {(['COOL', 'HEAT'] as const).map((m) => (
+                    <button key={m} type="button" className={s.mode === m ? 'on' : ''} aria-pressed={s.mode === m} disabled={busy || s.mode === m}
+                      onClick={() => send(a, m === 'COOL'
+                        ? { power: 'ON', mode: 'COOL', targetC: CLIMATE_RULES.coolTargetC }
+                        : { power: 'ON', mode: 'HEAT', targetC: CLIMATE_RULES.heatTargetC })}>
+                      {m === 'COOL' ? `냉방 ${CLIMATE_RULES.coolTargetC}°C` : `난방 ${CLIMATE_RULES.heatTargetC}°C`}
+                    </button>
+                  ))}
+                </span>
+              )}
             </li>
           )
         })}
