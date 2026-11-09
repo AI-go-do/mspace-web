@@ -53,7 +53,11 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   // CO2 멈춤(stuck)은 SCD40 하나가 고장 난 것이라 CO2·온도·습도만 믿지 않는다. 조도는 우노라 끊김만 본다
   const trusted = (v: RoomView) => (metric === 'light' ? !v.flags.offline : isTrusted(v))
 
-  const all = views.flatMap((v) => [...seriesOf(v, metric), ...(metric === 'co2' ? v.forecast : [])]).filter((x): x is number => x !== null)
+  // 축 범위는 믿을 수 있는 방 값으로만 정한다. 멈춘·끊긴 방의 튀는 값이 다른 방 선을 눌러 버리지 않게.
+  // 믿을 수 없는 방 선은 그대로 그리되(점선) 범위 밖이면 위·아래 끝에 붙인다
+  const valuesOf = (vs: RoomView[]) => vs.flatMap((v) => [...seriesOf(v, metric), ...(metric === 'co2' ? v.forecast : [])]).filter((x): x is number => x !== null)
+  const sure = valuesOf(views.filter(trusted))
+  const all = sure.length ? sure : valuesOf(views)
   const [lo, hi] = metric === 'co2'
     ? [Math.min(400, ...all) - 20, Math.max(limit + 150, ...all) + 30]
     : metric === 'temp' ? [Math.min(21, ...all) - 0.5, Math.max(limit + 1, ...all) + 0.5]
@@ -62,7 +66,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   const iw = Math.max(1, w - PAD.l - PAD.r)
   const ih = h - PAD.t - PAD.b
   const x = (i: number) => PAD.l + (total > 1 ? (i / (total - 1)) * iw : 0)
-  const y = (v: number) => PAD.t + ih - ((v - lo) / (hi - lo)) * ih
+  const y = (v: number) => PAD.t + ih - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * ih
   const nowI = past - 1
   const ticks = useMemo(() => {
     const step = metric === 'co2' ? 200 : metric === 'temp' ? 2 : metric === 'hum' ? 10 : 25

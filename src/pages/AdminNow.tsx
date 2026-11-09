@@ -176,7 +176,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       </div>
 
       <div className="ctl-bar">
-        <span className="ctl-live" role="status"><i aria-hidden="true" />
+        <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <>실시간 · 마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다</span>
         {sample && <span className="ctl-sample">가짜 값 · 시연용</span>}
         {trendOnly && <span className="ctl-note">예측은 최근 추세로 그렸어요</span>}
