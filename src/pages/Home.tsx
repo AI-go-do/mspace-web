@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
@@ -17,6 +17,11 @@ import { useApology } from '../lib/useApology'
 import { useRelayOffer } from '../lib/useRelay'
 import { applyBlocksAll, blockedSegments, blockLabel } from '../lib/studentBlocks'
 import { useStudentBlocks } from '../lib/useStudentBlocks'
+import { ClimateCard } from '../components/Climate'
+import { mockEnvironment } from '../api/environmentMock'
+import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
+import { toRoomView } from '../lib/roomHealth'
+import { demoOn } from '../lib/demo'
 import './Home.css'
 
 /**
@@ -117,6 +122,15 @@ export default function Home() {
     try { navigator.vibrate?.([60, 80, 60]) } catch { /* 진동 없는 기기 */ }
   }, [butler])
 
+  // 내 방 공기(예시 화면 ?demo=1만): 지금 쓰는 방, 없으면 창작실 1의 가짜 센서 값. 학생용 센서 API가 생기면 바꾼다
+  const inRoom = mine.find((m) => m.status === 'IN_USE')?.room.id ?? 1
+  const climate = useMemo(() => {
+    if (!demoOn()) return null
+    const env = mockEnvironment(now, ENV_RULES.historyMinutes).rooms.find((r) => r.roomId === inRoom)
+    return env ? toRoomView(env, ADMIN_ROOMS.find((c) => c.roomId === inRoom), now) : null
+  }, [now, inRoom])
+  const climateUrgent = !!climate && (climate.flags.co2Soon || climate.flags.co2Over)
+
   return (
     <main>
       <header className="home-head">
@@ -159,6 +173,8 @@ export default function Home() {
       {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
       {apology && <ApologyCard key={apology.id} n={apology} now={now} onClose={closeApology} />}
+      {/* 숨 막히기 직전·넘음이면 방 현황보다 먼저 */}
+      {climate && climateUrgent && <ClimateCard view={climate} now={now} top />}
 
       <section className="card today" aria-labelledby="today-title">
         <div className="today-head">
@@ -238,6 +254,8 @@ export default function Home() {
         </div>
         <div className="hours" aria-hidden="true"><span>0시</span><span>12시</span><span>24시</span></div>
       </section>
+
+      {climate && !climateUrgent && <ClimateCard view={climate} now={now} />}
 
       {card && (
         <Link to={`/reservations/${card.id}`} className="mine-card">

@@ -1,0 +1,138 @@
+import type { ApplianceCommand, ApplianceState } from '../api/appliances'
+import { ENV_RULES, type EnvRules } from '../config/adminRooms'
+import { CLIMATE_RULES, ROOM_APPLIANCES, type ApplianceConfig } from '../config/appliances'
+import type { RoomView } from './roomHealth'
+import { seoulClock } from './time'
+
+/**
+ * 방 공기·온도를 보고 "지금 켜면 좋은 기기" 권유를 만든다. 관리자 방 상세 창·지금 화면, 학생 홈이 같이 쓴다.
+ * - CO2: 기준(1000ppm)을 넘을 것 같으면 "숨 막히기 N분 전". CO2는 환기로만 내려가서 창문을 먼저 권하고,
+ *   공기청정기는 창문 열 때 들어오는 먼지를 거르는 용도로만 권한다(공기청정기는 CO2를 못 낮춘다)
+ * - 온도: 덥거나 추우면 에어컨 냉방·난방. 빈 방이어도 다음 예약이 곧이면 미리 켜기
+ * - 빈 방인데 켜져 있으면 끄기 (전기 아끼기)
+ * 센서가 끊기거나 멈췄으면 값을 믿을 수 없어 아무것도 권하지 않는다
+ */
+export type TipWhy = 'air' | 'cool' | 'heat' | 'idle'
+
+export interface ClimateTip {
+  key: string
+  roomId: number
+  why: TipWhy
+  title: string
+  sub: string
+  /** 누를 기기와 명령. 없으면 안내만 (예: 공기청정기가 이미 켜져 있어도 창문은 사람이 연다) */
+  appliance?: ApplianceConfig
+  command?: ApplianceCommand
+  button?: string
+  /** 자동 제어가 대신 실행해도 되는지 */
+  auto: boolean
+  urgent: boolean
+}
+
+type Rules = typeof CLIMATE_RULES
+
+/** 받침 있으면 a, 없으면 b ("에어컨이" / "공기청정기가") */
+export function josa(word: string, a: string, b: string): string {
+  const c = word.charCodeAt(word.length - 1)
+  const has = c >= 0xac00 && c <= 0xd7a3 ? (c - 0xac00) % 28 !== 0 : false
+  return word + (has ? a : b)
+}
+
+const isOn = (s: ApplianceState, mode?: ApplianceState['mode']) => s.power === 'ON' && (mode === undefined || s.mode === mode)
+
+export function climateTips(
+  v: RoomView,
+  now: Date,
+  state: (applianceId: string) => ApplianceState,
+  rules: Rules = CLIMATE_RULES,
+  env: EnvRules = ENV_RULES,
+  appliances: readonly ApplianceConfig[] = ROOM_APPLIANCES[v.roomId] ?? [],
+): ClimateTip[] {
+  if (v.flags.offline || v.flags.stuck) return []
+  const out: ClimateTip[] = []
+  const ac = appliances.find((a) => a.kind === 'ac')
+  const purifier = appliances.find((a) => a.kind === 'purifier')
+  const occupied = v.presence === 'OCCUPIED'
+  const nextMin = v.nextAt ? (new Date(v.nextAt).getTime() - now.getTime()) / 60_000 : null
+  const nextSoon = (within: number) => nextMin !== null && nextMin >= 0 && nextMin <= within
+  // 지금 쓰는 사람이 있거나 곧 올 사람이 있으면 편하게 만들 이유가 있다
+  const someone = occupied || nextSoon(rules.precoolMinutes)
+  const nextLabel = v.nextAt ? seoulClock(new Date(v.nextAt)) : ''
+
+  // 1) CO2: 사람이 있을 때만 (빈 방 CO2는 혼자 내려간다)
+  if (occupied && v.co2 !== null && (v.flags.co2Over || v.flags.co2Soon)) {
+    const pState = purifier ? state(purifier.id) : null
+    const title = v.flags.co2Over
+      ? `CO2 ${v.co2}ppm, 기준 ${env.co2LimitPpm}을 넘었어요`
+      : `숨 막히기 ${v.etaMinutes}분 전`
+    const why = v.flags.co2Over ? '졸리고 머리가 아파지기 쉬워요.' : `약 ${v.etaMinutes}분 뒤 CO2가 ${env.co2LimitPpm}ppm을 넘을 것 같아요.`
+    const canPurify = !!purifier && !!pState && !isOn(pState)
+    out.push({
+      key: `${v.roomId}:air`, roomId: v.roomId, why: 'air', title,
+      sub: `${why} 창문이나 문을 조금 열어 환기해 주세요.${canPurify ? ' 공기청정기를 같이 켜면 들어오는 먼지를 걸러요.' : ''}`,
+      appliance: canPurify ? purifier : undefined,
+      command: canPurify ? { power: 'ON' } : undefined,
+      button: canPurify ? '공기청정기 켜기' : undefined,
+      auto: canPurify,
+      urgent: true,
+    })
+  }
+
+  // 2) 온도: 덥거나 추우면 에어컨 (냉방·난방)
+  if (ac && v.temperatureC !== null && someone) {
+    const s = state(ac.id)
+    const t = v.temperatureC.toFixed(1)
+    const ahead = !occupied && nextLabel ? `다음 예약 ${nextLabel} 전에 ` : ''
+    if (v.temperatureC >= env.hotC && !isOn(s, 'COOL')) {
+      out.push({
+        key: `${v.roomId}:cool`, roomId: v.roomId, why: 'cool',
+        title: occupied ? `${t}°C, 더워요` : `빈 방이 ${t}°C까지 올랐어요`,
+        sub: `${ahead}에어컨을 ${rules.coolTargetC}°C 냉방으로 켜 둘까요?`,
+        appliance: ac, command: { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }, button: '냉방 켜기',
+        auto: true, urgent: occupied,
+      })
+    } else if (v.temperatureC < rules.coldC && !isOn(s, 'HEAT')) {
+      out.push({
+        key: `${v.roomId}:heat`, roomId: v.roomId, why: 'heat',
+        title: occupied ? `${t}°C, 추워요` : `빈 방이 ${t}°C로 차가워요`,
+        sub: `${ahead}에어컨을 ${rules.heatTargetC}°C 난방으로 켜 둘까요?`,
+        appliance: ac, command: { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC }, button: '난방 켜기',
+        auto: true, urgent: occupied,
+      })
+    }
+  }
+
+  // 3) 빈 방이고 곧 올 사람도 없는데 켜져 있으면 끄기. 재실을 모르면(UNKNOWN) 끄지 않는다
+  if (v.presence === 'EMPTY' && !nextSoon(rules.precoolMinutes)) {
+    for (const a of appliances) {
+      if (!isOn(state(a.id))) continue
+      out.push({
+        key: `${v.roomId}:idle:${a.id}`, roomId: v.roomId, why: 'idle',
+        title: `빈 방인데 ${josa(a.name, '이', '가')} 켜져 있어요`,
+        sub: nextLabel ? `다음 예약은 ${nextLabel}이에요. 그때까지 꺼 둘까요?` : '오늘 남은 예약이 없어요. 꺼 둘까요?',
+        appliance: a, command: { power: 'OFF' }, button: '끄기', auto: true, urgent: false,
+      })
+    }
+  }
+  return out
+}
+
+/** 기기 상태 한 줄: "켜짐 · 냉방 26°C · 14:32 자동" */
+export function stateLabel(s: ApplianceState): string {
+  if (s.power === 'OFF') return s.changedAt ? `꺼짐 · ${seoulClock(new Date(s.changedAt))} ${byLabel(s.by)}` : '꺼짐'
+  const mode = s.mode === 'COOL' ? `냉방 ${s.targetC}°C` : s.mode === 'HEAT' ? `난방 ${s.targetC}°C` : ''
+  return ['켜짐', mode, s.changedAt ? `${seoulClock(new Date(s.changedAt))} ${byLabel(s.by)}` : ''].filter(Boolean).join(' · ')
+}
+
+function byLabel(by: ApplianceState['by']): string {
+  return by === 'AUTO' ? '자동' : by === 'ADMIN' ? '관리자' : by === 'STUDENT' ? '학생' : ''
+}
+
+/** 자동 제어 기록 한 줄 */
+export function autoText(tip: ClimateTip): string {
+  const what = tip.appliance?.name ?? ''
+  if (tip.command?.power === 'OFF') return `빈 방이라 ${josa(what, '을', '를')} 껐어요`
+  if (tip.why === 'air') return `${tip.title} → ${josa(what, '을', '를')} 켰어요`
+  if (tip.why === 'cool') return `${tip.title} → 냉방 ${tip.command?.targetC}°C로 켰어요`
+  return `${tip.title} → 난방 ${tip.command?.targetC}°C로 켰어요`
+}

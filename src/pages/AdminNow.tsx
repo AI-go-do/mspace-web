@@ -11,6 +11,11 @@ import { seoulClock } from '../lib/time'
 import type { TodoCounts } from './AdminTodo'
 import { RoomChart } from './AdminRoomChart'
 import { RoomDetail } from './AdminRoomDetail'
+import { applianceState, setClimateAuto, useAppliances } from '../api/appliances'
+import { ROOM_APPLIANCES } from '../config/appliances'
+import { climateTips } from '../lib/climate'
+import { useClimateAuto } from '../lib/useClimateAuto'
+import '../components/Climate.css'
 import './AdminNow.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
@@ -46,6 +51,7 @@ export function RoomCard({ view, now, blocked, i = 0, onOpen }: { view: RoomView
         <Value label="온도" value={view.temperatureC === null ? null : view.temperatureC.toFixed(1)} unit="°C" note={view.tempNote} hot={flags.hot} />
         <Value label="습도" value={view.humidityPct === null ? null : String(view.humidityPct)} unit="%" note={view.humNote} />
       </div>
+      <ClimateChips view={view} now={now} />
       <RoomChart view={view} now={now} />
       {onOpen && (
         <button type="button" className="nr-open" onClick={(e) => { e.stopPropagation(); onOpen() }} aria-label={`${view.name} 자세히 보기`}>
@@ -53,6 +59,22 @@ export function RoomCard({ view, now, blocked, i = 0, onOpen }: { view: RoomView
         </button>
       )}
     </article>
+  )
+}
+
+/** 방 줄의 에어컨·공기청정기 표시: 켜진 기기 + 권유가 있으면 한 줄 ("숨 막히기 12분 전") */
+function ClimateChips({ view, now }: { view: RoomView; now: Date }) {
+  const store = useAppliances()
+  const devs = ROOM_APPLIANCES[view.roomId] ?? []
+  if (!devs.length) return null
+  const tips = climateTips(view, now, (id) => applianceState(id, store))
+  const on = devs.filter((a) => applianceState(a.id, store).power === 'ON')
+  if (!tips.length && !on.length) return null
+  return (
+    <div className="cl-chips">
+      {tips.slice(0, 1).map((t) => <span key={t.key} className="cl-chip tip">{t.title}{t.button ? ` · ${t.button}` : ''}</span>)}
+      {on.map((a) => <span key={a.id} className="cl-chip on">{a.name} 켜짐</span>)}
+    </div>
   )
 }
 
@@ -128,7 +150,9 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
   }, [data])
 
-  const now = data ? new Date(data.now) : null
+  const now = useMemo(() => (data ? new Date(data.now) : null), [data])
+  const { auto } = useAppliances()
+  useClimateAuto(views, now, auto, currentMemberId())
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
@@ -158,6 +182,11 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="now-legend">
           <i className="lg-line" />측정 <i className="lg-pred" />{ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(최근 추세)' : ''}·범위
           <i className="lg-limit" />환기 기준 {ENV_RULES.co2LimitPpm} <i className="lg-over" />넘은 구간 <i className="lg-eta" />넘을 때
+        </span>
+        <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
+          <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
+            onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
+          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}
         </span>
         <span className="now-tap">방을 누르면 자세히 · 할 일</span>
       </div>
