@@ -331,7 +331,8 @@ export default function Assistant() {
     if (owner === null || chat.memberId !== owner || chat.pending !== null || clearing || currentClearing(owner)) return
     setClearing(true)
     // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
-    const cleared = clearChatHistory(owner).then(() => clearChatOf(owner))
+    // 새 대화면 고른 친구도 버린다(카드 안 뜬 "팀A랑"이 다음 엉뚱한 카드에 채워지지 않게)
+    const cleared = clearChatHistory(owner).then(() => { clearChatOf(owner); takePicked(owner) })
     rememberClearing(owner, cleared)
     try {
       await cleared
@@ -507,8 +508,14 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
   /** 팀 버튼: 그 팀원(지금도 친구인 사람만)으로 바꿔 고른다 */
   function pickTeam(t: Team) {
     const members = teamFriends(t, friends)
-    setChosen(members.slice(0, MAX_FRIENDS))
-    setNote(members.length < t.members.length ? `${t.name}에서 친구 목록에 없는 ${t.members.length - members.length}명은 뺐어요.` : `${t.name}을 골랐어요.`)
+    const used = members.slice(0, MAX_FRIENDS)
+    setChosen(used)
+    const gone = t.members.length - members.length
+    const over = members.length - used.length
+    const lines = [`${t.name}을 골랐어요.`]
+    if (gone > 0) lines.push(`친구 목록에 없는 ${gone}명은 뺐어요.`)
+    if (over > 0) lines.push(`${MAX_FRIENDS}명까지만 고를 수 있어서 ${over}명은 넣지 않았어요.`)
+    setNote(lines.join(' '))
   }
 
   /** 방 최대 인원(5번 방 8명)에서 나를 뺀 7명까지 */
