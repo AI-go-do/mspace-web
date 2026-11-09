@@ -6,7 +6,7 @@ import { deniedLine } from '../content/denied'
 import { findFriend, getFriends, type Friend } from '../api/friends'
 import { matchFriends } from '../lib/friendMatch'
 import { peekPicked, savePicked, takePicked } from '../lib/pickedFriends'
-import { getTeams, knownTeams, saveTeam, TEAM_NAME_MAX, teamFriends, teamInMessage, type Team } from '../api/teams'
+import { getTeams, saveTeam, TEAM_NAME_MAX, teamFriends, teamInMessage, type Team } from '../api/teams'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
@@ -303,13 +303,12 @@ export default function Assistant() {
     const history = historyOf(stored.messages)
     // "팀 A랑 …": 그 팀원을 다음 확인 카드에 미리 채운다(팀원은 비서에게 보내지 않음, FR-AGT-105)
     // 보내기를 늦추지 않게 뒤에서 한다(답이 오기까지 몇 초 걸리니 카드가 뜨기 전에 끝난다).
-    // 팀 목록을 아직 못 받았으면 받아서 보고, 지금 친구가 아닌 팀원은 뺀다(친구 목록을 못 받으면 그대로)
+    // 지금 친구가 아닌 팀원은 뺀다(친구 목록을 못 받으면 그대로)
     const me = owner
     const round = prefillRound.current
     void (async () => {
-      const cached = knownTeams(me)
-      const teams = cached.length > 0 ? cached : await getTeams(me).then((r) => r.teams, () => [])
-      if (cached.length > 0) refreshTeams(me)
+      // 다른 탭에서 팀을 바꿨을 수 있어 늘 새로 받아 맞춘다. 못 받으면 미리 채우지 않는다(옛 팀원이 들어가지 않게)
+      const teams = await getTeams(me).then((r) => r.teams, () => [])
       const team = teamInMessage(msg, teams)
       if (!team) return
       const now = await getFriends(undefined, me).then((l) => l.friends, () => null)
