@@ -86,6 +86,18 @@ describe('조도 쌓기: 오래된 값과 탭 이동', () => {
     expect(out.rooms[0].series[1].light).toBeNull()
   })
 
+  it('같은 분 안에서 값이 오래돼도 앞서 받은 새 값을 지우지 않는다', () => {
+    // given: 2:40:01에 잰 값을 2:42:00에 받음(새 값)
+    const trail: LightTrail = new Map()
+    const series = [0, 2].map((i) => ({ at: iso(t0 + i * MIN), ppm: null, temperatureC: null, humidityPct: null }))
+    const r = room({ light: 600, lightAt: iso(t0 + 1_000), series })
+    withLightTrail(env(t0 + 2 * MIN, r), trail, 60)
+    // when: 같은 분 2:42:10에 다시 받음(이제 2분 넘음)
+    const out = withLightTrail(env(t0 + 2 * MIN + 10_000, r), trail, 60)
+    // then: 2:42 칸은 600 그대로
+    expect(out.rooms[0].series[1].light).toBe(600)
+  })
+
   it('같은 사람이면 탭을 옮겨도 같은 trail을 쓴다', () => {
     expect(trailFor(7)).toBe(trailFor(7))
     expect(trailFor(7)).not.toBe(trailFor(8))
