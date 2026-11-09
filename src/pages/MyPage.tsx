@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
+import { getMyProfile, profileHead, type MyProfile } from '../api/members'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
 import Spacey from '../components/Spacey'
@@ -55,8 +56,9 @@ export function searchWithoutEnd(search: string, extendedId: number): URLSearchP
 
 /**
  * 마이 탭 (11/6 재웅: 내 예약에 로그아웃·시간표·친구가 섞여 있으니 마이페이지로 묶자).
- * 위에서 아래로: 머리글(스페이시·내 정보·수칙 동의) → 사용 중/다가오는 예약 1장 → 줄 메뉴(내 예약·내 시간표·친구·이용 규칙) → 관리자 → 로그아웃.
- * 이름·학번은 넣지 않는다(토큰에 회원 번호만 있고, 공용 폰에서 남의 이름이 보일 수 있어서).
+ * 위에서 아래로: 머리글(스페이시·이름·학번·수칙 동의) → 사용 중/다가오는 예약 1장 → 줄 메뉴(내 예약·내 시간표·친구·이용 규칙) → 관리자 → 로그아웃.
+ * 이름·학번(11/9 팀 채팅 지영 제안)은 GET /api/members/me(core #102)로 받는다. 회원이 바뀌면 화면을 통째로 새로 만들고
+ * 요청도 그 회원 토큰으로만 보내서, 공용 폰에서 앞 사람 이름이 남지 않는다. 못 받으면 예전처럼 "내 정보"만 보인다.
  * 입실하면 여기로 넘어오고 사용 중 카드가 맨 위에 그대로 있다(FR-WEB-002)
  */
 export default function MyPage() {
@@ -74,6 +76,7 @@ function MyPageFor({ member }: { member: number | null }) {
   const admin = useIsAdmin()
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined)
   const [friends, setFriends] = useState<FriendList | null>(null)
+  const [profile, setProfile] = useState<MyProfile | null>(null)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
   const mounted = useRef(true)
@@ -88,10 +91,13 @@ function MyPageFor({ member }: { member: number | null }) {
     let alive = true
     let gotSchedule = false
     let gotFriends = false
+    let gotProfile = false
     // 줄 메뉴의 한 줄 요약. 못 받아도 메뉴는 그대로 열린다
     const load = () => {
       if (!gotSchedule) getSchedule(member).then((s) => { if (alive) { setSchedule(s); gotSchedule = true } }).catch(() => {})
       if (!gotFriends) getFriends(undefined, member).then((f) => { if (alive) { setFriends(f); gotFriends = true } }).catch(() => {})
+      // 머리글 이름·학번. 못 받아도(core 전·404) "내 정보" 제목으로 그대로 쓴다
+      if (!gotProfile) getMyProfile(member).then((p) => { if (alive) { setProfile(p); gotProfile = true } }).catch(() => {})
     }
     load()
     window.addEventListener('online', load)
@@ -126,13 +132,15 @@ function MyPageFor({ member }: { member: number | null }) {
     if (cleared) setParams(cleared, { replace: true })
   }
   const agreed = hasAgreed()
+  const head = profileHead(profile)
 
   return (
     <main className="mine my">
       <header className="my-head">
         <span className="my-mascot" aria-hidden="true"><Spacey size={56} label="" /></span>
         <div className="my-head-text">
-          <h1>내 정보</h1>
+          <h1 key={head.title} className={profile ? 'my-name' : undefined}>{head.title}</h1>
+          {head.sub && <span className="my-id">{head.sub}</span>}
           <span className={`my-badge ${agreed ? 'on' : ''}`}>{agreed ? '수칙 동의 ✓' : '수칙 동의 전'}</span>
         </div>
       </header>
