@@ -349,3 +349,16 @@
   .ct-foot { font-size: 11.5px; }
   .ctl-legend { width: 100%; }
 }
+
+/* 에어컨·공기청정기 칩·바깥 날씨·자동 스위치 (web #71)를 어두운 관제실 바탕에 맞춘다 */
+.ctl .cl-chips { gap: 5px; }
+.ctl .cl-chip { background: var(--c-glass-2); color: var(--white); font-size: 11.5px; }
+.ctl .cl-chip.on { background: color-mix(in srgb, var(--sky) 22%, transparent); color: var(--sky); }
+.ctl .cl-chip.tip { background: color-mix(in srgb, var(--yellow) 20%, transparent); color: var(--yellow); }
+.ctl .cl-weather { background: var(--c-glass-2); color: var(--c-dim); }
+.ctl .cl-weather.cold { background: color-mix(in srgb, var(--sky) 18%, transparent); color: var(--sky); }
+.ctl .cl-weather.hot { background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
+.ctl .cl-auto { color: var(--c-dim); }
+.ctl .cl-sw { background: rgba(255, 255, 255, 0.18); }
+.ctl .cl-sw.on { background: var(--sky); }
+.ctl .cl-sw:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }

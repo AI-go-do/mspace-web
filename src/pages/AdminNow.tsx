@@ -14,6 +14,12 @@ import { RoomTile } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
+import { setClimateAuto, useAppliances } from '../api/appliances'
+import { seasonRules } from '../lib/climate'
+import { useOutdoorWeather } from '../api/weather'
+import { WeatherChip } from '../components/Climate'
+import { useClimateAuto } from '../lib/useClimateAuto'
+import '../components/Climate.css'
 import './AdminNow.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
@@ -114,7 +120,11 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
   }, [data])
 
-  const now = data ? new Date(data.now) : null
+  const now = useMemo(() => (data ? new Date(data.now) : null), [data])
+  const { auto } = useAppliances()
+  const weather = useOutdoorWeather()
+  const climateRules = useMemo(() => seasonRules(weather), [weather])
+  useClimateAuto(views, now, auto, currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
@@ -140,7 +150,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     const list = adviceOf(v)
     return (
       <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
-        blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} onOpen={() => setOpenRoom(v.roomId)} />
+        blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)} />
     )
   }
   // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게
@@ -169,6 +179,12 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {readAt ? <>실시간 · 마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다</span>
         {sample && <span className="ctl-sample">가짜 값 · 시연용</span>}
         {trendOnly && <span className="ctl-note">예측은 최근 추세로 그렸어요</span>}
+        <WeatherChip w={weather} />
+        <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
+          <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
+            onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
+          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}
+        </span>
         <span className="ctl-legend" aria-hidden="true"><i className="lg-use" />사람 있음 <i className="lg-warn" />주의 <i className="lg-off" />확인 필요 <i className="lg-empty" />빈 방</span>
       </div>
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}

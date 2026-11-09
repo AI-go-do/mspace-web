@@ -8,8 +8,11 @@
 .my-mascot { flex: none; width: 72px; height: 72px; border-radius: 24px; display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); }
 .my-mascot svg { animation: bob 3s ease-in-out infinite; }
-.my-head-text { display: flex; flex-direction: column; gap: 6px; }
-.my-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.my-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.my-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 이름·학번을 받으면 "내 정보" 자리에 살짝 올라오며 바뀐다 */
+.my-head h1.my-name, .my-id { animation: rise-in 0.3s var(--ease-out) backwards; }
+.my-id { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.82); font-variant-numeric: tabular-nums; margin-top: -4px; }
 .my-badge { align-self: flex-start; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.16); color: var(--white); }
 .my-badge.on { background: var(--white); color: var(--blue); }
 /* 사용 중 카드·다가오는 예약이 머리글 아래로 살짝 겹쳐 올라온다 */

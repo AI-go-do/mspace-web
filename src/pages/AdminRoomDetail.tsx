@@ -6,6 +6,9 @@ import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { RoomChart, type MetricKey } from './AdminRoomChart'
 import './AdminRoomDetail.css'
+import { ClimatePanel } from '../components/Climate'
+import { currentMemberId } from '../api/client'
+import { useAppliances } from '../api/appliances'
 
 const PRESENCE: Record<RoomView['presence'], string> = { OCCUPIED: '사람 있음', EMPTY: '비어 있음', UNKNOWN: '모름' }
 
@@ -37,6 +40,8 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
   const ref = useRef<HTMLDialogElement>(null)
   const [metric, setMetric] = useState<MetricKey>('co2')
   const advice = roomAdvice(view, now, { blocked, openReports: reports })
+  const { log, auto } = useAppliances()
+  const autoLog = log.filter((e) => e.roomId === view.roomId).slice(0, 4)
   const { flags } = view
 
   // 닫히면 연 버튼으로 포커스를 돌려준다(부모가 창을 지우므로 close()를 거치지 않는다)
@@ -112,6 +117,16 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
                   ))}
                 </ul>
               )}
+          </section>
+
+          <section className="rd-sec rd-climate" aria-labelledby="rd-climate">
+            <h3 id="rd-climate">에어컨·공기청정기 <small className="muted">{auto ? '자동 켜짐' : '자동 꺼짐'}</small></h3>
+            <ClimatePanel view={view} now={now} by="ADMIN" member={currentMemberId()} />
+            {autoLog.length > 0 && (
+              <ul className="cl-log" aria-label="자동으로 한 일">
+                {autoLog.map((e) => <li key={`${e.at}${e.applianceId}`}><time>{seoulClock(new Date(e.at))}</time><span>{e.text}</span></li>)}
+              </ul>
+            )}
           </section>
 
           <section className="rd-sec" aria-labelledby="rd-facts">

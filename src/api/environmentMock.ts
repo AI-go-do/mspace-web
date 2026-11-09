@@ -1,5 +1,6 @@
 import { ADMIN_ROOMS, type AdminRoomConfig, type SensorKind } from '../config/adminRooms'
 import type { EnvPoint, RoomEnvironment, RoomsEnvironment } from './environment'
+import { demoIndoorShiftC } from './weather'
 
 /**
  * 관리자 "지금" 탭 가짜 값 (core API가 생기기 전 시연용). 학생 이름·번호는 없다.
@@ -55,7 +56,7 @@ function reading(scene: number, roomId: number, t: number): Reading {
 
 const round1 = (v: number) => Math.round(v * 10) / 10
 
-function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): RoomEnvironment {
+function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number, shiftC: number): RoomEnvironment {
   const has = (s: SensorKind) => cfg.sensors.includes(s)
   const nowMs = now.getTime()
   const tNow = nowMs / MIN
@@ -64,7 +65,7 @@ function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number): 
     return {
       at: new Date(ms).toISOString(),
       ppm: has('co2') ? Math.round(r.ppm) : null,
-      temperatureC: has('temperature') ? round1(r.temperatureC) : null,
+      temperatureC: has('temperature') ? round1(r.temperatureC + shiftC) : null,
       humidityPct: has('humidity') ? Math.round(r.humidityPct) : null,
       ...(has('door') ? { doorOpen: r.doorOpen ?? false } : {}),
     }
@@ -119,6 +120,7 @@ function doorState(series: EnvPoint[]): RoomEnvironment['door'] {
   return { open, since: series[i].at }
 }
 
-export function mockEnvironment(now: Date, minutes: number, rooms: readonly AdminRoomConfig[] = ADMIN_ROOMS): RoomsEnvironment {
-  return { now: now.toISOString(), rooms: rooms.map((cfg, i) => room(cfg, i + 1, now, Math.max(2, minutes))) }
+/** shiftC: 시연 한파·폭염(?weather=cold|hot)일 때 실내 온도를 옮긴다 */
+export function mockEnvironment(now: Date, minutes: number, rooms: readonly AdminRoomConfig[] = ADMIN_ROOMS, shiftC = demoIndoorShiftC()): RoomsEnvironment {
+  return { now: now.toISOString(), rooms: rooms.map((cfg, i) => room(cfg, i + 1, now, Math.max(2, minutes), shiftC)) }
 }

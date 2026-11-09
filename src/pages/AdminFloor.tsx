@@ -1,5 +1,8 @@
 import { type CSSProperties } from 'react'
+import { applianceState, useAppliances } from '../api/appliances'
 import { ENV_RULES } from '../config/adminRooms'
+import { CLIMATE_RULES, ROOM_APPLIANCES } from '../config/appliances'
+import { climateTips, type TipRules } from '../lib/climate'
 import type { Advice } from '../lib/roomAdvice'
 import type { RoomView } from '../lib/roomHealth'
 import { useCountUp } from '../lib/useCountUp'
@@ -49,9 +52,28 @@ export function Spark({ view, limit = ENV_RULES.co2LimitPpm, wide = false }: { v
   )
 }
 
+/** 칸 안 에어컨·공기청정기 표시: 권유 한 줄 + 켜진 기기 ("숨 막히기 12분 전") */
+function ClimateChips({ view, now, rules }: { view: RoomView; now: Date; rules: TipRules }) {
+  const store = useAppliances()
+  const devs = ROOM_APPLIANCES[view.roomId] ?? []
+  if (!devs.length) return null
+  const tips = climateTips(view, now, (id) => applianceState(id, store), rules)
+  const on = devs.filter((a) => applianceState(a.id, store).power === 'ON')
+  if (!tips.length && !on.length) return null
+  return (
+    <span className="cl-chips">
+      {tips.slice(0, 1).map((t) => <span key={t.key} className="cl-chip tip">{t.title}{t.button ? ` · ${t.button}` : ''}</span>)}
+      {on.map((a) => <span key={a.id} className="cl-chip on">{a.name} 켜짐</span>)}
+    </span>
+  )
+}
+
 /** 평면도 칸 하나. 누르면 방 상세 창 */
-export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, onOpen }: {
+export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, now = null, rules = CLIMATE_RULES, onOpen }: {
   view: RoomView
+  /** 에어컨·공기청정기 권유 계산용. 아직 값이 없으면 칩을 안 그린다 */
+  now?: Date | null
+  rules?: TipRules
   tone: TileTone
   advice: Advice[]
   blocked: string | null
@@ -89,6 +111,7 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
         </span>
         <Spark view={view} wide={big} />
       </span>
+      {now && <ClimateChips view={view} now={now} rules={rules} />}
       <span className="ct-foot">
         <span>{facts || '센서 없음'}</span>
         <span className="ct-go" aria-hidden="true">자세히 ›</span>
