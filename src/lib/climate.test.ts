@@ -66,6 +66,15 @@ describe('climateTips', () => {
     expect(tips[0].sub).toMatch(/^다음 예약 14:40 전에/)
   })
 
+  it('문이 열려 있으면 냉방을 권하되 자동으로 켜지는 않는다', () => {
+    const env = { ...room((i) => 600 + (i % 2), busy, 28.2), door: { open: true, since: iso(12) } }
+    const view1 = toRoomView(env, { ...ADMIN_ROOMS[0], sensors: [...ADMIN_ROOMS[0].sensors, 'door'] }, now)
+    const [tip] = climateTips(view1, now, off)
+    expect(tip.why).toBe('cool')
+    expect(tip.auto).toBe(false)
+    expect(tip.sub).toContain('문을 먼저 닫아')
+  })
+
   it('빈 방이고 곧 올 사람도 없는데 켜져 있으면 끄기를 권한다', () => {
     const tips = climateTips(view(room((i) => 480 + (i % 2), { presence: 'EMPTY' })), now, states({ 'r1-ac': { mode: 'COOL', targetC: 26 }, 'r1-purifier': {} }))
     expect(tips.map((t) => t.title)).toEqual(['빈 방인데 에어컨이 켜져 있어요', '빈 방인데 공기청정기가 켜져 있어요'])

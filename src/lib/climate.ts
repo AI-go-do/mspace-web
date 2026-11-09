@@ -83,21 +83,24 @@ export function climateTips(
     const s = state(ac.id)
     const t = v.temperatureC.toFixed(1)
     const ahead = !occupied && nextLabel ? `다음 예약 ${nextLabel} 전에 ` : ''
+    // 문이 열려 있으면 냉난방이 새 나가서, 권하되 자동으로 켜지는 않고 문 먼저 닫자고 한다
+    const doorOpen = !!v.door?.open
+    const doorNote = doorOpen ? ' 문이 열려 있어요. 문을 먼저 닫아 주세요.' : ''
     if (v.temperatureC >= env.hotC && !isOn(s, 'COOL')) {
       out.push({
         key: `${v.roomId}:cool`, roomId: v.roomId, why: 'cool',
         title: occupied ? `${t}°C, 더워요` : `빈 방이 ${t}°C까지 올랐어요`,
-        sub: `${ahead}에어컨을 ${rules.coolTargetC}°C 냉방으로 켜 둘까요?`,
+        sub: `${ahead}에어컨을 ${rules.coolTargetC}°C 냉방으로 켜 둘까요?${doorNote}`,
         appliance: ac, command: { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }, button: '냉방 켜기',
-        auto: true, urgent: occupied,
+        auto: !doorOpen, urgent: occupied,
       })
     } else if (v.temperatureC < rules.coldC && !isOn(s, 'HEAT')) {
       out.push({
         key: `${v.roomId}:heat`, roomId: v.roomId, why: 'heat',
         title: occupied ? `${t}°C, 추워요` : `빈 방이 ${t}°C로 차가워요`,
-        sub: `${ahead}에어컨을 ${rules.heatTargetC}°C 난방으로 켜 둘까요?`,
+        sub: `${ahead}에어컨을 ${rules.heatTargetC}°C 난방으로 켜 둘까요?${doorNote}`,
         appliance: ac, command: { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC }, button: '난방 켜기',
-        auto: true, urgent: occupied,
+        auto: !doorOpen, urgent: occupied,
       })
     }
   }
