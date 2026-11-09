@@ -10,9 +10,10 @@ import { CO2_ALERT_KIND, demoCo2Alerts, isCo2DemoId, readCo2Demo } from './co2Al
  * DEVICE_APOLOGY 방의 사과: 문 장치 문제로 생긴 노쇼를 물렀음 (Q-19, core #99. api/apology.ts)
  * CO2_SOON 숨 막히기 N분 전: 창문을 열어 달라는 알림 (회의용 Q, core 초안. api/co2Alert.ts)
  * RELAY_OFFER 빈방 릴레이: 기다리던 자리가 나에게 넘어옴, 5분 안에 받기 (Q-18, core #101. 예약 번호 없음)
+ * ROOM_FREE 빈방 알림: 지켜보던 방이 비었음 (core #109. 예약 번호 없음, api/roomWatches.ts)
  */
 export type NotificationKind = 'START_SOON' | 'END_SOON' | 'NO_SHOW_SOON' | 'AWAY_SOON'
-  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | 'RELAY_OFFER' | (string & {})
+  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | 'RELAY_OFFER' | 'ROOM_FREE' | (string & {})
 
 /** GET /api/notifications/me 한 줄 (core NotificationController, 최근 50개) */
 export interface AppNotification {
@@ -82,6 +83,8 @@ export function notificationAction(n: AppNotification): { to: string; label: str
   if (n.kind === CO2_ALERT_KIND) return { to: '/', label: '내 방 공기 보기' }
   // 빈방 릴레이: 홈 맨 위 릴레이 카드에 남은 받을 시간과 [받을게요]·[넘길게요]가 있다
   if (n.kind === 'RELAY_OFFER') return { to: '/', label: '받으러 가기' }
+  // 빈방 알림: 지켜보던 방이 비었으니 지금 바로 쓰기로(알림에는 방 번호 칸이 없어 방은 그 화면에서 고른다)
+  if (n.kind === 'ROOM_FREE') return { to: '/now', label: '지금 바로 쓰기' }
   if (n.reservationId == null) return null
   switch (n.kind) {
     case 'START_SOON':
