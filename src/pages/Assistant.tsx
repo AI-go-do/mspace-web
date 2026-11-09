@@ -6,6 +6,7 @@ import { deniedLine } from '../content/denied'
 import { findFriend, getFriends, type Friend } from '../api/friends'
 import { matchFriends } from '../lib/friendMatch'
 import { peekPicked, savePicked, takePicked } from '../lib/pickedFriends'
+import { getTeams, knownTeams, saveTeam, TEAM_NAME_MAX, teamFriends, teamInMessage, type Team } from '../api/teams'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
@@ -15,7 +16,7 @@ import { useNow } from '../lib/useNow'
 import './Assistant.css'
 
 /** 간단히 예약하기 첫 질문과 예시 답 (FR-AGT-105). 한 번에 다 말하면 비서가 바로 확인 카드까지 간다 */
-export const QUICK_GREETING = '언제, 나 포함 몇 명이서 쓰실 건가요? 말로 해 주셔도 돼요. 함께할 친구는 다음 카드에서 이름으로 골라요.'
+export const QUICK_GREETING = '언제, 누구랑 쓰실 건가요? 말로 해 주셔도 돼요. 저장한 팀이 있으면 "팀 A랑 내일 3시"처럼 말하면 돼요.'
 export const QUICK_STARTERS = ['내일 오후 3시부터 2시간, 나 포함 4명', '오늘 수업 끝나고 2시간, 나 포함 3명', '지금 바로 1시간, 나 포함 3명']
 
 /** 서버 기준(1,000자)과 같게 */
@@ -56,6 +57,11 @@ export default function Assistant() {
   // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
   const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
+  // 내 팀(FR-AGT-105). "팀 A랑"이 들어간 말을 보낼 때 그 팀원을 확인 카드에 미리 채우려고 미리 받아 둔다(api/teams가 기억)
+  function refreshTeams(owner: number | null) {
+    getTeams(owner).catch(() => { /* 팀 없이 */ })
+  }
+  useEffect(() => { refreshTeams(currentMemberId()) }, [chat.memberId])
   // 홈 [AI로 간단히 예약하기] → /assistant?quick=1 (FR-AGT-105)
   const [params] = useSearchParams()
   const navigate = useNavigate()
@@ -291,6 +297,11 @@ export default function Assistant() {
       return
     }
     const history = historyOf(stored.messages)
+    // "팀 A랑 …": 그 팀원을 다음 확인 카드에 미리 채운다(팀원은 비서에게 보내지 않음, FR-AGT-105)
+    // 팀 목록은 미리 받아 둔 것으로 바로 본다(보내기를 늦추지 않게). 다음 말을 위해 뒤에서 새로 받는다
+    const team = teamInMessage(msg, knownTeams(owner))
+    if (team) savePicked(owner, teamFriends(team, null))
+    refreshTeams(owner)
     const startedAt = Date.now()
     update((s) => ({
       ...s,
@@ -472,6 +483,7 @@ function Message({ m, owner, last, busy, ask, speaking, onRead }: {
  */
 function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: Ask; busy: boolean; fallback: string[] }) {
   const [friends, setFriends] = useState<Friend[] | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
   const [chosen, setChosen] = useState<Friend[]>([])
   const [note, setNote] = useState('')
   const [hearing, setHearing] = useState(false)
@@ -480,11 +492,19 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
   useEffect(() => {
     let live = true
     getFriends(undefined, owner ?? undefined).then((l) => { if (live) setFriends(l.friends) }, () => { if (live) setFriends([]) })
+    getTeams(owner).then((r) => { if (live) setTeams(r.teams) }, () => { /* 팀 없이 친구만 */ })
     return () => {
       live = false
       stopHear.current?.()
     }
   }, [owner])
+
+  /** 팀 버튼: 그 팀원(지금도 친구인 사람만)으로 바꿔 고른다 */
+  function pickTeam(t: Team) {
+    const members = teamFriends(t, friends)
+    setChosen(members.slice(0, MAX_FRIENDS))
+    setNote(members.length < t.members.length ? `${t.name}에서 친구 목록에 없는 ${t.members.length - members.length}명은 뺐어요.` : `${t.name}을 골랐어요.`)
+  }
 
   /** 방 최대 인원(5번 방 8명)에서 나를 뺀 7명까지 */
   const MAX_FRIENDS = 7
@@ -544,6 +564,15 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
           {hearing ? '■ 그만 듣기' : '🎤 친구 이름 말하기'}
         </button>
       )}
+      {teams.length > 0 && (
+        <div className="ask-chips team-chips" aria-label="내 팀">
+          {teams.map((t) => (
+            <button key={t.name} type="button" className="ask-chip team" onClick={() => pickTeam(t)} disabled={busy || friends === null}>
+              👥 {t.name} ({t.members.length + 1}명)
+            </button>
+          ))}
+        </div>
+      )}
       {friends === null
         ? <p className="muted card-note">친구 목록을 불러오는 중…</p>
         : (
@@ -563,6 +592,38 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
       <button type="button" className="btn-primary card-btn" onClick={done} disabled={busy || friends === null}>
         {chosen.length > 0 ? `나 포함 ${chosen.length + 1}명으로 할게요` : '친구를 골라 주세요'}
       </button>
+    </div>
+  )
+}
+
+/** 예약이 끝난 카드: 이번 친구들을 팀으로 저장 → 다음엔 "팀 A랑 내일 3시" (FR-AGT-105) */
+function TeamSave({ owner, members }: { owner: number | null; members: { studentId: string; name: string }[] }) {
+  const [name, setName] = useState('')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | string>('idle')
+  async function save() {
+    const n = name.trim()
+    if (!n) return setState('팀 이름을 적어 주세요.')
+    setState('saving')
+    try {
+      await saveTeam(n, members, owner)
+      setState('saved')
+    } catch (e) {
+      setState(e instanceof ApiError ? e.message : '저장하지 못했어요. 잠시 뒤 다시 눌러 주세요.')
+    }
+  }
+  if (state === 'saved') return <p className="muted card-note">'{name.trim()}' 팀으로 저장했어요. 다음엔 "{name.trim()}랑 내일 3시"라고 말해 보세요.</p>
+  return (
+    <div className="team-save">
+      <p className="muted card-note">이 친구들({members.map((m) => m.name).join(', ')})과 또 쓸 거면 팀으로 저장해 두세요</p>
+      <div className="person">
+        <input aria-label="팀 이름" placeholder="예: 팀 A" maxLength={TEAM_NAME_MAX} value={name}
+          onChange={(e) => setName(e.target.value)} disabled={state === 'saving'} />
+        <button type="button" className="ask-chip team" onClick={() => void save()} disabled={state === 'saving'}>
+          {state === 'saving' ? '저장 중…' : '팀으로 저장'}
+        </button>
+      </div>
+      {state !== 'idle' && state !== 'saving' && <p className="card-error" role="alert">{state}</p>}
+      <p className="muted card-note">팀 이름에 사람 이름은 넣지 마세요(비서에게 팀 이름이 보여요).</p>
     </div>
   )
 }
@@ -776,6 +837,8 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
 
   if (state.kind === 'done') {
     const r = state.result
+    // 이번에 [확인]한 참여자(화면을 다시 열면 모름 → 팀 저장 칸 안 보임)
+    const members = ids.map((sid, i) => ({ studentId: sid.trim(), name: names[i] ?? '' })).filter((m) => m.studentId)
     return (
       <>
         <div className="bot-card done" role="status">
@@ -783,6 +846,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
           {r.action === 'CREATE' || r.action === 'START_NOW'
             ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
             : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+          {members.length > 0 && <TeamSave owner={owner} members={members} />}
         </div>
         {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
       </>

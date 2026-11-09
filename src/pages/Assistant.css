@@ -111,3 +111,5 @@
 .name-mic { align-self: flex-start; border-color: var(--sky); color: var(--blue); font-weight: 700; }
 .name-mic.on { background: var(--blue); color: var(--white); }
 .pick-note { line-height: 1.5; }
+.ask-chip.team { border-color: var(--blue); color: var(--blue); font-weight: 700; }
+.team-save { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--gray); }
