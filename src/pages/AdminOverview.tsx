@@ -122,7 +122,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
       {/* 첫 그림 전(폭을 재기 전)에도 높이를 잡아 두어 값을 바꿀 때 화면이 튀지 않게 */}
       {w === 0 && <div style={{ height: h }} aria-hidden="true" />}
       {w > 0 && (
-        <svg width={w} height={h} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+        <svg className={metric === 'co2' ? '' : 'ov-ref'} width={w} height={h} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
           <defs>
             <pattern id="ov-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="2" height="6" className="ov-hatch" />
@@ -137,7 +137,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
             </g>
           ))}
           <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />
-          <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `더움 ${limit}°C` : `건조 ${limit}%`}</text>
+          <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : `참고 ${limit}%`}</text>
           {ahead > 0 && <rect x={x(nowI)} width={Math.max(0, x(total - 1) - x(nowI))} y={PAD.t} height={ih} className="ov-ahead" />}
           <line x1={x(nowI)} x2={x(nowI)} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
           <text x={x(nowI)} y={h - 8} className="ov-tick" textAnchor="middle">지금</text>
