@@ -156,7 +156,9 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const wide = views.length > 1 ? views[views.length - 1] : null
   // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
   const known = data !== null && views.length > 0
-  const unknownRooms = views.filter((v) => v.presence === 'UNKNOWN').length
+  // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
+  const missingRooms = ADMIN_ROOMS.filter((r) => !views.some((v) => v.roomId === r.roomId)).length
+  const unknownRooms = views.filter((v) => v.presence === 'UNKNOWN').length + missingRooms
 
   return (
     <section className="admin-now ctl" aria-label="관제실 지금 방 상태">
@@ -206,7 +208,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 확인할 것이 없어요.</p>
           )}
           {known && issues.length === 0 && unknownRooms > 0 && (
-            <p className="ctl-allok" role="status">확인할 것은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요.</p>
+            <p className="ctl-allok" role="status">확인할 것은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요{missingRooms > 0 ? ` (${missingRooms}개 방은 값이 오지 않았어요)` : ''}.</p>
           )}
           {data && views.length === 0 && (
             <p className="ctl-allok" role="status">방 정보를 받지 못했어요. 잠시 뒤 다시 확인해요.</p>
