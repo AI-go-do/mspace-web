@@ -81,12 +81,12 @@ describe('toRoomView', () => {
     expect(toRoomView(room((i) => 700 + (i % 3), { current }), cfg, now).flags.overtime).toBe(false)
   })
 
-  it('빈 방이 27.5°C 넘고 다음 예약이 있으면 "다음 예약 전 더움"', () => {
+  it('빈 방이 27.5°C 넘어도 노랑으로 올리지 않고 참고로만 둔다(덥다는 느낌은 사람마다 달라서)', () => {
     const v = toRoomView(room((i) => 480 + (i % 2), { presence: 'EMPTY', temperatureC: 27.8, next: { startAt: iso(-79), people: 4 } }), cfg, now)
     expect(v.flags.hot).toBe(true)
-    expect(v.tempNote).toBe('다음 예약 전 더움')
+    expect(v.tempNote).toBe('참고: 높은 편')
     expect(v.slot).toBe('다음 16:00 (예약 4명)')
-    expect(v.tone).toBe('warn')
+    expect(v.tone).toBe('ok')
   })
 
   it('설정에 없는 센서는 값을 버리고 "센서 없음"으로 보여 준다', () => {

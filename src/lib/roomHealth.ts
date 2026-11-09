@@ -5,7 +5,8 @@ import { seoulClock } from './time'
 
 /**
  * 관리자 "지금" 탭 방 카드 한 장에 필요한 것. API·가짜 값 어느 쪽이 와도 같은 규칙으로 이상을 가린다.
- * 노랑(warn): 15분 안에 CO2 기준을 넘을 것 같음·이미 넘음·더움·시간 넘김·예약 없는데 CO2 오름(무단 사용 의심)
+ * 노랑(warn): 15분 안에 CO2 기준을 넘을 것 같음·이미 넘음·시간 넘김·예약 없는데 CO2 오름(무단 사용 의심)
+ * 온도·습도는 덥고 건조한 느낌이 사람마다 달라서 노랑으로 올리지 않는다(방 상세 창에 참고로만)
  * 빨강(off): 신호 끊김·CO2가 20분 넘게 같은 값(센서 고장 의심)
  */
 export type Tone = 'ok' | 'warn' | 'off'
@@ -143,7 +144,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
 
   const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor }
   const tone: Tone = offline || stuck ? 'off'
-    : co2Soon || co2Over || hot || overtime || unbooked || doorLeftOpen || noEntry || nightDoor ? 'warn' : 'ok'
+    : co2Soon || co2Over || overtime || unbooked || doorLeftOpen || noEntry || nightDoor ? 'warn' : 'ok'
 
   let status: RoomView['status']
   if (offline) status = { text: '신호 끊김', tone: 'off' }
@@ -175,8 +176,8 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   else if (forecast.length) co2Note = `${rules.forecastMinutes}분 뒤 약 ${forecast[forecast.length - 1]}`
   else co2Note = '예측 없음'
 
-  const tempNote = temperatureC === null ? '센서 없음' : hot ? (env.next && !occupied ? '다음 예약 전 더움' : '더움') : '적당'
-  const humNote = humidityPct === null ? '센서 없음' : dry ? '건조' : '적당'
+  const tempNote = temperatureC === null ? '센서 없음' : hot ? '참고: 높은 편' : ''
+  const humNote = humidityPct === null ? '센서 없음' : dry ? '참고: 낮은 편' : ''
 
   return {
     roomId: env.roomId,
