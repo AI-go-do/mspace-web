@@ -41,6 +41,12 @@ const SECTIONS = [
 ] as const
 type Section = (typeof SECTIONS)[number]['id']
 
+/** "지금" 방 상세 창의 [이 방 막기]에서 왔으면 방 번호(?block=3, 점검이면 &why=inspection) */
+function blockRoomParam(params: URLSearchParams): { roomId: number; inspection: boolean } | null {
+  const roomId = Number(params.get('block'))
+  return Number.isInteger(roomId) && roomId > 0 ? { roomId, inspection: params.get('why') === 'inspection' } : null
+}
+
 /** 예전 탭 주소(?tab=reports 등)로 들어와도 맞는 칸을 연다 */
 const LEGACY: Record<string, { tab: Section; sub?: string }> = {
   reports: { tab: 'todo' }, checkout: { tab: 'rooms', sub: 'checkout' }, blocks: { tab: 'rooms' },
@@ -132,12 +138,16 @@ export default function Admin() {
           <LiveClock />
         </header>
         <div key={`${member ?? 'none'}-${tab}`} className="adm-panel">
-          {tab === 'now' && <AdminNow todo={counts} onOpenTodo={() => go('todo')} />}
+          {tab === 'now' && (
+            <AdminNow todo={counts} onOpenTodo={() => go('todo')}
+              onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })}
+              onBlockRoom={(id, inspection) => go('rooms', { block: String(id), ...(inspection ? { why: 'inspection' } : {}) })} />
+          )}
           {tab === 'todo' && <AdminTodo counts={counts} onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
           {tab === 'ai' && <AdminApprentice />}
           {tab === 'rooms' && (
             <div className="adm-rooms">
-              <AdminBlocks />
+              <AdminBlocks fromRoom={blockRoomParam(params)} />
               <ForceCheckoutForm initialId={params.get('reservation') ?? ''} focus={sub === 'checkout'} />
             </div>
           )}

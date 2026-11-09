@@ -19,6 +19,15 @@ export interface RoomView {
   humidityPct: number | null
   /** 그래프용 지난 CO2 (센서 없는 분은 null) */
   history: (number | null)[]
+  /** 그래프용 지난 온도·습도 (history와 같은 분) */
+  temps: (number | null)[]
+  hums: (number | null)[]
+  /** history 각 분의 시각 */
+  times: string[]
+  /** 지금 걸린 예약 (방 상세 창의 강제 퇴실·예약 끝 표시용) */
+  current: { reservationId: number; startAt: string; endAt: string; people: number } | null
+  presence: RoomEnvironment['presence']
+  lastSignalAt: string | null
   /** 그래프용 앞으로 CO2 (1분 간격). 그릴 수 없으면 빈 배열 */
   forecast: number[]
   forecastFrom: 'model' | 'trend' | null
@@ -65,6 +74,9 @@ export function trendSlope(values: (number | null)[], span = 10): number | null 
 export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefined, now: Date, rules: EnvRules = ENV_RULES): RoomView {
   const sensors = new Set<SensorKind>(cfg?.sensors ?? ['co2', 'temperature', 'humidity', 'presence'])
   const history = env.series.map((p) => (sensors.has('co2') ? p.ppm : null))
+  const temps = env.series.map((p) => (sensors.has('temperature') ? p.temperatureC ?? null : null))
+  const hums = env.series.map((p) => (sensors.has('humidity') ? p.humidityPct ?? null : null))
+  const times = env.series.map((p) => p.at)
   const co2 = sensors.has('co2') ? env.co2?.ppm ?? null : null
   const temperatureC = sensors.has('temperature') ? env.temperatureC : null
   const humidityPct = sensors.has('humidity') ? env.humidityPct : null
@@ -140,7 +152,8 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   return {
     roomId: env.roomId,
     name: cfg?.name ?? env.roomName,
-    sensors, co2, temperatureC, humidityPct, history, forecast, forecastFrom, etaMinutes, sameForMinutes,
+    sensors, co2, temperatureC, humidityPct, history, temps, hums, times, current: env.current ?? null,
+    presence: env.presence, lastSignalAt: env.lastSignalAt, forecast, forecastFrom, etaMinutes, sameForMinutes,
     overtimeMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote,
   }
 }
