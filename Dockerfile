@@ -14,6 +14,9 @@ ENV VITE_ADMIN_BLOCKS_SOURCE=$VITE_ADMIN_BLOCKS_SOURCE
 # 학생 빈방 릴레이가 core API(#101)를 쓸지(api), 예시 화면(?demo=1)에서만 보일지(mock). develop만 api
 ARG VITE_RELAY_SOURCE=mock
 ENV VITE_RELAY_SOURCE=$VITE_RELAY_SOURCE
+# 학생 빈방 알림(눈 표시)을 core(#109)에도 보낼지(api), 이 폰에만 둘지(mock). develop만 api
+ARG VITE_ROOM_WATCH_SOURCE=mock
+ENV VITE_ROOM_WATCH_SOURCE=$VITE_ROOM_WATCH_SOURCE
 RUN npm run build
 
 # 2단계: 빌드 결과(정적 파일)만 nginx로 내보낸다

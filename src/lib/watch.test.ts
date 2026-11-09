@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadWatched, toggled } from './watch'
+import { loadWatched, reverted, toggled, withServer } from './watch'
 
 function fakeStorage() {
   const m = new Map<string, string>()
@@ -48,5 +48,21 @@ describe('toggled', () => {
     expect(toggled([4], 2)).toEqual([2, 4])
     expect(toggled([2, 4], 2)).toEqual([4])
     expect(toggled([], 5)).toEqual([5])
+  })
+})
+
+describe('core 빈방 알림과 합치기 (core #109)', () => {
+  it('core에 켜 둔 방은 더하기만 한다(알려서 core가 뺀 방은 비서 카드를 누를 때까지 남는다)', () => {
+    expect(withServer([3], [1, 3])).toEqual([1, 3])
+    expect(withServer([2, 4], [])).toEqual([2, 4])
+  })
+  it('지금 누르는 중인 방과 이상한 번호는 건드리지 않는다', () => {
+    expect(withServer([], [2, 5, 0, -1], new Set([5]))).toEqual([2])
+  })
+  it('core에 못 보내면 그 방만 누르기 전으로 되돌린다', () => {
+    expect(reverted([1, 3], 3, true)).toEqual([1])
+    expect(reverted([1], 3, false)).toEqual([1, 3])
+    // 이미 되돌려진 상태면 그대로
+    expect(reverted([1, 3], 3, false)).toEqual([1, 3])
   })
 })

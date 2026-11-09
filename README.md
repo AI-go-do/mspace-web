@@ -22,6 +22,7 @@ core를 안 띄웠으면 홈이 예시 데이터로 보이고 "예시" 표시가
 core API가 생기면 `VITE_ADMIN_ENV_SOURCE=api`로 빌드하면 된다. 방 이름·센서 목록·이상 기준은 `src/config/adminRooms.ts` 한 곳에서 고친다.
 관리자 "방 관리"의 기간 막기는 `VITE_ADMIN_BLOCKS_SOURCE=api`로 빌드하면 core API(`/api/admin/room-blocks`, core #98)를 쓰고, 아니면 이 브라우저에만 남는 가짜 저장소를 쓴다. 개발 서버(develop)만 api다. 학생 화면의 막힌 칸·사유는 core 빈방 조회(core #103)가 준다.
 학생 빈방 릴레이(기다리기·넘겨받기)는 `VITE_RELAY_SOURCE=api`로 빌드하면 core API(`/api/relay/…`, core #101)를 쓴다. 개발 서버(develop)만 api이고, 시연 서버(main)는 core main에 릴레이가 들어갈 때까지 보통 주소에서 숨긴다.
+홈 방 줄의 눈 표시(비면 알려 줘요)는 `VITE_ROOM_WATCH_SOURCE=api`로 빌드하면 core 빈방 알림(`/api/room-watches`, core #109)에도 켜고 꺼서, 앱을 닫아 둬도 방이 비면 알림함으로 온다. 개발 서버(develop)만 api이고, 아니면 이 폰에만 두고 앱이 열려 있을 때 비서 카드로만 알린다.
 core API가 아직 없거나 시연 서버에서 숨긴 화면(방의 사과·빈방 릴레이)은 주소 끝에 `?demo=1`을 붙여 열면 예시 데이터로 보인다(그 탭에서만, `?demo=0`으로 끔). 보통 주소로 연 학생 화면에는 나오지 않는다. 릴레이 예시는 예약된 칸을 눌러 기다리기를 걸면 20초 뒤 홈에 넘어온 칸 카드가 뜨고 5분 동안 받을 수 있다(실제 예약은 만들지 않음).
 에어컨·공기청정기(창작실은 학생이 직접 켜고 끈다)도 가짜 단계다. 관리자 "지금" 탭의 방 줄·방 상세 창과 학생 홈 `?demo=1`의 "내 방 공기" 카드에서 권유(숨 막히기 N분 전·더움·추움·빈 방 끄기)와 켜기·끄기를 누를 수 있지만 이 화면 안에서만 바뀐다. core API가 생기면 `VITE_APPLIANCE_SOURCE=api`로 빌드한다(초안 `POST /api/rooms/{roomId}/appliances/{applianceId}/commands`). 기기 목록·기준 온도는 `src/config/appliances.ts`에서 고친다.
 

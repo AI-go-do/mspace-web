@@ -56,9 +56,9 @@ export default function Home() {
   const unread = useUnreadCount()
   // 방의 사과(Q-19): 장치 오류로 붙은 노쇼 경고를 방이 물렀으면 맨 위에서 먼저 사과한다
   const { apology, close: closeApology } = useApology()
-  // 빈방 지켜보기: 사용 중인 방 줄의 눈 표시. 켜 두면 그 방이 비는 순간 비서 카드가 먼저 말을 건다
+  // 빈방 지켜보기: 사용 중인 방 줄의 눈 표시. 켜 두면 그 방이 비는 순간 비서 카드가 먼저 말을 건다(core 빈방 알림을 쓰는 빌드는 알림함으로도)
   const member = useMemberId()
-  const { watched, toggle, unwatch } = useWatched(member, now)
+  const { watched, toggle, unwatch, error: watchError } = useWatched(member, now)
   // 빈방 릴레이(Q-18): 기다리던 칸이 나에게 넘어오면 받을 시간이 짧아서 맨 위에 먼저 보인다
   const { offer, decline } = useRelayOffer(now)
   // 관리자가 막은 기간(Q-23): 막힌 칸은 예약으로, 지금 막힌 방은 "점검 중"처럼 사유로 보인다
@@ -199,6 +199,7 @@ export default function Home() {
         <span className="guide">실제 배치 순서예요. 빈 방을 누르면 지금 바로 쓰고, 사용 중인 방은 시간을 골라 예약해요.</span>
 
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
+        {watchError && <p role="alert" className="muted">{watchError}</p>}
 
         <div className="workshop">3D프린터 공작실</div>
         <div className="floor">
