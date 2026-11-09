@@ -60,6 +60,14 @@ export function Co2Chart({ view, limit = ENV_RULES.co2LimitPpm }: { view: RoomVi
       <span className="c-limit-label" style={{ top: `${(y(limit) / H) * 100}%` }}>{limit}</span>
       {last !== null && <span className="c-dot" style={{ left: `${(x(lastIdx) / W) * 100}%`, top: `${(y(last) / H) * 100}%` }} />}
       {view.co2 === null && <span className="c-empty">CO2 센서 없음</span>}
+      {/* 시간 눈금: 넓은 화면(방 한 줄씩)에서만 보인다 */}
+      {n > 0 && (
+        <div className="c-axis" aria-hidden="true">
+          <span style={{ left: '0%' }}>{n}분 전</span>
+          {last !== null && <span className="now" style={{ left: `${(x(lastIdx) / W) * 100}%` }}>지금</span>}
+          {f > 0 && <span className="end" style={{ left: '100%' }}>+{f}분</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -175,7 +183,7 @@ export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: (
         <Kpi label="사용 중" value={data ? used : null} of={views.length || ADMIN_ROOMS.length} tone="blue" />
         <Kpi label="주의" value={data ? warn : null} tone={warn ? 'yellow' : ''} hint="환기·더움·시간 넘김" />
         <Kpi label="확인 필요" value={data ? off : null} tone={off ? 'navy' : ''} hint="센서 멈춤·끊김" />
-        <Kpi label="할 일" value={todo.reportsKnown ? todo.total : null} tone={todo.total ? 'todo' : ''} onClick={onOpenTodo}
+        <Kpi label="할 일" value={todo.reportsKnown ? todo.total : null} tone={todo.total ? 'k-todo' : ''} onClick={onOpenTodo}
           hint={!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
             : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'} />
       </div>
