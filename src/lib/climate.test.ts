@@ -116,6 +116,12 @@ describe('manualHold', () => {
     expect(manualHold(off('x'), now)).toBe(false)
   })
 
+  it('환경 값 시각보다 뒤에 손으로 바꾼 것(시계 차이)도 방금 바꾼 것으로 본다', () => {
+    // 자동은 10초 전 환경 값 시각(now)으로 재고, 사람은 그 뒤 브라우저 시각에 껐다
+    expect(manualHold(s('ADMIN', -0.1), now)).toBe(true)
+    expect(manualHold(s('STUDENT', -0.1), now)).toBe(true)
+  })
+
   it('학생이 예약 중에 끈 기기는 그 예약이 끝날 때까지 자동이 다시 켜지 않는다', () => {
     // 예약은 30분 전 시작, 60분 뒤 끝. 학생이 20분 전에 난방을 껐다
     expect(manualHold(s('STUDENT', 20), now, busy.current)).toBe(true)

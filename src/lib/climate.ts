@@ -176,7 +176,8 @@ export function manualHold(s: ApplianceState, now: Date, current?: RoomView['cur
   if ((s.by !== 'ADMIN' && s.by !== 'STUDENT') || !s.changedAt) return false
   const at = new Date(s.changedAt).getTime()
   const t = now.getTime()
-  if (at > t) return false
+  // 손으로 바꾼 시각(브라우저 시계)이 자동이 보는 시각(마지막 환경 값, 최대 10초 전)보다 뒤일 수 있다. 그건 "방금 바꿈"이다
+  if (at >= t) return true
   if (s.by === 'STUDENT' && current) {
     const start = new Date(current.startAt).getTime()
     const end = new Date(current.endAt).getTime()
