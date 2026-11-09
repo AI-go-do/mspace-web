@@ -10,7 +10,7 @@ import { ForceCheckoutForm } from './AdminReports'
 import { useApprenticeFeed } from '../api/apprentice'
 import { ENV_SOURCE } from '../api/environment'
 import { useMemberId } from '../lib/useMemberId'
-import { seoulClock } from '../lib/time'
+import { seoulClockSec } from '../lib/time'
 import './Admin.css'
 
 /**
@@ -61,14 +61,20 @@ function Icon({ children }: { children: ReactNode }) {
   )
 }
 
-/** 1초마다 바뀌는 시계 (머리 오른쪽) */
+/** 1초마다 바뀌는 큰 시계 (머리 오른쪽). 초는 흐리게 */
 function LiveClock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
-  return <span className="adm-live"><i aria-hidden="true" />{seoulClock(now)}</span>
+  const text = seoulClockSec(now)
+  return (
+    <span className="adm-live" role="timer" aria-label={`지금 ${text.slice(0, 5)}`}>
+      <i aria-hidden="true" />
+      <b aria-hidden="true">{text.slice(0, 5)}<span>{text.slice(5)}</span></b>
+    </span>
+  )
 }
 
 /**
@@ -104,16 +110,18 @@ export default function Admin() {
   const badge = (id: Section) => (id === 'todo' ? counts.total : 0)
 
   return (
-    <div className="adm" style={{ '--i': index } as CSSProperties}>
-      <aside className="adm-side" aria-label="관리 메뉴">
+    <div className={`adm ${tab === 'now' ? 'on-now' : ''}`} style={{ '--i': index } as CSSProperties}>
+      {/* 관제실 머리: 왼쪽 이름, 가운데 메뉴(넓은 화면), 오른쪽 큰 시계 */}
+      <header className="adm-top">
         <div className="adm-brand">
           <button type="button" className="adm-back" aria-label="학생 화면으로" onClick={() => navigate('/me')}><BackIcon /></button>
+          <span className="adm-mark" aria-hidden="true">M</span>
           <div>
-            <span className="adm-tag">관리자</span>
-            <b>M-space 운영</b>
+            <b>M-space 관제실</b>
+            <span>조선대 IT융합대학 · 방 5개</span>
           </div>
         </div>
-        <nav className="adm-nav">
+        <nav className="adm-nav" aria-label="관리 메뉴">
           <span className="adm-nav-glow" aria-hidden="true" />
           {SECTIONS.map((s) => (
             <button key={s.id} type="button" className="adm-nav-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
@@ -123,21 +131,24 @@ export default function Admin() {
             </button>
           ))}
         </nav>
-        <div className="adm-side-foot">
+        <div className="adm-top-end">
           {ENV_SOURCE === 'mock' && <span className="adm-mock">가짜 값 · 시연용</span>}
-          <span>조선대 IT융합대학 M-space</span>
+          <LiveClock />
         </div>
-      </aside>
+      </header>
 
       <main className="adm-main">
-        <header className="adm-head" key={tab}>
-          <div className="adm-head-text">
-            <h1>{section.title}</h1>
-            <p>{section.sub}</p>
-          </div>
-          <LiveClock />
-        </header>
-        <div key={`${member ?? 'none'}-${tab}`} className="adm-panel">
+        {tab === 'now'
+          ? <h1 className="sr-only">{section.title}</h1>
+          : (
+            <header className="adm-head" key={tab}>
+              <div className="adm-head-text">
+                <h1>{section.title}</h1>
+                <p>{section.sub}</p>
+              </div>
+            </header>
+          )}
+        <div key={`${member ?? 'none'}-${tab}`} className={`adm-panel ${tab === 'now' ? 'is-dark' : 'is-sheet'}`}>
           {tab === 'now' && (
             <AdminNow todo={counts} onOpenTodo={() => go('todo')}
               onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })}

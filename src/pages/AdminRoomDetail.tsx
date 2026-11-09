@@ -5,6 +5,7 @@ import type { RoomView } from '../lib/roomHealth'
 import { timeRange } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { RoomChart, type MetricKey } from './AdminRoomChart'
+import './AdminRoomDetail.css'
 
 const PRESENCE: Record<RoomView['presence'], string> = { OCCUPIED: '사람 있음', EMPTY: '비어 있음', UNKNOWN: '모름' }
 
