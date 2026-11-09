@@ -53,6 +53,11 @@ export function withServer(rooms: number[], server: number[], skip: ReadonlySet<
   return add.length ? [...rooms, ...add].sort((a, b) => a - b) : rooms
 }
 
+/** 두 시점의 방별 누른 차례를 견줘, 그사이 한 번이라도 누른 방 */
+export function changedRooms(before: ReadonlyMap<number, number>, after: ReadonlyMap<number, number>): number[] {
+  return [...after].filter(([id, turn]) => before.get(id) !== turn).map(([id]) => id)
+}
+
 /** core에 켜기(on)·끄기를 못 보냈을 때 그 방만 누르기 전으로 되돌린 새 목록 */
 export function reverted(rooms: number[], roomId: number, on: boolean): number[] {
   if (on) return rooms.filter((r) => r !== roomId)
@@ -79,8 +84,9 @@ export function useWatched(member: number | null, now: Date): { watched: number[
     setState({ scope, rooms: watched })
   }
   // 누를 때 켜는지 끄는지 정하려고 지금 목록을 들고 있는다
+  // 그린 뒤 맞추고(렌더 중에 ref를 쓰지 않게), 다시 그리기 전에 누른 것은 toggle이 바로 맞춘다
   const latest = useRef(watched)
-  latest.current = watched
+  useEffect(() => { latest.current = watched }, [watched])
   // 방마다 마지막으로 누른 차례. 앞 요청이 늦게 실패해도 그 뒤에 다시 누른 것을 되돌리지 않게, 서버 목록이 방금 누른 것을 덮지 않게 쓴다
   const turns = useRef(new Map<number, number>())
   const pending = useRef(new Set<number>())
@@ -108,10 +114,13 @@ export function useWatched(member: number | null, now: Date): { watched: number[
   useEffect(() => {
     if (member === null || !watchApiOn()) return
     const ctrl = new AbortController()
+    // 받기 시작할 때의 누른 차례. 받는 사이 누른 방(이미 끝난 요청 포함)은 받은 목록이 옛 상태라 건드리지 않는다
+    const before = new Map(turns.current)
     getMyWatches(member, ctrl.signal)
       .then((list) => {
         const server = list.map((w) => w.roomId)
-        update((rooms) => withServer(rooms, server, pending.current))
+        const skip = new Set([...pending.current, ...changedRooms(before, turns.current)])
+        update((rooms) => withServer(rooms, server, skip))
       })
       .catch(() => undefined) // 못 받으면 이 폰 목록만 보인다(켜고 끄기는 그대로 core로 간다)
     return () => ctrl.abort()

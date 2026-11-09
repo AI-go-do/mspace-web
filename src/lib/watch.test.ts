@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadWatched, reverted, toggled, withServer } from './watch'
+import { changedRooms, loadWatched, reverted, toggled, withServer } from './watch'
 
 function fakeStorage() {
   const m = new Map<string, string>()
@@ -64,5 +64,13 @@ describe('core 빈방 알림과 합치기 (core #109)', () => {
     expect(reverted([1], 3, false)).toEqual([1, 3])
     // 이미 되돌려진 상태면 그대로
     expect(reverted([1, 3], 3, false)).toEqual([1, 3])
+  })
+  it('core 목록을 받는 사이 누른 방은 요청이 이미 끝났어도 받은 목록으로 덮지 않는다', () => {
+    const before = new Map([[2, 1]])
+    const after = new Map([[2, 2], [3, 1], [4, 1]])
+    expect(changedRooms(before, after)).toEqual([2, 3, 4])
+    expect(changedRooms(after, after)).toEqual([])
+    // 방금 끈 3번은 옛 core 목록에 남아 있어도 다시 켜지지 않는다
+    expect(withServer([], [3, 5], new Set(changedRooms(new Map(), new Map([[3, 1]]))))).toEqual([5])
   })
 })
