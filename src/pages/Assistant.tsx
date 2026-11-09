@@ -298,10 +298,19 @@ export default function Assistant() {
     }
     const history = historyOf(stored.messages)
     // "팀 A랑 …": 그 팀원을 다음 확인 카드에 미리 채운다(팀원은 비서에게 보내지 않음, FR-AGT-105)
-    // 팀 목록은 미리 받아 둔 것으로 바로 본다(보내기를 늦추지 않게). 다음 말을 위해 뒤에서 새로 받는다
-    const team = teamInMessage(msg, knownTeams(owner))
-    if (team) savePicked(owner, teamFriends(team, null))
-    refreshTeams(owner)
+    // 보내기를 늦추지 않게 뒤에서 한다(답이 오기까지 몇 초 걸리니 카드가 뜨기 전에 끝난다).
+    // 팀 목록을 아직 못 받았으면 받아서 보고, 지금 친구가 아닌 팀원은 뺀다(친구 목록을 못 받으면 그대로)
+    const me = owner
+    void (async () => {
+      const cached = knownTeams(me)
+      const teams = cached.length > 0 ? cached : await getTeams(me).then((r) => r.teams, () => [])
+      if (cached.length > 0) refreshTeams(me)
+      const team = teamInMessage(msg, teams)
+      if (!team) return
+      const now = await getFriends(undefined, me).then((l) => l.friends, () => null)
+      const members = teamFriends(team, now)
+      if (members.length > 0) savePicked(me, members)
+    })()
     const startedAt = Date.now()
     update((s) => ({
       ...s,
