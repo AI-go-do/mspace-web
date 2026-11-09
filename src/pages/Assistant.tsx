@@ -485,6 +485,11 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
   const [friends, setFriends] = useState<Friend[] | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [chosen, setChosen] = useState<Friend[]>([])
+  // 말하는 동안 버튼으로 고른 친구도 보도록, 듣기 콜백은 이 ref로 지금 값을 읽는다
+  const chosenNow = useRef<Friend[]>([])
+  chosenNow.current = chosen
+  const friendsNow = useRef<Friend[] | null>(null)
+  friendsNow.current = friends
   const [note, setNote] = useState('')
   const [hearing, setHearing] = useState(false)
   const stopHear = useRef<(() => void) | null>(null)
@@ -521,8 +526,11 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
     const stop = listenOnce({
       onInterim: (t) => setNote(t ? `듣는 중: ${t}` : ''),
       onFinal: (t) => {
-        const r = matchFriends(t, friends ?? [], chosen.map((x) => x.studentId))
-        setChosen((cur) => [...cur, ...r.picked].slice(0, MAX_FRIENDS))
+        const r = matchFriends(t, friendsNow.current ?? [], chosenNow.current.map((x) => x.studentId))
+        setChosen((cur) => {
+          const have = new Set(cur.map((x) => x.studentId))
+          return [...cur, ...r.picked.filter((x) => !have.has(x.studentId))].slice(0, MAX_FRIENDS)
+        })
         const lines: string[] = []
         if (r.picked.length) lines.push(`${r.picked.map((x) => x.name).join(', ')}님을 골랐어요.`)
         for (const a of r.ambiguous) lines.push(`'${a.spoken}'은 ${a.candidates.map((x) => x.name).join('·')} 중 누구인지 눌러 주세요.`)
@@ -687,6 +695,9 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
     return p.length > 0 && p.length <= c.needsParticipants ? p : []
   })
   const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, (_, i) => prefill[i]?.studentId ?? ''))
+  // 이름을 듣는 동안 칸을 고쳐도 덮어쓰지 않게, 듣기 콜백은 이 ref로 지금 칸을 읽는다
+  const idsNow = useRef<string[]>(ids)
+  idsNow.current = ids
   const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries(prefill.map((f, i) => [i, f.name])))
   useEffect(() => {
     if (prefill.length > 0) takePicked(owner)
@@ -696,6 +707,8 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
   // 친구 고르기(FR-AGT-105): 친구 목록을 버튼으로 보여 주고, 이름을 말하면 브라우저 안에서 맞춰 학번 칸을 채운다
   const [friends, setFriends] = useState<Friend[] | null>(null)
+  const friendsNow = useRef<Friend[] | null>(null)
+  friendsNow.current = friends
   const [pickNote, setPickNote] = useState('')
   const [choices, setChoices] = useState<Friend[]>([])
   const [hearing, setHearing] = useState(false)
@@ -735,9 +748,10 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
 
   /** 들은 이름들을 친구와 맞춰 빈 칸을 차례로 채운다. 못 정한 이름은 안내와 후보 버튼으로 */
   function fillFromSpeech(text: string) {
-    const list = friends ?? []
-    const r = matchFriends(text, list, ids)
-    const next = [...ids]
+    const list = friendsNow.current ?? []
+    const cur = idsNow.current
+    const r = matchFriends(text, list, cur)
+    const next = [...cur]
     const nextNames: Record<number, string> = {}
     let over = 0
     for (const f of r.picked) {
@@ -747,6 +761,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       nextNames[empty] = f.name
       lookups.current[empty] = (lookups.current[empty] ?? 0) + 1
     }
+    idsNow.current = next
     setIds(next)
     setNames((n) => ({ ...n, ...nextNames }))
     const lines: string[] = []

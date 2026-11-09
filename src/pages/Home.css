@@ -168,6 +168,8 @@
 }
 /* 간단히 예약 카드가 머리 위로 겹쳐 올라가니 방 현황은 그 아래에 띄운다 */
 .quick-ai ~ .today { margin-top: 12px; }
+/* 릴레이·비서·사과·급한 공기 카드도 원래 머리 위로 겹쳐 올라오니(-28px) 간단히 예약 카드 아래에서는 띄운다 */
+.quick-ai ~ .relay, .quick-ai ~ .butler, .quick-ai ~ .apology, .quick-ai ~ .cl-card.cl-top { margin-top: 12px; }
 .quick-ai-main { display: flex; align-items: center; gap: 12px; min-height: 48px; color: var(--navy); text-decoration: none; }
 .quick-ai-face { position: relative; display: flex; }
 .quick-ai-badge {
