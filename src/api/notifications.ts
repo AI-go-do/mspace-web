@@ -11,9 +11,11 @@ import { CO2_ALERT_KIND, demoCo2Alerts, isCo2DemoId, readCo2Demo } from './co2Al
  * CO2_SOON 숨 막히기 N분 전: 창문을 열어 달라는 알림 (회의용 Q, core 초안. api/co2Alert.ts)
  * RELAY_OFFER 빈방 릴레이: 기다리던 자리가 나에게 넘어옴, 5분 안에 받기 (Q-18, core #101. 예약 번호 없음)
  * ROOM_FREE 빈방 알림: 지켜보던 방이 비었음 (core #109. 예약 번호 없음, api/roomWatches.ts)
+ * RESERVATION_INVITED 대표자가 나를 참여자로 넣어 예약함 (core #108, "홍*동님이 … 함께 예약했어요")
  */
 export type NotificationKind = 'START_SOON' | 'END_SOON' | 'NO_SHOW_SOON' | 'AWAY_SOON'
-  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | 'RELAY_OFFER' | 'ROOM_FREE' | (string & {})
+  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | 'RELAY_OFFER' | 'ROOM_FREE'
+  | 'RESERVATION_INVITED' | (string & {})
 
 /** GET /api/notifications/me 한 줄 (core NotificationController, 최근 50개) */
 export interface AppNotification {
@@ -97,6 +99,8 @@ export function notificationAction(n: AppNotification): { to: string; label: str
     case 'END_SOON':
       return { to: `/me?end=${n.reservationId}`, label: '연장하기' }
     case 'FORCED_CHECKOUT':
+    // 함께 쓰는 예약: 참여자도 예약 상세(시간·방·함께 쓰는 사람)를 볼 수 있다. 입실 번호는 대표자만 받는다
+    case 'RESERVATION_INVITED':
       return { to: `/me/${n.reservationId}`, label: '예약 보기' }
     default:
       return null

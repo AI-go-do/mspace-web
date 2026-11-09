@@ -20,6 +20,9 @@ describe('알림에서 갈 곳', () => {
   it('지켜보던 방이 비면(예약 번호 없음) 지금 바로 쓰기로 간다 (core #109)', () => {
     expect(notificationAction(n('ROOM_FREE', null))).toEqual({ to: '/now', label: '지금 바로 쓰기' })
   })
+  it('함께 쓰는 예약이 생기면 그 예약 상세로 간다 (core #108)', () => {
+    expect(notificationAction(n('RESERVATION_INVITED'))).toEqual({ to: '/me/12', label: '예약 보기' })
+  })
   it('예약이 없거나 모르는 종류면 버튼이 없다', () => {
     expect(notificationAction(n('START_SOON', null))).toBeNull()
     expect(notificationAction(n('VENTILATE'))).toBeNull()
