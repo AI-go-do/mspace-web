@@ -59,10 +59,11 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
   }, [onClose])
   useEffect(() => () => { if (opener.current?.isConnected) opener.current.focus() }, [])
 
+  // 주의 색은 CO2만. 온도·습도는 사람마다 느낌이 달라 참고로만 둔다
   const tiles: { key: MetricKey; label: string; value: string | null; unit: string; hot: boolean; has: boolean }[] = [
     { key: 'co2', label: 'CO2', value: view.co2 === null ? null : String(view.co2), unit: 'ppm', hot: flags.co2Over || flags.co2Soon, has: view.sensors.has('co2') },
-    { key: 'temp', label: '온도', value: view.temperatureC === null ? null : view.temperatureC.toFixed(1), unit: '°C', hot: flags.hot, has: view.sensors.has('temperature') },
-    { key: 'hum', label: '습도', value: view.humidityPct === null ? null : String(view.humidityPct), unit: '%', hot: flags.dry, has: view.sensors.has('humidity') },
+    { key: 'temp', label: '온도', value: view.temperatureC === null ? null : view.temperatureC.toFixed(1), unit: '°C', hot: false, has: view.sensors.has('temperature') },
+    { key: 'hum', label: '습도', value: view.humidityPct === null ? null : String(view.humidityPct), unit: '%', hot: false, has: view.sensors.has('humidity') },
     { key: 'light', label: '조도', value: view.light === null ? null : String(view.light), unit: '%', hot: flags.lightLeftOn, has: view.sensors.has('light') },
   ]
   const hasDoorNote = view.sensors.has('door') ? ' 아래 하늘색 띠는 문이 열려 있던 때예요.' : ''
@@ -112,7 +113,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
               : (
                 <ul className="rd-advice">
                   {advice.map((a) => (
-                    <li key={a.title} className={`a-${a.tone}`}>
+                    <li key={a.title} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
                       <b>{a.title}</b>
                       <span>{a.todo}</span>
                     </li>

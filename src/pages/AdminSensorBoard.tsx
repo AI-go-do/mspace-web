@@ -46,9 +46,10 @@ function specs(v: RoomView): Spec[] {
     },
     {
       kind: 'temp', label: '온도', unit: '°C', digits: 1, sensor: 'temperature', values: v.temps,
-      limit: ENV_RULES.hotC, limitLabel: `더움 ${ENV_RULES.hotC}`, bad: true,
+      limit: ENV_RULES.hotC, limitLabel: `참고 ${ENV_RULES.hotC}`, bad: false,
       lo: Math.min(20, ...t) - 0.5, hi: Math.max(ENV_RULES.hotC + 1, ...t) + 0.5,
-      hot: v.flags.hot, band: null, note: v.tempNote,
+      // 덥다는 느낌은 사람마다 달라서 주의 색 없이 참고선만
+      hot: false, band: null, note: v.tempNote,
     },
     {
       kind: 'light', label: '조도', unit: '%', digits: 0, sensor: 'light', values: v.lights,

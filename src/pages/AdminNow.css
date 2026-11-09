@@ -258,6 +258,10 @@
 .ov-tick { fill: var(--c-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
 .ov-limit { stroke: var(--yellow); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .ov-limit-t { fill: var(--yellow); font-size: 11.5px; font-weight: 700; }
+/* 온도·습도 기준선은 참고라 경고 색 대신 옅은 흰색 */
+.ov-ref .ov-hatch { fill: rgba(255, 255, 255, 0.05); }
+.ov-ref .ov-limit { stroke: var(--c-faint); }
+.ov-ref .ov-limit-t { fill: var(--c-faint); }
 .ov-ahead { fill: rgba(255, 255, 255, 0.035); }
 .ov-now { stroke: rgba(255, 255, 255, 0.35); stroke-dasharray: 2 3; }
 .ov-cross { stroke: rgba(255, 255, 255, 0.6); stroke-width: 1; pointer-events: none; }

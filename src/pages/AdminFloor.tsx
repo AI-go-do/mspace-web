@@ -57,7 +57,8 @@ function ClimateChips({ view, now, rules }: { view: RoomView; now: Date; rules: 
   const store = useAppliances()
   const devs = ROOM_APPLIANCES[view.roomId] ?? []
   if (!devs.length) return null
-  const tips = climateTips(view, now, (id) => applianceState(id, store), rules)
+  // 덥다·춥다는 사람마다 달라서 관리자 칸에는 냉난방 권유를 올리지 않는다(환기·빈 방 기기 끄기만). 학생 화면 권유는 그대로
+  const tips = climateTips(view, now, (id) => applianceState(id, store), rules).filter((t) => t.why !== 'cool' && t.why !== 'heat')
   const on = devs.filter((a) => applianceState(a.id, store).power === 'ON')
   if (!tips.length && !on.length) return null
   return (

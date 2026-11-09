@@ -60,6 +60,8 @@
   box-shadow: inset 4px 0 0 var(--yellow); animation: rise-in 0.3s var(--ease-out) backwards;
 }
 .rd-advice li.a-off { box-shadow: inset 4px 0 0 var(--navy); }
+/* 참고(온도·습도): 경고 색 없이 옅게 */
+.rd-advice li.a-minor { box-shadow: inset 4px 0 0 color-mix(in srgb, var(--navy) 18%, transparent); }
 .rd-advice li:nth-child(2) { animation-delay: 60ms; }
 .rd-advice li:nth-child(3) { animation-delay: 120ms; }
 .rd-advice b { font-size: 14px; }
