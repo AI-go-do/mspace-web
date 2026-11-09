@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { ENV_RULES } from '../config/adminRooms'
 import type { RoomView } from '../lib/roomHealth'
-import { overview, type Level } from '../lib/roomOverview'
+import { isTrusted, overview, type Level } from '../lib/roomOverview'
 import { seoulClock } from '../lib/time'
 
 /**
@@ -49,7 +49,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   const ahead = metric === 'co2' ? ENV_RULES.forecastMinutes : 0
   const total = past + ahead
   const limit = metric === 'co2' ? ENV_RULES.co2LimitPpm : metric === 'temp' ? ENV_RULES.hotC : ENV_RULES.dryPct
-  const trusted = (v: RoomView) => !v.flags.offline && !v.flags.stuck
+  const trusted = isTrusted
 
   const all = views.flatMap((v) => [...seriesOf(v, metric), ...(metric === 'co2' ? v.forecast : [])]).filter((x): x is number => x !== null)
   const [lo, hi] = metric === 'co2'
@@ -229,7 +229,7 @@ export function AdminOverview({ views }: { views: RoomView[] }) {
       <ul className="ov-facts">
         <li><small>평균 CO2</small><b>{o.avg ?? '–'}<i>ppm</i></b><em>값 있는 방 {o.measured}곳</em></li>
         <li><small>가장 높은 방</small><b>{o.top ? <>{o.top.roomId}<i>번</i> {o.top.co2}</> : '–'}</b><em>{top?.co2Note ?? ''}</em></li>
-        <li className={o.soon ? 'hot' : ''}><small>15분 안에 기준 넘을 방</small><b>{o.soon}<i>곳</i></b><em>{o.soon ? '환기 순서를 보세요' : '없어요'}</em></li>
+        <li className={o.soon ? 'hot' : ''}><small>넘었거나 {ENV_RULES.warnWithinMinutes}분 안에 넘을 방</small><b>{o.soon}<i>곳</i></b><em>{o.soon ? '환기 순서를 보세요' : '없어요'}</em></li>
         <li className="ov-order">
           <small>환기 순서</small>
           {o.order.length

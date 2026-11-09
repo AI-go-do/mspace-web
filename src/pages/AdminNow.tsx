@@ -12,6 +12,7 @@ import { seoulClock } from '../lib/time'
 import type { TodoCounts } from './AdminTodo'
 import { RoomTile } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
+import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import './AdminNow.css'
 
@@ -132,10 +133,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       .sort((a, b) => Number(b.list[0].tone === 'off') - Number(a.list[0].tone === 'off'))
     : []
 
-  const avg = useMemo(() => {
-    const vs = views.filter((v) => v.co2 !== null && !v.flags.offline && !v.flags.stuck).map((v) => v.co2 as number)
-    return vs.length ? Math.round(vs.reduce((x, y) => x + y, 0) / vs.length) : null
-  }, [views])
+  // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
+  const avg = useMemo(() => overview(views).avg, [views])
 
   const tile = (v: RoomView, i: number, big = false) => {
     const list = adviceOf(v)

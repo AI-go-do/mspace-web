@@ -77,6 +77,8 @@
 .adm-nav-item[aria-current='page'] { color: var(--navy); }
 .adm-nav-item[aria-current='page'] svg { color: var(--blue); }
 .adm-nav-item:focus-visible, .adm-bar-item:focus-visible, .adm-back:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+/* 고른 칸은 흰 바탕 위라 하늘 테두리가 안 보여서 파랑으로 */
+.adm-nav-item[aria-current='page']:focus-visible { outline-color: var(--blue); }
 .adm-badge {
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; display: inline-grid; place-items: center;
   background: var(--yellow); color: var(--navy); font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums;

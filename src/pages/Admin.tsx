@@ -69,10 +69,14 @@ function LiveClock() {
     return () => clearInterval(t)
   }, [])
   const text = seoulClockSec(now)
+  // 시·분과 초를 마지막 ':'에서 나눈다(글자 자리를 가정하지 않게)
+  const cut = text.lastIndexOf(':')
+  const hm = cut > 0 ? text.slice(0, cut) : text
+  const sec = cut > 0 ? text.slice(cut) : ''
   return (
-    <span className="adm-live" role="timer" aria-label={`지금 ${text.slice(0, 5)}`}>
+    <span className="adm-live" role="timer" aria-label={`지금 ${hm}`}>
       <i aria-hidden="true" />
-      <b aria-hidden="true">{text.slice(0, 5)}<span>{text.slice(5)}</span></b>
+      <b aria-hidden="true">{hm}<span>{sec}</span></b>
     </span>
   )
 }

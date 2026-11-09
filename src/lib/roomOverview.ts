@@ -30,12 +30,15 @@ export interface Overview {
   measured: number
   avg: number | null
   top: { roomId: number; co2: number } | null
-  /** 기준을 이미 넘었거나 15분 안에 넘을 방 */
+  /** 기준을 이미 넘었거나 warnWithinMinutes(15분) 안에 넘을 방 */
   soon: number
   /** 환기 먼저 볼 방 순서 (괜찮은 방은 빠진다) */
   order: { roomId: number; why: string }[]
   rows: RoomOverviewRow[]
 }
+
+/** 끊김·센서 멈춤인 방은 값을 믿지 않는다(평균·열지도·그래프 모두 같은 기준) */
+export const isTrusted = (v: RoomView) => !v.flags.offline && !v.flags.stuck
 
 /** CO2 값 하나의 단계. 기준 앞 200ppm부터 "가까움" */
 export function levelOf(ppm: number | null, rules: EnvRules = ENV_RULES): Level | null {
@@ -52,7 +55,7 @@ export function overview(views: readonly RoomView[], rules: EnvRules = ENV_RULES
   const limit = rules.co2LimitPpm
   const rows: RoomOverviewRow[] = views.map((v) => {
     // 끊김·센서 멈춤인 방은 지난 값을 믿을 수 없어 넘은 분·열지도를 비워 둔다
-    const trusted = !v.flags.offline && !v.flags.stuck
+    const trusted = isTrusted(v)
     const past = trusted ? v.history.map((p) => levelOf(p, rules)) : v.history.map(() => null)
     return {
       roomId: v.roomId,
