@@ -89,3 +89,38 @@ describe('오류 문장', () => {
     expect(scheduleErrorMessage(new TypeError('fetch failed'))).toContain('연결')
   })
 })
+
+describe('서버 모양 맞추기 (assistant TS-15: MONDAY·10:30:00)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    saveTokens({ accessToken: 't', expiresAt: new Date(Date.now() + 3_600_000).toISOString() })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearTokens()
+  })
+
+  const old = { classes: [{ dayOfWeek: 'MONDAY', startTime: '10:30:00', endTime: '12:00:00', name: 'AI응용프로젝트' }], updatedAt: '2026-11-09T17:00:00+09:00' }
+
+  it('저장한 시간표를 MONDAY·10:30:00으로 받아도 MON·10:30으로 맞춰 요일 칸에 보이고 다시 저장할 수 있다', async () => {
+    fetchMock.mockResolvedValue(json(200, old))
+    const s = await getSchedule()
+    expect(s?.classes).toEqual([c('MON', '10:30', '12:00', 'AI응용프로젝트')])
+    expect(checkSchedule(s!.classes)).toBeNull()
+  })
+
+  it('저장 응답도 맞춘다', async () => {
+    fetchMock.mockResolvedValue(json(200, old))
+    const s = await saveSchedule([c('MON', '10:30', '12:00', 'AI응용프로젝트')])
+    expect(s.classes[0]).toEqual(c('MON', '10:30', '12:00', 'AI응용프로젝트'))
+  })
+
+  it('모르는 요일은 그대로 두어 검사가 "요일을 골라 주세요"로 알린다', async () => {
+    fetchMock.mockResolvedValue(json(200, { classes: [{ dayOfWeek: '월', startTime: '9:00', endTime: '10:30', name: 'x' }], dropped: 0, note: null }))
+    const d = await parseScheduleImage(new Blob(['x']))
+    expect(d.classes[0].startTime).toBe('09:00')
+    expect(checkSchedule(d.classes)?.message).toBe('요일을 골라 주세요.')
+  })
+})

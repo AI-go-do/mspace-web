@@ -34,10 +34,32 @@ export interface ScheduleDraft {
 export const MAX_CLASSES = 40
 export const MAX_NAME = 30
 
+/**
+ * 서버가 준 수업 칸을 화면 모양(요일 MON, 시각 HH:mm)으로 맞춘다.
+ * 예전 비서 서버는 저장한 시간표를 MONDAY·10:30:00으로 돌려줘서(assistant TS-15) 요일 칸이 모두 "수업 없음"으로 보이고,
+ * [고치기] 뒤 [저장]이 "요일을 골라 주세요"로 막혔다. 서버를 고친 뒤에도 섞여 와도 깨지지 않게 화면에서 한 번 더 맞춘다
+ */
+export function normalizeClass(c: { dayOfWeek: string; startTime: string; endTime: string; name: string }): ScheduleClass {
+  const day = String(c.dayOfWeek ?? '').trim().toUpperCase().slice(0, 3)
+  const hhmm = (t: string) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? '').trim())
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(t ?? '')
+  }
+  return {
+    // 모르는 값은 그대로 둔다(검사가 "요일을 골라 주세요"로 알려 준다)
+    dayOfWeek: (DAYS as readonly string[]).includes(day) ? (day as Day) : (c.dayOfWeek as Day),
+    startTime: hhmm(c.startTime),
+    endTime: hhmm(c.endTime),
+    name: c.name ?? '',
+  }
+}
+
+const normalized = <T extends { classes: ScheduleClass[] }>(s: T): T => ({ ...s, classes: (s.classes ?? []).map(normalizeClass) })
+
 /** 아직 안 넣었으면(404 NO_SCHEDULE) 오류가 아니라 null */
 export async function getSchedule(member?: number | null): Promise<Schedule | null> {
   try {
-    return await api<Schedule>('/api/agent/schedule', { member })
+    return normalized(await api<Schedule>('/api/agent/schedule', { member }))
   } catch (e) {
     if (e instanceof ApiError && e.code === 'NO_SCHEDULE') return null
     throw e
@@ -45,18 +67,18 @@ export async function getSchedule(member?: number | null): Promise<Schedule | nu
 }
 
 /** 통째로 바꾼다 */
-export function saveSchedule(classes: ScheduleClass[], member?: number | null): Promise<Schedule> {
-  return api('/api/agent/schedule', { method: 'PUT', body: JSON.stringify({ classes }), member })
+export async function saveSchedule(classes: ScheduleClass[], member?: number | null): Promise<Schedule> {
+  return normalized(await api<Schedule>('/api/agent/schedule', { method: 'PUT', body: JSON.stringify({ classes }), member }))
 }
 
 export function deleteSchedule(member?: number | null): Promise<void> {
   return api('/api/agent/schedule', { method: 'DELETE', member })
 }
 
-export function parseScheduleImage(image: Blob, member?: number | null): Promise<ScheduleDraft> {
+export async function parseScheduleImage(image: Blob, member?: number | null): Promise<ScheduleDraft> {
   const form = new FormData()
   form.append('image', image, 'timetable.jpg')
-  return api('/api/agent/schedule/parse', { method: 'POST', body: form, member })
+  return normalized(await api<ScheduleDraft>('/api/agent/schedule/parse', { method: 'POST', body: form, member }))
 }
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
