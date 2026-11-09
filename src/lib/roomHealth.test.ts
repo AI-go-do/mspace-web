@@ -270,6 +270,10 @@ describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
     const at = new Date(now.getTime() - 5 * 60_000).toISOString()
     const v = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: at }), cfg, now)
     expect(v.lightNote).toMatch(/^\d{2}:\d{2}에 잰 값 · 불 켜짐$/)
+    // 빈 방에 불 켜진 분이 쌓여 있어도 지금 값이 오래됐으면 경고하지 않는다
+    const staleEmpty = toRoomView(lit(() => 620, () => false, { lightAt: at }), cfg, now)
+    expect(staleEmpty.flags.lightLeftOn).toBe(false)
+    expect(staleEmpty.lightNote).toMatch(/에 잰 값 · 불 켜짐$/)
     const fresh = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: now.toISOString() }), cfg, now)
     expect(fresh.lightNote).toBe('불 켜짐')
   })
