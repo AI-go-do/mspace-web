@@ -5,6 +5,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# 관리자 센서 화면이 core API를 부를지(api) 가짜 값을 쓸지(mock). deploy.yml이 develop만 api로 넘긴다
+ARG VITE_ADMIN_ENV_SOURCE=mock
+ENV VITE_ADMIN_ENV_SOURCE=$VITE_ADMIN_ENV_SOURCE
 RUN npm run build
 
 # 2단계: 빌드 결과(정적 파일)만 nginx로 내보낸다
