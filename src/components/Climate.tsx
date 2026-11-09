@@ -117,7 +117,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
           {tips.map((t: ClimateTip) => {
             const busy = t.appliance ? isSending(t.appliance.id) : false
             return (
-              <li key={t.key} className={`cl-tip w-${t.why} ${t.urgent ? 'urgent' : ''}`}>
+              <li key={t.key} className={`cl-tip w-${t.why} ${t.urgent && !(by === 'ADMIN' && (t.why === 'cool' || t.why === 'heat')) ? 'urgent' : ''}`}>
                 <span className="cl-tip-text">
                   <b>{t.title}</b>
                   <span>{t.sub}</span>

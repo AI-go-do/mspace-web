@@ -46,11 +46,13 @@ describe('roomAdvice', () => {
     expect(a[0].title).toContain('마지막 신호 09:30')
   })
 
-  it('빈 방이 더우면 다음 예약 전에 켜 두라고 한다', () => {
+  it('빈 방이 더우면 참고로만 알리고 맨 위 띠에는 올리지 않는다', () => {
     const env = room((i) => 500 + (i % 2), { presence: 'EMPTY', temperatureC: 28.4, next: { startAt: iso(-30), people: 4 } })
     const a = roomAdvice(view(env), now)
     expect(a).toHaveLength(1)
-    expect(a[0].todo).toContain('다음 예약(10:30) 전에')
+    expect(a[0].todo).toContain('다음 예약(10:30) 팀이 더우면')
+    expect(a[0].minor).toBe(true)
+    expect(majorAdvice(a)).toHaveLength(0)
   })
 
   it('빈 방 문이 기준보다 오래 열려 있으면 주의로 알린다(사람이 있으면 환기라 알리지 않는다)', () => {

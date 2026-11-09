@@ -11,7 +11,7 @@ export interface Advice {
   title: string
   todo: string
   action?: 'checkout' | 'block' | 'reports'
-  /** 노랑·남색 표시까지는 아닌 참고(건조). 맨 위 띠·카드 이유 줄에는 올리지 않는다 */
+  /** 노랑·남색 표시까지는 아닌 참고(온도·습도). 맨 위 띠·카드 이유 줄에는 올리지 않는다 */
   minor?: boolean
 }
 
@@ -60,10 +60,11 @@ export function roomAdvice(v: RoomView, now: Date, ctx: AdviceContext = {}, rule
   }
   if (flags.hot) {
     const before = v.nextAt && v.presence !== 'OCCUPIED' && new Date(v.nextAt).getTime() > now.getTime()
-    out.push({ tone: 'warn', title: `온도가 ${v.temperatureC?.toFixed(1)}°C로 더워요`, todo: before ? `다음 예약(${seoulClock(new Date(v.nextAt!))}) 전에 냉방이나 환기를 켜 두면 좋아요.` : '냉방이나 환기를 확인해 주세요.' })
+    // 덥게 느끼는지는 사람마다 달라서 경고가 아니라 참고. 켤지는 방을 쓰는 학생이 정한다
+    out.push({ tone: 'warn', title: `참고: 온도 ${v.temperatureC?.toFixed(1)}°C`, todo: before ? `다음 예약(${seoulClock(new Date(v.nextAt!))}) 팀이 더우면 직접 냉방을 켤 수 있어요.` : '더운지는 사람마다 달라요. 방을 쓰는 학생이 직접 냉방을 켤 수 있어요.', minor: true })
   }
   if (flags.dry) {
-    out.push({ tone: 'warn', title: `습도가 ${v.humidityPct}%로 건조해요`, todo: '오래 쓰는 방이면 가습기를 확인해 주세요.', minor: true })
+    out.push({ tone: 'warn', title: `참고: 습도 ${v.humidityPct}%`, todo: '오래 쓰는 방이면 가습기를 확인해 주세요.', minor: true })
   }
   return out
 }
