@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { bannerHeld, freshNotifications, getMyNotifications, toastTarget, type AppNotification } from '../api/notifications'
+import { bannerHeld, freshNotifications, getMyNotifications, toastTarget, UNREAD_CHANGED, type AppNotification } from '../api/notifications'
 import { useAuth } from '../auth/AuthProvider'
 import { readTokens } from '../auth/tokens'
 import './NotificationToast.css'
@@ -97,9 +97,13 @@ export default function NotificationToast() {
     /** 다른 앱에 갔다 돌아오면 30초를 기다리지 않고 바로 확인한다 */
     const onVisible = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVisible)
+    // 이 화면에서 알림이 새로 생겼거나(숨 막히기 예시) 읽음이 바뀌면 30초를 기다리지 않고 바로 확인한다
+    const onChanged = () => check(true)
+    window.addEventListener(UNREAD_CHANGED, onChanged)
     return () => {
       clearInterval(id)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener(UNREAD_CHANGED, onChanged)
       // 끊고 바로 다음 확인을 받을 수 있게 한다(개발 모드에서 효과가 두 번 돌 때도 첫 조회가 빠지지 않게)
       inflight.current?.abort()
       inflight.current = null
