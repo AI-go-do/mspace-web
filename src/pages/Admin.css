@@ -60,6 +60,9 @@
   }
 }
 @media (min-width: 960px) and (max-width: 1180px) { .adm { --nav-w: 104px; } .adm-brand div span { display: none; } }
+/* 넓은 화면에서는 이름이 메뉴 밑으로 줄어들어 겹치지 않게 하고, 자리가 모자란 폭에서는 글자를 빼고 M 표시만 둔다 */
+@media (min-width: 960px) { .adm-brand { flex: none; } }
+@media (min-width: 960px) and (max-width: 1099px) { .adm-brand div { display: none; } }
 .adm-nav-glow {
   position: absolute; left: 4px; top: 4px; width: var(--nav-w); height: var(--nav-h); border-radius: 10px; pointer-events: none;
   background: var(--white); box-shadow: 0 8px 22px -8px rgba(0, 0, 0, 0.5);
