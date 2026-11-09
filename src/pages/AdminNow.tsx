@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
 import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { withLightTrail, type LightTrail } from '../lib/lightTrail'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
 import { majorAdvice, roomAdvice, type Advice, type AdviceContext } from '../lib/roomAdvice'
@@ -75,6 +76,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   onBlockRoom: (roomId: number, inspection: boolean) => void
 }) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
+  // core가 조도를 최신 값 하나만 줄 때, 받은 값을 모아 그래프를 그린다(lib/lightTrail)
+  const trail = useRef<LightTrail>(new Map())
   const [sample, setSample] = useState(ENV_SOURCE === 'mock')
   const [error, setError] = useState<string | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
@@ -94,7 +97,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), REQUEST_TIMEOUT_MS)
       getRoomsEnvironment(mine.signal, memberId)
-        .then((r) => { if (stale) return; setData(r.data); setSample(r.sample); setError(null); setReadAt(new Date()) })
+        .then((r) => { if (stale) return; setData(r.sample ? r.data : withLightTrail(r.data, trail.current, ENV_RULES.historyMinutes)); setSample(r.sample); setError(null); setReadAt(new Date()) })
         .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
         .finally(() => { clearTimeout(timer); if (ctrl === mine) ctrl = null })
     }

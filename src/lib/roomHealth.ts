@@ -24,6 +24,8 @@ export interface RoomView {
   hums: (number | null)[]
   /** 지금 밝기 % (조도 원시값 0~1023 → 0~100). 조도 센서가 없거나 값이 없으면 null */
   light: number | null
+  /** PIR 움직임 최신 값(core가 줄 때만). 보여 주기만 하고 재실 판단에는 안 쓴다 */
+  pir: boolean | null
   /** 그래프용 지난 밝기 % (history와 같은 분) */
   lights: (number | null)[]
   /** 그래프용 지난 재실 (그 분 사람 있음). core가 분마다 안 주면 null */
@@ -212,7 +214,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   return {
     roomId: env.roomId,
     name: cfg?.name ?? env.roomName,
-    sensors, co2, temperatureC, humidityPct, history, temps, hums, light, lights, occupancy, lightOnEmptyMinutes, doors, door, times, current: env.current ?? null,
+    sensors, co2, temperatureC, humidityPct, history, temps, hums, light, pir: env.pir?.detected ?? null, lights, occupancy, lightOnEmptyMinutes, doors, door, times, current: env.current ?? null,
     presence: env.presence, lastSignalAt: env.lastSignalAt, forecast, forecastFrom, etaMinutes, sameForMinutes,
     overtimeMinutes, noEntryMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote, lightNote,
   }
