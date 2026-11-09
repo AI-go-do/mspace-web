@@ -104,7 +104,7 @@ export default function Checkout() {
         {head}
         <div className="card mine-msg" role="alert">
           <p>{fail}</p>
-          <Link to="/me" className="link">내 예약으로</Link>
+          <Link to="/me/reservations" className="link">내 예약으로</Link>
         </div>
       </main>
     )

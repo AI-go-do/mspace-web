@@ -20,7 +20,8 @@
 .mine-item-text b { font-size: 17px; letter-spacing: -0.02em; }
 .mine-empty { margin: 16px 16px 0; display: flex; flex-direction: column; gap: 4px; }
 .mine-empty .muted { font-size: 14px; }
-.mine-foot { margin: 24px 16px 0; display: flex; align-items: center; justify-content: space-between; }
+.mine-title { display: flex; align-items: center; gap: 4px; }
+.mine-title .back { margin-left: -10px; }
 
 .inuse {
   position: relative; overflow: hidden; isolation: isolate; box-shadow: var(--shadow-blue), 0 24px 40px -20px rgba(10, 77, 162, 0.6);
@@ -40,7 +41,21 @@
   height: 52px; border-radius: 16px; background: var(--white); color: var(--blue); box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.45);
   display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
 }
-.inuse-note { font-size: 14px; opacity: 0.8; }
+.inuse-note { font-size: 14px; opacity: 0.85; margin: 0; }
+.inuse-count { font-size: 26px !important; }
+.inuse-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.inuse-btn2 {
+  min-height: var(--touch); border-radius: 14px; border: 1.5px solid rgba(255, 255, 255, 0.7); background: transparent; color: inherit;
+  font-size: 15px; font-weight: 700;
+}
+.inuse-btn2:disabled { opacity: 0.45; }
+.inuse-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.inuse-step {
+  min-height: 56px; border-radius: 14px; border: 0; background: var(--white); color: var(--blue); font-size: 16px; font-weight: 700;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.inuse-step small { font-size: 12px; font-weight: 500; opacity: 0.75; }
+.inuse-step:disabled { opacity: 0.6; }
 .inuse-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
 .inuse-link { min-height: var(--touch); display: flex; align-items: center; font-size: 14px; text-decoration: underline; }
 

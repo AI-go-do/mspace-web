@@ -1,9 +1,17 @@
 /* 알림함 (FR-NTF-103). 색은 tokens.css 4+2색만: 안 읽음 점 = 노랑, 급한 알림(자리 비움) = 노랑 테두리 */
 .alerts { min-height: 100dvh; padding-bottom: 24px; }
-.alerts-head { background: var(--white); padding: 56px 16px 16px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); }
+.alerts-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; align-items: center; gap: 8px; }
 .alerts-head h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.alerts-head > div { flex: 1; min-width: 0; }
+.alerts-readall { flex: none; min-height: var(--touch); font-size: 14px; }
+.alerts-sub { display: block; margin-top: 2px; font-size: 12px; }
 .alerts-msg { margin: 12px 16px 0; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.alerts-empty { margin: 16px 16px 0; display: flex; flex-direction: column; gap: 4px; }
+.alerts-empty { margin: 16px 16px 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 32px 20px; text-align: center; }
+.alerts-empty-icon {
+  width: 56px; height: 56px; margin-bottom: 8px; border-radius: 28px; color: var(--blue);
+  background: color-mix(in srgb, var(--sky) 30%, var(--white)); display: flex; align-items: center; justify-content: center;
+}
+.alerts-empty .muted { line-height: 1.6; }
 .alerts-empty .muted { font-size: 14px; }
 
 .alerts-list { list-style: none; margin: 12px 16px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -11,6 +19,9 @@
 /* 읽은 알림은 한 단계 가라앉힌다 */
 .alert:not(.unread):not(.urgent) { box-shadow: none; background: color-mix(in srgb, var(--white) 65%, var(--gray)); }
 .alert.urgent { border: 2px solid var(--yellow); }
+/* 방의 사과(Q-19): 경고가 물러졌다는 내 일이라 노랑 띠 */
+.alert.apology-alert { border-left: 6px solid var(--yellow); }
+.alert-sample { font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }
 .alert-top { display: flex; align-items: center; gap: 8px; }
 .alert-top .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }
 .alert-title { flex: 1; font-size: 16px; }
@@ -22,3 +33,11 @@
 .alert-actions { display: flex; flex-direction: column; gap: 6px; }
 .alert-note { margin: 4px 0 0; font-size: 14px; color: var(--navy); }
 .alert-note.err { color: var(--navy); font-weight: 700; }
+
+/* 처음 받는 동안 자리 표시(홈 방 줄과 같은 빛 지나감) */
+.alert-skeleton { gap: 10px; pointer-events: none; }
+.sk-bar {
+  display: block; height: 12px; border-radius: 6px;
+  background: linear-gradient(90deg, var(--gray) 0%, color-mix(in srgb, var(--gray) 40%, var(--white)) 50%, var(--gray) 100%);
+  background-size: 200% 100%; animation: shimmer 1.3s linear infinite;
+}

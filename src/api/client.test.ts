@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, readTokens, saveTokens } from '../auth/tokens'
-import { REFRESH_TIMEOUT_MS, api, login, logout, onSessionEnd, refreshTokens } from './client'
+import { ApiError, REFRESH_TIMEOUT_MS, WRITE_TIMEOUT_MS, api, login, logout, onSessionEnd, refreshTokens } from './client'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -258,5 +258,65 @@ describe('api 자동 로그인 (FR-AUTH-002)', () => {
       code: 'RESERVATION_TIME_TAKEN',
       message: '이미 예약된 시간입니다',
     })
+  })
+})
+
+describe('연결 끊김·응답 늦음 (FR-WEB-006)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    saveTokens({ accessToken: 'a1', expiresAt: later(30) })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    clearTokens()
+  })
+
+  it('서버에 닿지 못하면 브라우저 영어 문구 대신 NETWORK와 한국어 안내를 던진다', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    const err = (await api('/api/reservations', { method: 'POST', body: '{}' }).catch((e: unknown) => e)) as ApiError
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err).toMatchObject({ status: 0, code: 'NETWORK' })
+    expect(err.message).not.toContain('fetch')
+  })
+
+  it('바꾸는 요청은 15초가 지나면 끊고 TIMEOUT을 던진다', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation((_p: string, init: RequestInit) => new Promise((_res, rej) => {
+      init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')))
+    }))
+    const p = api('/api/reservations/1/checkout', { method: 'POST' }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(WRITE_TIMEOUT_MS)
+    expect(await p).toMatchObject({ code: 'TIMEOUT' })
+  })
+
+  it('머리글은 왔는데 본문이 안 오면 15초에 끊고 TIMEOUT을 던진다', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(async (_p: string, init: RequestInit) => ({
+      ok: true, status: 200,
+      json: () => new Promise((_res, rej) => { init.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))) }),
+    }))
+    const p = api('/api/reservations', { method: 'POST', body: '{}' }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(WRITE_TIMEOUT_MS)
+    expect(await p).toMatchObject({ code: 'TIMEOUT' })
+  })
+
+  it('조회(GET)와 부른 쪽이 시간을 정한 요청은 끊지 않는다', async () => {
+    fetchMock.mockImplementation(async () => json(200, { ok: true }))
+    await api('/api/reservations/me')
+    const own = new AbortController()
+    await api('/api/agent/chat', { method: 'POST', body: '{}', signal: own.signal })
+    expect(fetchMock.mock.calls[0][1].signal).toBeUndefined()
+    expect(fetchMock.mock.calls[1][1].signal).toBe(own.signal)
+  })
+
+  it('부른 쪽이 끊은 요청은 NETWORK로 바꾸지 않는다', async () => {
+    const own = new AbortController()
+    own.abort()
+    fetchMock.mockRejectedValue(new DOMException('aborted', 'AbortError'))
+    const err = await api('/api/reservations/me', { signal: own.signal }).catch((e) => e)
+    expect(err).not.toBeInstanceOf(ApiError)
   })
 })

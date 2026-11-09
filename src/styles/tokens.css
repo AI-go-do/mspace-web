@@ -10,6 +10,7 @@
   --yellow: #ffc53d;    /* 내 예약 · 마감 안내 · 안 읽은 알림 */
   --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
   --taken-solid: color-mix(in srgb, rgb(21, 35, 61) 22%, var(--white)); /* 같은 색을 불투명하게 (밝은 하늘 위에 겹쳐도 범례와 같은 색) */
+  --blocked: color-mix(in srgb, var(--navy) 75%, var(--white)); /* 관리자가 막은 칸 (공사·점검·대관) */
   --radius: 16px;
   --touch: 44px;        /* 누르는 곳 최소 크기 */
 
@@ -139,3 +140,15 @@ button { font-family: inherit; color: inherit; }
 .sheet-actions { display: flex; gap: 8px; margin-top: 4px; }
 .sheet-actions .btn-line { flex: 1; }
 .sheet-actions .btn-primary { flex: 1.4; }
+
+/* 예약 성공 폭죽(components/Confetti). 화면 전체를 덮지만 누르는 건 그대로 아래로 간다 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  pointer-events: none;
+  z-index: 1000;
+  /* 화면 바뀜 효과(View Transitions) 동안에도 새 화면과 같이 움직이지 않고 제자리에서 계속 그려지게 따로 뗀다 */
+  view-transition-name: confetti;
+}

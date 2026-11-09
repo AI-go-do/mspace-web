@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHECKIN_REFRESH_MS, checkInDeadline, deadlineOf, isInstantStart, justEntered, refreshDelay } from './AccessCode'
+import { CHECKIN_REFRESH_MS, checkInDeadline, deadlineOf, deadlineText, isInstantStart, justEntered, mmss, refreshDelay } from './AccessCode'
 
 describe('입실 마감 (FR-ACC-001)', () => {
   it('미리 예약은 30분 경계에서 시작하고 15분 뒤가 마감', () => {
@@ -51,5 +51,22 @@ describe('입실하면 번호 화면 닫기', () => {
     expect(justEntered(undefined, 'IN_USE')).toBe(false)
     expect(justEntered('IN_USE', 'IN_USE')).toBe(false)
     expect(justEntered('BOOKED', 'NO_SHOW')).toBe(false)
+  })
+})
+
+describe('입실 마감 안내 (문 앞 카운트다운)', () => {
+  const start = '2026-11-06T14:30:00+09:00'
+  const deadline = new Date('2026-11-06T14:45:00+09:00')
+  const at = (t: string) => Date.parse(t)
+  it('남은 시간은 m:ss, 한 시간 넘으면 h:mm:ss, 0 아래는 0:00', () => {
+    expect(mmss(7 * 60_000 + 42_000)).toBe('7:42')
+    expect(mmss(3_600_000 + 7 * 60_000 + 2_000)).toBe('1:07:02')
+    expect(mmss(-5)).toBe('0:00')
+  })
+  it('입실할 수 있는 때(시작 10분 전부터)는 카운트다운, 그 전에는 마감 시각, 지나면 지났다고', () => {
+    expect(deadlineText(deadline, start, at('2026-11-06T14:00:00+09:00'))).toBe('14:45까지 입실하지 않으면 방이 풀려요')
+    expect(deadlineText(deadline, start, at('2026-11-06T14:20:00+09:00'))).toBe('입실 마감까지 25:00')
+    expect(deadlineText(deadline, start, at('2026-11-06T14:37:18+09:00'))).toBe('입실 마감까지 7:42')
+    expect(deadlineText(deadline, start, at('2026-11-06T14:45:00+09:00'))).toBe('입실 마감이 지났어요')
   })
 })

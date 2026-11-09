@@ -22,6 +22,8 @@ export interface NewReservation {
   endAt: string
   /** 대표자 본인은 빼고 적는다 */
   participantStudentIds: string[]
+  /** 빈방 릴레이로 넘겨받은 칸이면 그 번호(Q-18 제안, core #94). core가 잡아 둔 칸을 이 사람만 예약하게 */
+  relayOfferId?: number
 }
 
 /**
@@ -48,6 +50,19 @@ export function startNow(
   })
 }
 
+/**
+ * 연장하기 (FR-RSV-105, core #51). 대표자, 사용 중, 끝나기 10분 전부터 끝나기 전까지, 30분 단위 최대 2시간, 1회.
+ * core는 지금 예약을 퇴실하고 지금부터 endAt까지 새 예약(새 번호, 바로 사용 중)을 만든다.
+ * idempotencyKey가 같으면 다시 보내도 두 번 연장되지 않는다
+ */
+export function continueReservation(id: number, endAt: string, idempotencyKey: string): Promise<CreatedReservation> {
+  return api(`/api/reservations/${id}/continue`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ endAt }),
+  })
+}
+
 /** GET /api/reservations/me 한 건 (core MyReservationResponse) */
 export interface MyReservation {
   id: number
@@ -61,6 +76,11 @@ export interface MyReservation {
   accessCode: string | null
   /** 입실 마감 (core #54, DB 값 그대로). 예전 core에는 없어서 선택 값 → 없으면 화면이 계산 */
   checkinDeadline?: string
+  /**
+   * 이 시각 전까지 대표자가 취소할 수 있다 (core #84). 미리 예약은 시작, 지금 바로 쓰기는 누른 뒤 5분(설정값).
+   * 예전 core에는 없어서 선택 값 → 없으면 시작 시각
+   */
+  cancelableUntil?: string
   /** 이름은 가려서 온다(김*영) */
   participants: { name: string; owner: boolean }[]
   /**
@@ -93,7 +113,17 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   NO_SHOW: '노쇼로 풀림',
 }
 
-/** 시작 전 취소 (FR-RSV-007). 대표자만, 시작 전 BOOKED만 */
+/** 취소 마감: 서버 값(cancelableUntil)이 있으면 그것, 없으면 시작 시각 */
+export function cancelDeadline(r: Pick<MyReservation, 'startAt' | 'cancelableUntil'>): Date {
+  return new Date(r.cancelableUntil ?? r.startAt)
+}
+
+/** 대표자이고 BOOKED이고 취소 마감 전이면 취소 버튼을 보인다 (FR-RSV-007, 즉시 시작은 누른 뒤 5분) */
+export function canCancel(r: Pick<MyReservation, 'owner' | 'status' | 'startAt' | 'cancelableUntil'>, now: number): boolean {
+  return r.owner && r.status === 'BOOKED' && now < cancelDeadline(r).getTime()
+}
+
+/** 시작 전 취소 (FR-RSV-007). 대표자만, BOOKED이고 취소 마감(cancelableUntil) 전만 */
 export function cancelReservation(id: number): Promise<{ id: number; status: ReservationStatus }> {
   return api(`/api/reservations/${id}/cancel`, { method: 'POST' })
 }

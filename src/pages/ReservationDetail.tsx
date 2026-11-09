@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, currentMemberId } from '../api/client'
 import PhotoUpload from '../components/PhotoUpload'
-import { cancelReservation, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
+import { cancelDeadline, cancelReservation, canCancel as canCancelAt, isActive, STATUS_LABEL, type ReservationStatus } from '../api/reservations'
 import { timeRange, whenLabel } from '../lib/format'
-import { seoulClock } from '../lib/time'
+import { seoulClock, seoulClockSec } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import { deadlineOf } from './AccessCode'
 import { useMyReservations } from './MyReservations'
@@ -14,8 +14,12 @@ import './Mine.css'
 export default function ReservationDetail() {
   const id = Number(useParams().id)
   const navigate = useNavigate()
+  // 앱 안에서 들어왔으면(첫 화면이 아니면) 온 곳으로, 바로 열었으면 내 예약 목록으로. history.length는 앞으로 가기 기록까지 세서 쓰지 않는다
+  const cameInApp = useLocation().key !== 'default'
   const { list, error, stale, reload } = useMyReservations()
-  const now = useNow()
+  // 취소할 수 있는 동안(누른 뒤 5분 등)은 1초마다 다시 그려 마감에 맞춰 취소 버튼이 사라지게 한다
+  const target = list?.find((x) => x.id === id)
+  const now = useNow(target && canCancelAt(target, Date.now()) ? 1_000 : 30_000)
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   // 입실 사진을 올리는 동안 퇴실 화면으로 넘어가면 결과를 못 보니 막는다
@@ -48,7 +52,7 @@ export default function ReservationDetail() {
 
   const head = (
     <header className="sub-head">
-      <button type="button" className="back" aria-label="뒤로" onClick={() => navigate('/me')}>
+      <button type="button" className="back" aria-label="뒤로" onClick={() => (cameInApp ? navigate(-1) : navigate('/me/reservations'))}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
       </button>
       <h1>예약 상세</h1>
@@ -61,7 +65,9 @@ export default function ReservationDetail() {
   if (!r) return <main className="mine" aria-busy="true">{head}<p className="card mine-msg muted" role="status">불러오는 중…</p></main>
 
   const active = isActive(r.status)
-  const canCancel = r.owner && r.status === 'BOOKED' && Date.parse(r.startAt) > now.getTime()
+  const canCancel = canCancelAt(r, now.getTime())
+  // 지금 바로 쓰기는 시작 후에도 몇 분 동안 취소된다(core #84). 그때는 '시작 전까지'가 아니라 취소 마감 시각을 알린다
+  const cancelAfterStart = cancelDeadline(r).getTime() > Date.parse(r.startAt)
   const others = r.participants.length - 1
   const host = r.participants.find((p) => p.owner)
 
@@ -109,9 +115,15 @@ export default function ReservationDetail() {
       )}
       {canCancel && (
         <div className="detail-cancel">
-          <span className="muted small">시작({seoulClock(new Date(r.startAt))}) 전까지 대표자만 취소할 수 있어요</span>
+          <span className="muted small">{cancelAfterStart
+            ? `잘못 눌렀다면 ${seoulClockSec(cancelDeadline(r))} 전까지 취소할 수 있어요`
+            : `시작(${seoulClock(new Date(r.startAt))}) 전까지 대표자만 취소할 수 있어요`}</span>
           <button type="button" className="btn-line" onClick={() => setAsking(true)}>예약 취소</button>
         </div>
+      )}
+      {/* 취소 마감이 지난 BOOKED는 취소 버튼이 없다. 왜 없는지와 노쇼 마감을 알린다 */}
+      {r.owner && r.status === 'BOOKED' && !canCancel && (
+        <p className="muted small detail-note">취소할 수 있는 시간이 지났어요. {seoulClock(deadlineOf(r))}까지 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요.</p>
       )}
       {!r.owner && active && <p className="muted small detail-note">참여자는 보기만 할 수 있어요. 취소·퇴실은 대표자가 해요.</p>}
 

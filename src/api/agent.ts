@@ -30,7 +30,16 @@ export interface ChatResult {
   accessCodeCards: { reservationId: number }[]
   toolCalls: number
   stoppedByLimit: boolean
+  /** 부른 도구 이름(측정용). 옛 서버는 안 준다 */
+  tools?: string[]
+  /** 화면 신호. OPEN_SCHEDULE: 시간표가 없어서 답했으니 [내 시간표 넣기] 버튼을 보여 준다 */
+  hints?: string[]
+  /** 답 아래 "다음 말" 버튼 글(최대 3개, assistant #73). 누르면 그 글을 그대로 채팅으로 보낸다 */
+  suggestions?: string[]
 }
+
+/** 시간표가 없어서 답했다 → [내 시간표 넣기] */
+export const HINT_OPEN_SCHEDULE = 'OPEN_SCHEDULE'
 
 export type ChatStatus = 'PENDING' | 'DONE' | 'FAILED'
 
@@ -157,13 +166,15 @@ export async function waitForChat(first: ChatJob, opts: WaitOptions = {}): Promi
 // ---- 확인 카드 [확인] ----
 
 export interface ConfirmResult {
-  action: 'CREATE' | 'CANCEL' | 'CHECKOUT'
+  action: 'CREATE' | 'CANCEL' | 'CHECKOUT' | 'START_NOW' | 'CONTINUE'
   reservationId: number
   status: string
   /** 예약 만들기일 때만 */
   accessCode: string | null
   replayed: boolean
   message: string
+  /** 확인 뒤 다음 한 수 버튼 글(예: "입실 번호 보여 줘"). 누르면 채팅으로 보낸다 */
+  suggestions?: string[]
 }
 
 /**

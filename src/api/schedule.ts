@@ -86,6 +86,18 @@ export function checkSchedule(classes: ScheduleClass[]): ScheduleProblem | null 
   return null
 }
 
+const DAY_OF: Record<string, Day> = { Mon: 'MON', Tue: 'TUE', Wed: 'WED', Thu: 'THU', Fri: 'FRI', Sat: 'SAT', Sun: 'SUN' }
+
+/** 서울 기준 그 시각의 요일 */
+export function seoulDay(now: Date): Day {
+  return DAY_OF[new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(now)]
+}
+
+/** 그 요일의 수업만 */
+export function classesOn(classes: ScheduleClass[], day: Day): ScheduleClass[] {
+  return classes.filter((c) => c.dayOfWeek === day)
+}
+
 /** 요일 → 시작 순 */
 export function sortClasses(classes: ScheduleClass[]): ScheduleClass[] {
   return [...classes].sort((a, b) => DAYS.indexOf(a.dayOfWeek) - DAYS.indexOf(b.dayOfWeek) || a.startTime.localeCompare(b.startTime))

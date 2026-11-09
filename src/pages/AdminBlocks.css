@@ -1,0 +1,61 @@
+/* 관리자 "방 관리 > 기간 막기". 넓으면 왼쪽 입력 + 오른쪽 막힌 기간 목록. 색은 tokens.css 4+2색만 */
+.blk-wrap { display: grid; gap: 20px; align-items: start; }
+/* 방 관리 칸이 한 열일 때(1100–1279)와 아주 넓을 때만 입력·목록을 옆으로. 그 사이는 오른쪽에 강제 퇴실이 붙어서 위아래로 */
+@media (min-width: 1100px) and (max-width: 1279px), (min-width: 1680px) {
+  .blk-wrap { grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); }
+}
+.blk-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+.blk-form select.adm-input { appearance: auto; }
+.blk-reasons { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.blk-reasons legend { margin-bottom: 8px; }
+.blk-reason {
+  position: relative; min-height: var(--touch); padding: 0 18px; border-radius: 22px; background: var(--gray);
+  display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, transform 0.12s var(--ease-out), box-shadow 0.2s;
+}
+.blk-reason:active { transform: scale(0.95); }
+.blk-reason input { position: absolute; opacity: 0; pointer-events: none; }
+.blk-reason.on { background: var(--navy); color: var(--white); box-shadow: 0 8px 18px -8px rgba(21, 35, 61, 0.6); animation: pop 0.32s var(--ease-spring); }
+.blk-reason:focus-within { outline: 3px solid var(--sky); outline-offset: 2px; }
+.blk-when { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.blk-dt { display: grid; grid-template-columns: 1fr 104px; gap: 8px; margin-top: 4px; }
+
+.blk-h { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 18px; }
+.blk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.blk-item {
+  position: relative; overflow: hidden; padding: 16px 18px; border-radius: 22px; display: flex; flex-direction: column; gap: 12px;
+  animation: rise-in 0.4s var(--ease-out) backwards;
+}
+.blk-item:nth-child(2) { animation-delay: 60ms; }
+.blk-item:nth-child(3) { animation-delay: 120ms; }
+.blk-item:nth-child(n+4) { animation-delay: 180ms; }
+.blk-item.off { opacity: 0.6; }
+/* 지금 막혀 있는 기간: 위에 노란 줄무늬가 천천히 흐른다(공사 중 테이프) */
+.blk-item.running::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 6px; background-size: 28px 6px;
+  background-image: repeating-linear-gradient(-45deg, var(--yellow) 0 8px, var(--navy) 8px 14px);
+  animation: tape 1.2s linear infinite;
+}
+@keyframes tape { from { background-position: 0 0; } to { background-position: 28px 0; } }
+.blk-top { display: flex; align-items: center; gap: 12px; }
+.blk-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.blk-text b { font-size: 15.5px; }
+.blk-text .muted { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.blk-state { flex: none; padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; background: var(--gray); color: var(--navy-70); }
+.blk-state.now { background: var(--yellow); color: var(--navy); }
+.blk-state.end { background: transparent; box-shadow: inset 0 0 0 1.5px var(--taken); }
+.blk-conflicts {
+  padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--yellow) 22%, var(--white));
+  display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; animation: rise-in 0.3s var(--ease-out) backwards;
+}
+.blk-conflicts p { margin: 0; }
+.blk-conflicts ul { margin: 0; padding-left: 18px; font-variant-numeric: tabular-nums; }
+.blk-conflicts .adm-btn { align-self: flex-start; }
+.blk-release { align-self: flex-start; min-height: 40px; }
+.blk-past summary { cursor: pointer; font-size: 13.5px; color: var(--blue); font-weight: 800; min-height: var(--touch); display: flex; align-items: center; }
+.blk-past .blk-list { margin-top: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .blk-wrap *, .blk-wrap *::before { animation: none !important; transition: none !important; }
+}

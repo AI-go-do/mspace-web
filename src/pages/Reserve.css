@@ -1,6 +1,8 @@
 /* PWA 화면 시안 Time · Members · Rules · Denied와 같은 값 */
 /* 아래 고정 막대(.rs-bar)가 규칙 확인 줄까지 늘어나도 내용을 가리지 않게. 막대 아래 여백과 같이 늘어남 */
 .reserve { min-height: 100dvh; padding-bottom: calc(172px + max(28px, env(safe-area-inset-bottom))); }
+/* 즉시 시작 경고가 막대 안에 들어가면(함께 쓰는 사람 화면) 그만큼 더 띄워 마지막 사람의 빼기 버튼이 가리지 않게 */
+.reserve:has(.rs-bar .in-warn) { padding-bottom: calc(172px + 110px + max(28px, env(safe-area-inset-bottom))); }
 .rs-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 12px; }
 .rs-title { display: flex; align-items: center; gap: 8px; }
 .rs-title h1 { margin: 0; font-size: 22px; font-weight: 700; }
@@ -20,6 +22,7 @@
 .rs-grid-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .lg-taken-slot { background: var(--taken); }
 .lg-pick { background: var(--blue); }
+.lg-blocked-slot { background: var(--blocked); }
 .slot-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
 .slot {
   height: var(--touch); border-radius: 10px; border: 0; background: var(--gray); font-weight: 500;
@@ -32,6 +35,8 @@
   color: var(--navy-70); cursor: default;
 }
 .slot.past { background: transparent; color: rgba(21, 35, 61, 0.3); cursor: default; }
+/* 관리자가 막은 칸(공사·점검·대관): 예약된 칸보다 진하게, 글씨는 흰색으로 */
+.slot.blocked { background: var(--blocked); color: var(--white); cursor: default; }
 .slot.on { background: var(--grad-blue); color: var(--white); font-weight: 700; box-shadow: var(--shadow-blue); }
 
 .rs-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -59,6 +64,8 @@
   font-size: 14px; font-weight: 700; cursor: pointer;
 }
 .search-btn:disabled { opacity: 0.5; cursor: default; }
+.found-list { margin: 12px 16px 0; padding: 4px 16px; display: flex; flex-direction: column; }
+.found-list .person:first-child { border-top: 0; }
 .found { margin: 12px 16px 0; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
 .avatar {
   flex: none; width: 40px; height: 40px; border-radius: 20px; background: var(--gray);
@@ -118,3 +125,13 @@
 .search input:focus { outline: none; background: var(--white); border-color: var(--blue); box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent); }
 .found { animation: rise-in 0.26s var(--ease-out) backwards; }
 .person { animation: rise-in 0.24s var(--ease-out) backwards; }
+/* 오늘 이 방이 지금 비어 있을 때 시간표 위 바로 시작 줄 (수연 피드백 11/6) */
+.rs-now { margin: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--navy); text-decoration: none; min-height: var(--touch); }
+.rs-now-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.rs-now-text b { font-size: 16px; }
+.rs-now-go { flex: none; padding: 10px 16px; border-radius: 14px; background: var(--blue); color: var(--white); font-size: 14px; font-weight: 700; }
+
+/* 이 날 막힌 기간 안내 (Q-23) */
+.rs-blocks { margin: 0; padding: 10px 12px; list-style: none; display: flex; flex-direction: column; gap: 4px;
+  border-radius: 12px; background: var(--gray); font-size: 13px; }
+.rs-blocks b { font-variant-numeric: tabular-nums; }

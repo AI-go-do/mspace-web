@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { freshNotifications, getMyNotifications, toastTarget, type AppNotification } from '../api/notifications'
+import { bannerHeld, freshNotifications, getMyNotifications, toastTarget, type AppNotification } from '../api/notifications'
 import { useAuth } from '../auth/AuthProvider'
 import { readTokens } from '../auth/tokens'
 import './NotificationToast.css'
@@ -21,16 +21,25 @@ export default function NotificationToast() {
   const { status } = useAuth()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const [shown, setShown] = useState<{ n: AppNotification; more: number } | null>(null)
+  // 띄운 알림과, 그때 같이 새로 온 알림 번호들(흐름 화면에 들어가며 숨기면 다시 새것으로 되돌리려고)
+  const [shown, setShown] = useState<{ n: AppNotification; more: number; ids: number[] } | null>(null)
+  const shownRef = useRef(shown)
+  useEffect(() => { shownRef.current = shown }, [shown])
   const busy = useRef(false)
   // 로그아웃·화면이 사라질 때 끊을 진행 중 요청. 늦게 온 응답이 본 목록·배너를 바꾸지 않게
   const inflight = useRef<AbortController | null>(null)
+  // 알림함에 있는지. 화면이 바뀐 뒤(effect)에 갱신한다(render 중 ref 쓰기 금지)
   const onAlerts = useRef(pathname === '/alerts')
-  onAlerts.current = pathname === '/alerts'
+  useEffect(() => { onAlerts.current = pathname === '/alerts' }, [pathname])
+  // 예약·입실·퇴실 중에는 띄우지 않고 미뤄 둔다(본 것으로 표시하지 않아 그 화면을 나오면 뜬다). 화면이 바뀐 뒤(effect)에 갱신한다
+  const held = useRef(bannerHeld(pathname))
+  // 흐름 화면을 나올 때 확인이 이미 진행 중이면, 끝난 뒤 한 번 더 확인한다(그 사이에 온 알림을 놓치지 않게)
+  const again = useRef(false)
 
   /** 알림함을 받아 새 알림이 있으면 배너를 띄운다. 알림함 화면에 있을 때는 본 것으로만 표시한다 */
-  const check = useCallback(() => {
-    if (busy.current || document.visibilityState !== 'visible') return
+  const check = useCallback((queueIfBusy = false) => {
+    if (document.visibilityState !== 'visible') return
+    if (busy.current) { if (queueIfBusy) again.current = true; return }
     // 토큰이 아직 없으면(시작 때 refresh가 네트워크로 실패) 회원을 모른 채 조회하지 않고 다음 확인을 기다린다
     const memberId = readTokens()?.memberId ?? null
     if (memberId === null) return
@@ -43,10 +52,16 @@ export default function NotificationToast() {
       .then((list) => {
         if (abort.signal.aborted || seenStore.memberId !== memberId) return
         const fresh = freshNotifications(list, seenStore.ids)
+        if (held.current && seenStore.ids) {
+          // 미뤄 둔 알림은 본 것으로 표시하지 않는다. 다음 확인(이 화면을 나온 뒤)에서 새것으로 뜬다
+          const freshIds = new Set(fresh.map((n) => n.id))
+          seenStore.ids = new Set(list.filter((n) => !freshIds.has(n.id)).map((n) => n.id))
+          return
+        }
         seenStore.ids = new Set(list.map((n) => n.id))
         // 알림함을 보고 있으면 목록에 바로 보이니 배너는 띄우지 않는다
         if (fresh.length && !onAlerts.current) {
-          setShown({ n: fresh[0], more: fresh.length - 1 })
+          setShown({ n: fresh[0], more: fresh.length - 1, ids: fresh.map((n) => n.id) })
           chime()
         }
       })
@@ -54,9 +69,26 @@ export default function NotificationToast() {
       .finally(() => {
         clearTimeout(timer)
         // 끊긴 앞 요청이 늦게 끝나도 그 뒤에 시작한 요청의 '보내는 중'을 풀지 않게
-        if (inflight.current === abort) { inflight.current = null; busy.current = false }
+        if (inflight.current === abort) {
+          inflight.current = null
+          busy.current = false
+          if (again.current) { again.current = false; check() }
+        }
       })
   }, [])
+
+  // 화면이 바뀌면: 흐름 화면에 들어갈 때 떠 있던 배너는 내리고 다시 새것으로 되돌린다(나오면 다시 뜬다).
+  // 흐름 화면을 나오면 미뤄 둔 알림을 30초 기다리지 않고 바로 확인한다
+  useEffect(() => {
+    const was = held.current
+    const now = bannerHeld(pathname)
+    held.current = now
+    if (now && !was && shownRef.current) {
+      for (const id of shownRef.current.ids) seenStore.ids?.delete(id)
+      setShown(null)
+    }
+    if (was && !now) check(true)
+  }, [pathname, check])
 
   useEffect(() => {
     if (status !== 'in') return
@@ -72,6 +104,7 @@ export default function NotificationToast() {
       inflight.current?.abort()
       inflight.current = null
       busy.current = false
+      again.current = false
     }
   }, [status, check])
 

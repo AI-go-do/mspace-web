@@ -3,7 +3,8 @@ import { onSessionEnd } from '../api/client'
 
 /**
  * 비서 대화 기록. 탭을 옮겼다 돌아와도 이어지게 화면 밖(메모리)에 둔다.
- * 새로고침해도 이어지게 이 탭의 sessionStorage에도 남긴다(탭을 닫으면 사라짐).
+ * 새로고침·앱을 닫았다 다시 열어도 이어지게 이 브라우저의 localStorage에도 남긴다.
+ * 서버가 대화를 기억하는 24시간과 맞춰, 그보다 오래된 기록은 버린다.
  * 단, 확인 토큰·입실 번호는 저장소에 넣지 않는다. 확인 카드는 "지난 카드"(요약·결과만)로 바꿔 남긴다.
  * 회원이 바뀌면 비우고, 로그인이 끝나면(로그아웃·refresh 실패) 저장소도 지운다.
  */
@@ -17,12 +18,16 @@ export interface ChatMessage {
   accessCodeCards?: { reservationId: number }[]
   /** 새로고침 전에 받은 확인 카드. 토큰이 없어 다시 누를 수 없다 */
   pastCards?: PastCard[]
+  /** 답 아래 "다음 말" 버튼(서버 suggestions). 마지막 답에만 그린다 */
+  suggestions?: string[]
+  /** 화면 신호(서버 hints) */
+  hints?: string[]
 }
 
 /** 저장소에서 되살린 확인 카드. 눌러서 끝난 카드면 결과(입실 번호 빼고)를 함께 둔다 */
 export interface PastCard {
   summary: string
-  result?: Pick<ConfirmResult, 'action' | 'reservationId' | 'message'>
+  result?: Pick<ConfirmResult, 'action' | 'reservationId' | 'message' | 'suggestions'>
 }
 
 export interface ChatState {
@@ -75,7 +80,7 @@ export function clearChatOf(memberId: number): void {
   if (saved && typeof saved === 'object' && (saved as Partial<SavedChat>).memberId === memberId) writeSaved(null)
 }
 
-// ---- 이 탭 저장소(sessionStorage) ----
+// ---- 이 브라우저 저장소(localStorage) ----
 
 const STORAGE_KEY = 'mspace.agent.chat.v1'
 /** 서버가 대화를 기억하는 시간(24시간)과 맞춘다. 더 오래된 화면 기록은 버린다 */
@@ -92,8 +97,17 @@ export interface SavedChat {
   pending: ChatState['pending']
 }
 
-/** 이 탭 저장소. 막힌 브라우저(사생활 모드 등)·테스트 환경이면 null */
+/** 이 브라우저 저장소. 막힌 브라우저(사생활 모드 등)·테스트 환경이면 null */
 function storage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage
+  } catch {
+    return null
+  }
+}
+
+/** 예전 버전이 쓰던 이 탭 저장소(sessionStorage). 남은 기록은 한 번 옮기고 지운다 */
+function legacyStorage(): Storage | null {
   try {
     return typeof sessionStorage === 'undefined' ? null : sessionStorage
   } catch {
@@ -101,18 +115,23 @@ function storage(): Storage | null {
   }
 }
 
-/** 저장된 값을 읽는다. 없거나 깨졌으면 null */
+/** 저장된 값을 읽는다. 없거나 깨졌으면 null. 예전 탭 저장소에만 있으면 그것을 읽는다 */
 function readSaved(): unknown {
   try {
-    const raw = storage()?.getItem(STORAGE_KEY)
+    const raw = storage()?.getItem(STORAGE_KEY) ?? legacyStorage()?.getItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-/** 저장하거나(메시지가 있을 때) 지운다(null·빈 대화) */
+/** 저장하거나(메시지가 있을 때) 지운다(null·빈 대화). 예전 탭 저장소 기록은 늘 지운다 */
 function writeSaved(saved: SavedChat | null): void {
+  try {
+    legacyStorage()?.removeItem(STORAGE_KEY)
+  } catch {
+    // 막혀 있으면 건너뛴다
+  }
   try {
     const s = storage()
     if (!s) return
@@ -141,7 +160,8 @@ export function toSaved(s: ChatState, outcomes: Map<string, CardOutcome>, now: n
     const past = confirmations.map((c): PastCard => {
       const o = outcomes.get(c.token)
       return o?.kind === 'done'
-        ? { summary: c.summary, result: { action: o.result.action, reservationId: o.result.reservationId, message: o.result.message } }
+        ? { summary: c.summary, result: { action: o.result.action, reservationId: o.result.reservationId, message: o.result.message,
+            ...(o.result.suggestions?.length ? { suggestions: o.result.suggestions } : {}) } }
         : { summary: c.summary }
     })
     return { ...rest, pastCards: [...(m.pastCards ?? []), ...past] }
@@ -172,14 +192,71 @@ function isPastCard(c: unknown): c is PastCard {
   if (result === undefined) return true
   return !!result && typeof result === 'object'
     && typeof result.action === 'string' && typeof result.reservationId === 'number' && typeof result.message === 'string'
+    && (result.suggestions === undefined || (Array.isArray(result.suggestions) && result.suggestions.every((t) => typeof t === 'string')))
 }
 
-// 로그아웃·refresh 실패: 화면 기록과 이 탭 저장소를 비운다(같은 기기의 다음 사람이 보지 않게)
+// 로그아웃·refresh 실패: 화면 기록과 저장소를 비운다(같은 기기의 다음 사람이 보지 않게)
 onSessionEnd(() => {
   state = { memberId: null, messages: [], pending: null }
   cardOutcomes = new Map()
   writeSaved(null)
+  notifyChat()
 })
+
+// ---- 다른 탭에서 바뀐 대화 ----
+
+const chatListeners = new Set<() => void>()
+
+/** 다른 탭이 대화를 바꾸거나 지웠을 때 알림을 받는다. 돌려준 함수로 그만 받는다 */
+export function watchChat(fn: () => void): () => void {
+  chatListeners.add(fn)
+  return () => {
+    chatListeners.delete(fn)
+  }
+}
+
+function notifyChat(): void {
+  chatListeners.forEach((fn) => fn())
+}
+
+/**
+ * 같은 회원이 다른 탭에서 대화를 이어 갔거나 "새 대화"로 지웠으면 이 탭 기록도 맞춘다.
+ * 이 탭이 답을 기다리거나 보내는 중이면 건드리지 않는다(이 탭이 끝나면서 저장한다).
+ * 다른 탭이 기다리는 답은 그 탭이 받아 저장하므로, 이 탭은 기다림 표시 없이 대화만 가져온다(두 탭이 같은 답을 두 번 붙이지 않게)
+ */
+export function adoptOtherTab(newValue: string | null, now: number): boolean {
+  if (state.memberId === null || state.pending !== null || currentSubmitting(state.memberId)) return false
+  let saved: unknown = null
+  try {
+    saved = newValue ? JSON.parse(newValue) : null
+  } catch {
+    return false
+  }
+  if (saved === null) {
+    if (state.messages.length === 0) return false
+    state = { memberId: state.memberId, messages: [], pending: null }
+    cardOutcomes = new Map()
+    return true
+  }
+  const restored = restoreChat(saved, state.memberId, now)
+  if (!restored) return false
+  // 이 탭에서 아직 누를 수 있는 확인 카드(토큰)가 붙은 같은 메시지는 이 탭 것을 그대로 둔다
+  const live = new Map(state.messages.filter((m) => m.confirmations?.length).map((m) => [m.id, m]))
+  const messages = restored.messages.map((m) => {
+    const mine = live.get(m.id)
+    return mine && mine.role === m.role && mine.text === m.text ? mine : m
+  })
+  state = { memberId: restored.memberId, messages, pending: null }
+  nextId = Math.max(nextId, ...state.messages.map((m) => m.id + 1))
+  return true
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== STORAGE_KEY && e.key !== null) return
+    if (adoptOtherTab(e.key === null ? null : e.newValue, Date.now())) notifyChat()
+  })
+}
 
 type Submission = Promise<{ jobId: string; pollAfterMs?: number }>
 

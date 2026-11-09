@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoLabel, freshNotifications, notificationAction, toastTarget, type AppNotification } from './notifications'
+import { agoLabel, bannerHeld, freshNotifications, notificationAction, toastTarget, withRead, type AppNotification } from './notifications'
 
 const n = (kind: string, reservationId: number | null = 12): AppNotification =>
   ({ id: 1, reservationId, kind, title: 't', body: 'b', createdAt: '2026-11-05T14:00:00+09:00', read: false })
@@ -7,6 +7,7 @@ const n = (kind: string, reservationId: number | null = 12): AppNotification =>
 describe('알림에서 갈 곳', () => {
   it('자리 비움 알림은 퇴실 화면으로 간다 (FR-NTF-103)', () => {
     expect(notificationAction(n('AWAY_SOON'))).toEqual({ to: '/me/12/checkout', label: '퇴실할게요' })
+    expect(notificationAction(n('END_SOON'))).toEqual({ to: '/me?end=12', label: '연장하기' })
   })
   it('입실 전 알림은 입실 번호로 간다', () => {
     expect(notificationAction(n('START_SOON'))?.to).toBe('/reservations/12')
@@ -43,5 +44,24 @@ describe('앱 안 알림 배너', () => {
     expect(toastTarget(at(1, 'AWAY_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/alerts')
     expect(toastTarget(at(1, 'START_SOON', '2026-11-05T10:00:00+09:00'))).toBe('/reservations/5')
     expect(toastTarget({ ...at(1, 'END_SOON', '2026-11-05T10:00:00+09:00'), reservationId: null })).toBe('/alerts')
+  })
+})
+
+describe('읽음 표시 (core #69)', () => {
+  const list = [{ ...n('START_SOON'), id: 1 }, { ...n('END_SOON'), id: 2 }, { ...n('AWAY_SOON'), id: 3, read: true }]
+  it('하나만 읽음으로 바꾸고 나머지는 그대로 둔다', () => {
+    const next = withRead(list, 2)
+    expect(next.map((x) => x.read)).toEqual([false, true, true])
+    expect(next[0]).toBe(list[0])
+  })
+  it('id가 null이면 전부 읽음', () => {
+    expect(withRead(list, null).every((x) => x.read)).toBe(true)
+  })
+  it('관리자 퇴실 처리 알림은 그 예약으로 간다 (core #73)', () => {
+    expect(notificationAction(n('FORCED_CHECKOUT'))?.to).toBe('/me/12')
+  })
+  it('예약·지금 바로 쓰기·입실 번호·퇴실 화면에서는 배너를 미뤄 둔다', () => {
+    for (const p of ['/rooms/3', '/now', '/reservations/101', '/me/101/checkout']) expect(bannerHeld(p)).toBe(true)
+    for (const p of ['/', '/me', '/me/101', '/alerts', '/assistant', '/map']) expect(bannerHeld(p)).toBe(false)
   })
 })

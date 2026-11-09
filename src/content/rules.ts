@@ -65,7 +65,7 @@ export const BOOKING_FACTS: { big: string; small: string; strong?: boolean }[] =
   { big: '7일', small: '오늘부터 7일 안' },
   { big: '2시간', small: '한 번에 최대' },
   { big: '30분', small: '시간 단위' },
-  { big: '1건', small: '대표자당 진행 중' },
+  { big: '1건', small: '대표자·참여자 모두 진행 중' },
   { big: '15분', small: '안에 입실, 아니면 노쇼', strong: true },
   { big: '3–5명', small: '창작실 1–4 · 5번은 5–8명' },
 ]

@@ -36,13 +36,27 @@ function endSession() {
 
 async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
   const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
+  // 사진을 받을 때는 부른 쪽이 Accept를 정한다(JSON만 받는다고 하면 서버가 406으로 거절)
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
   // 사진(FormData)은 브라우저가 경계(boundary)를 붙인 multipart 머리글을 직접 넣는다
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   // 같은 출처라 refresh 쿠키(HttpOnly, /api/auth 전용)는 브라우저가 알아서 붙인다
-  return fetch(path, { credentials: 'same-origin', ...init, headers })
+  try {
+    return await fetch(path, { credentials: 'same-origin', ...init, headers })
+  } catch (e) {
+    // 부른 쪽이 끊은 요청(화면 떠남·시간 초과)은 그대로 던진다. 부른 쪽이 signal.aborted로 구분한다
+    if (init.signal?.aborted) throw e
+    // 서버에 닿지 못함(와이파이 끊김 등). 브라우저 오류 문구("Failed to fetch"·"Load failed")를 화면에 그대로 내지 않는다
+    throw new ApiError(0, 'NETWORK', '연결이 끊겼어요. 와이파이를 확인하고 다시 시도해 주세요')
+  }
 }
+
+/**
+ * 바꾸는 요청(POST·PUT·DELETE)을 기다리는 최대 시간. 느린 와이파이에서 "…하는 중"에 끝없이 머물지 않게 한다.
+ * 부른 쪽이 signal을 주면(사진 올리기·비서 채팅처럼 따로 시간을 정한 요청) 그것을 따르고, 사진(FormData)도 건드리지 않는다
+ */
+export const WRITE_TIMEOUT_MS = 15_000
 
 async function toError(res: Response): Promise<ApiError> {
   const body = await res.json().catch(() => ({}))
@@ -53,7 +67,7 @@ async function toError(res: Response): Promise<ApiError> {
  * member를 주면 그 회원의 토큰으로만 보낸다. refresh로 다른 회원 토큰을 받았으면(같은 브라우저 다른 탭에서
  * 다른 학생이 로그인) 보내지 않고 SESSION_CHANGED를 던진다. 앞 학생의 말을 새 학생 계정으로 보내지 않으려고.
  */
-export async function api<T>(path: string, { member, ...init }: RequestInit & { member?: number | null } = {}): Promise<T> {
+export async function api<T>(path: string, { member, as, ...init }: RequestInit & { member?: number | null; as?: 'json' | 'blob' } = {}): Promise<T> {
   const wrongMember = (t: Tokens | null) => member !== undefined && (t?.memberId ?? null) !== member
   // 로그인 API(/api/auth/)는 토큰 없이 부른다
   const isAuth = path.startsWith('/api/auth/')
@@ -67,18 +81,42 @@ export async function api<T>(path: string, { member, ...init }: RequestInit & { 
   if (!isAuth && !accessAlive(tokens)) tokens = await refreshTokens()
   if (started !== generation || wrongMember(tokens)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
 
-  let res = await send(path, init, tokens?.accessToken ?? null)
-  if (res.status === 401 && tokens) {
-    // 시계가 틀렸거나 서버가 토큰을 버린 경우: 같은 세대일 때만 한 번 새로 받아 다시 보낸다
-    if (started !== generation) throw await toError(res)
-    const fresh = await refreshTokens()
-    if (started !== generation) throw await toError(res)
-    if (wrongMember(fresh)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
-    res = await send(path, init, fresh.accessToken)
+  const method = (init.method ?? 'GET').toUpperCase()
+  const timed = method !== 'GET' && !init.signal && !(init.body instanceof FormData)
+  const timeout = timed ? new AbortController() : null
+  const timer = timeout ? setTimeout(() => timeout.abort(), WRITE_TIMEOUT_MS) : undefined
+  const sendInit = timeout ? { ...init, signal: timeout.signal } : init
+  // 우리가 정한 시간이 지나 요청(또는 본문 읽기)을 끊었을 때만 TIMEOUT으로 바꾼다. 서버에서는 처리됐을 수도 있어서
+  // "실패"라고 단정하지 않는다. refresh 중에 시간이 지난 경우는 그 오류를 그대로 둔다(세션 오류를 TIMEOUT으로 덮지 않게)
+  const withTimeout = async <R,>(work: () => Promise<R>): Promise<R> => {
+    try {
+      return await work()
+    } catch (e) {
+      if (timeout?.signal.aborted && e instanceof DOMException && e.name === 'AbortError') {
+        throw new ApiError(0, 'TIMEOUT', '응답이 늦어요. 처리됐는지 확인한 뒤 다시 시도해 주세요')
+      }
+      throw e
+    }
   }
-  if (res.status === 401 && !isAuth && started === generation) endSession()
-  if (!res.ok) throw await toError(res)
-  return res.status === 204 ? (undefined as T) : res.json()
+  // 머리글만 오고 본문이 안 오는 경우도 있어서, 시간 제한은 본문을 다 읽을 때까지 건다
+  try {
+    let res = await withTimeout(() => send(path, sendInit, tokens?.accessToken ?? null))
+    if (res.status === 401 && tokens) {
+      // 시계가 틀렸거나 서버가 토큰을 버린 경우: 같은 세대일 때만 한 번 새로 받아 다시 보낸다
+      if (started !== generation) throw await toError(res)
+      const fresh = await refreshTokens()
+      if (started !== generation) throw await toError(res)
+      if (wrongMember(fresh)) throw new ApiError(401, 'SESSION_CHANGED', '다시 시도해 주세요')
+      res = await withTimeout(() => send(path, sendInit, fresh.accessToken))
+    }
+    if (res.status === 401 && !isAuth && started === generation) endSession()
+    if (!res.ok) throw await toError(res)
+    if (res.status === 204) return undefined as T
+    // 사진처럼 JSON이 아닌 응답(관리자 증거 사진)은 Blob으로 받는다. 이미지 태그는 Bearer 머리글을 못 붙여서
+    return await withTimeout(() => (as === 'blob' ? res.blob() : res.json()) as Promise<T>)
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // ---- 자동 로그인 (FR-AUTH-002) ----

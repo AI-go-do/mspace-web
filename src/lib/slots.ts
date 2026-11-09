@@ -135,3 +135,13 @@ export function instantEnds(slots: { startAt: string; endAt: string; available: 
   }
   return out
 }
+
+/**
+ * 방을 눌렀을 때 갈 곳(11/6 스크럼 "방 누르면 즉시 시작이 기본값").
+ * 지금 비어 있고 지금 시작해 고를 끝이 하나라도 있으면 그 방을 고른 지금 바로 쓰기로, 아니면 그 방 시간 고르기로 간다.
+ * 서버가 지금 사용 여부(occupiedNow)를 안 주면 알 수 없으니 시간 고르기로 보낸다
+ */
+export function roomLink(room: { roomId: number; occupiedNow?: boolean; slots: { startAt: string; endAt: string; available: boolean }[] }, now: Date): string {
+  const instant = room.occupiedNow === false && instantEnds(room.slots, now).some((e) => e.ok)
+  return instant ? `/now?room=${room.roomId}` : `/rooms/${room.roomId}`
+}

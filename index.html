@@ -9,9 +9,51 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
     <title>M-space 예약</title>
+    <!-- 첫 로딩 화면 (FR-AUTH-002): 스크립트를 받는 동안 흰 화면 대신 보인다. 화면이 뜨면 React가 같은 모양의 로딩 화면(Splash)으로 바꾼다.
+         CSS 파일보다 먼저 보여야 해서 여기에 직접 적는다. 색은 tokens.css의 --blue·--sky·--navy와 같다 -->
+    <style>
+      html, body { margin: 0; background: #eef1f5; }
+      .boot {
+        max-width: 480px; min-height: 100dvh; margin: 0 auto; box-sizing: border-box;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+        font-family: 'Noto Sans KR', system-ui, sans-serif; color: #ffffff; -webkit-font-smoothing: antialiased;
+        background:
+          radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, #0a4da2 82%, #7dbbff), transparent 70%),
+          linear-gradient(150deg, color-mix(in srgb, #0a4da2 82%, #7dbbff) 0%, #0a4da2 48%, color-mix(in srgb, #0a4da2 78%, #15233d) 100%);
+        background-color: #0a4da2;
+      }
+      .boot svg { animation: boot-bob 2.4s ease-in-out infinite; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18)); }
+      .boot-name { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; }
+      .boot-sub { font-size: 14px; opacity: 0.8; }
+      .boot-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+      .boot-dots i { width: 5px; height: 5px; border-radius: 3px; background: currentColor; animation: boot-dot 1.2s ease-in-out infinite; }
+      .boot-dots i:nth-child(2) { animation-delay: 0.15s; }
+      .boot-dots i:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes boot-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      @keyframes boot-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { .boot svg, .boot-dots i { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="boot" aria-busy="true">
+        <!-- 마스코트 스페이시 (src/components/Spacey.tsx와 같은 그림) -->
+        <svg width="88" height="88" viewBox="0 0 100 100" role="img" aria-label="M-space 마스코트 스페이시">
+          <circle cx="50" cy="15" r="7" fill="none" stroke="#FFFFFF" stroke-width="8" />
+          <circle cx="50" cy="15" r="7" fill="none" stroke="#0A4DA2" stroke-width="4" />
+          <path d="M50 22 V32 M50 27 H56" fill="none" stroke="#0A4DA2" stroke-width="4" stroke-linecap="round" />
+          <ellipse cx="50" cy="60" rx="34" ry="32" fill="#0A4DA2" stroke="#FFFFFF" stroke-width="3" />
+          <ellipse cx="50" cy="73" rx="19" ry="14" fill="#FFFFFF" />
+          <circle cx="38" cy="48" r="8" fill="#FFFFFF" />
+          <circle cx="62" cy="48" r="8" fill="#FFFFFF" />
+          <circle cx="40" cy="49" r="4" fill="#15233D" />
+          <circle cx="64" cy="49" r="4" fill="#15233D" />
+          <path d="M45 57 H55 L50 63 Z" fill="#F2B705" stroke="#F2B705" stroke-width="2" stroke-linejoin="round" />
+        </svg>
+        <span class="boot-name">M-space</span>
+        <span class="boot-sub" role="status">자동 로그인 중<span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

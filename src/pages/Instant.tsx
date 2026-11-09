@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import { celebrate } from '../lib/celebrate'
 import type { FoundMember } from '../api/members'
 import { startNow } from '../api/reservations'
 import { getAvailability, type RoomSlots } from '../api/rooms'
@@ -10,6 +11,8 @@ import { hasAgreed } from '../content/rules'
 import { addDays, instantEnds, MAX_SLOTS, nextTakenAt } from '../lib/slots'
 import { isFreeNow, seoulClock, seoulDate } from '../lib/time'
 import { useNow } from '../lib/useNow'
+import { applyBlocksAll, blockLabel } from '../lib/studentBlocks'
+import { useStudentBlocks } from '../lib/useStudentBlocks'
 import './Instant.css'
 
 type Step = 'pick' | 'members' | 'rules'
@@ -22,13 +25,32 @@ type Step = 'pick' | 'members' | 'rules'
 export default function Instant() {
   const navigate = useNavigate()
   const now = useNow(15_000)
-  const [rooms, setRooms] = useState<RoomSlots[] | null>(null)
+  const [rawRooms, setRooms] = useState<RoomSlots[] | null>(null)
+  // 관리자가 막은 기간(Q-23): 지금 막힌 방은 빈 방 목록에서 빠지고, 막히기 전까지만 끝 시각을 고를 수 있다
+  const blocks = useStudentBlocks()
+  const rooms = useMemo(() => rawRooms && applyBlocksAll(rawRooms, blocks, now), [rawRooms, blocks, now])
   // 서버에 닿지 못해 예시를 보여 주는 중이면 실제로 시작하지 않는다
   const [sample, setSample] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [roomId, setRoomId] = useState<number | null>(null)
+  // 홈·배치도에서 빈 방을 누르면 ?room=번호로 와서 그 방이 골라진 채로 연다(11/6 스크럼 "즉시 시작이 기본값")
+  const asked = Number(useSearchParams()[0].get('room')) || null
+  const [roomId, setRoomId] = useState<number | null>(asked)
+  // 화면을 연 채로 주소의 방 번호만 바뀌면 새 방으로 다시 고른다(끝 시각은 지우고, 끝 시각으로 내리기도 다시 한 번)
+  const firstAsked = useRef(asked)
+  // 끝 시각 고르기로 저절로 내린 적이 있는지(방을 고른 채로 왔을 때 한 번만)
+  const scrolled = useRef(false)
+  useEffect(() => {
+    if (firstAsked.current === asked) return
+    firstAsked.current = asked
+    setRoomId(asked)
+    setEndAt(null)
+    setStep('pick')
+    scrolled.current = false
+  }, [asked])
   const [endAt, setEndAt] = useState<string | null>(null)
-  const [people, setPeople] = useState<FoundMember[]>([])
+  // 예약 화면에서 '지금 시작'으로 오면 거기서 고른 함께 쓸 사람을 그대로 이어받는다
+  const carried = (useLocation().state as { people?: FoundMember[] } | null)?.people
+  const [people, setPeople] = useState<FoundMember[]>(() => carried ?? [])
   const [step, setStep] = useState<Step>('pick')
   const [busy, setBusy] = useState(false)
   const [denied, setDenied] = useState<(Denied & { message: string }) | null>(null)
@@ -83,6 +105,8 @@ export default function Instant() {
 
   const free = (rooms ?? []).filter((r) => isFreeNow(r.slots, now, r.occupiedNow)).sort((a, b) => a.roomId - b.roomId)
   const room = free.find((r) => r.roomId === roomId) ?? null
+  // 고른 방이 관리자가 막은 기간이면 그 사유 ("점검 중 · 12:00까지")
+  const blockedAsked = rooms?.find((r) => r.roomId === roomId)?.blockedNow ?? null
   const ends = room ? instantEnds(room.slots, now) : []
   // 고른 끝 시각이 시간이 지나 못 쓰게 되면 지운다
   const end = ends.find((e) => e.endAt === endAt && e.ok) ? endAt : null
@@ -90,6 +114,24 @@ export default function Instant() {
   const min = room?.minPeople ?? 1
   const max = room?.maxPeople ?? 99
   const deadline = seoulClock(new Date(now.getTime() + 10 * 60_000))
+
+  // 방을 고른 채로 왔으면, 처음 한 번 끝 시각 고르기를 화면에 올려 바로 누를 수 있게 한다
+  const endsRef = useRef<HTMLElement | null>(null)
+  const hasRoom = room !== null
+  useEffect(() => {
+    if (scrolled.current || !hasRoom || asked === null || roomId !== asked) return
+    scrolled.current = true
+    // 동작 줄이기를 켠 사람에게는 화면을 저절로 움직이지 않는다(방은 골라져 있고 직접 내려 보면 된다)
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (calm) return
+    endsRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [hasRoom, asked, roomId])
+
+  // 함께 쓸 사람·수칙 단계에 있는 동안 고른 방이 사용 중이 되면, 이유가 보이는 방 고르기로 돌아간다(보내는 중이면 결과를 기다린다)
+  const lost = rooms !== null && roomId !== null && room === null
+  useEffect(() => {
+    if (lost && step !== 'pick' && !busy) setStep('pick')
+  }, [lost, step, busy])
 
   /** 지금 시작해서 고를 수 있는 끝 시각이 하나라도 있는지 */
   const canStart = (r: RoomSlots) => instantEnds(r.slots, now).some((e) => e.ok)
@@ -99,11 +141,19 @@ export default function Instant() {
     return at ? seoulClock(new Date(at)) : null
   }
 
-  async function submit() {
-    if (!room || !end || busy || sample) return
+  // 마지막으로 보낸 내용과 멱등 키. "됐는지 모름"일 때 다시 시도는 이걸 그대로 보낸다(같은 예약이 두 번 생기지 않게)
+  const lastSent = useRef<{ body: Parameters<typeof startNow>[0]; key: string } | null>(null)
+
+  async function submit(resend?: { body: Parameters<typeof startNow>[0]; key: string }) {
+    if (!resend && (!room || !end)) return
+    // 보기용 자료일 때는 새 요청은 막지만, 이미 보낸 것의 다시 시도는 보낸다
+    if (busy || (!resend && sample)) return
     setBusy(true)
     try {
-      const created = await startNow({ roomId: room.roomId, endAt: end, participantStudentIds: people.map((p) => p.studentId) }, idemKey.current)
+      const sent = resend ?? { body: { roomId: room!.roomId, endAt: end!, participantStudentIds: people.map((p) => p.studentId) }, key: idemKey.current }
+      lastSent.current = sent
+      const created = await startNow(sent.body, sent.key)
+      celebrate()
       navigate(`/reservations/${created.id}`, { state: { created, instant: true } })
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return
@@ -124,9 +174,9 @@ export default function Instant() {
     const d = denied
     setDenied(null)
     if (!d) return
-    if (d.next === 'mine') return navigate('/me')
+    if (d.next === 'mine') return navigate('/me/reservations')
     if (d.next === 'members') return setStep('members')
-    if (d.next === 'retry') return submit()
+    if (d.next === 'retry') return submit(d.unsure ? lastSent.current ?? undefined : undefined)
     setStep('pick')
     setEndAt(null)
     load()
@@ -135,10 +185,19 @@ export default function Instant() {
   const title = room ? `창작실 ${room.roomId}` : ''
   const when = end ? `지금–${seoulClock(new Date(end))}` : ''
 
+  // 즉시 시작은 누른 뒤 몇 분 안에만 취소된다(FR-RSV-007, core #84). 그 뒤 입실 안 하면 노쇼라
+  // 시작 버튼이 있는 화면(방 고르기·함께 쓰는 사람)마다 버튼 가까이에 알린다
+  const warn = (
+    <p className="in-warn">
+      취소할 수 있으면 다음 화면에서 마감 시각을 알려 드려요. 취소하지 못할 수도 있어요. <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+    </p>
+  )
+
   if (step === 'members') {
     return <main className="reserve"><Members title={title} room={room} when={when} people={people} setPeople={setPeople}
       count={count} min={min} max={max} onBack={() => setStep('pick')}
-      onDone={end && !sample ? start : undefined} doneLabel={end && !sample ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…" />
+      onDone={end && !sample ? start : undefined} doneLabel={end && !sample ? `${count}명으로 지금 시작하기` : undefined} busy={busy} busyLabel="시작하는 중…"
+      barNote={end && !sample ? warn : undefined} />
       {denied && <DeniedSheet denied={denied} onClose={() => setDenied(null)} onHome={() => navigate('/')} onNext={followDenied} />}
     </main>
   }
@@ -166,6 +225,10 @@ export default function Instant() {
         {sample && <p role="status" className="muted">서버에 닿지 않아 예시를 보여 주고 있어요. 지금은 시작할 수 없어요.</p>}
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
+        {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
+        {rooms && roomId !== null && !room && (
+          <p role="status" className="muted">창작실 {roomId}은 지금 쓸 수 없어요{blockedAsked ? `(${blockLabel(blockedAsked, now)})` : ''}. 다른 빈 방을 고르거나 {busy ? '시간을 골라 예약' : <Link to={`/rooms/${roomId}`} className="in-link">시간을 골라 예약</Link>}해 주세요.</p>
+        )}
         {free.map((r) => {
           const ok = canStart(r)
           const until = freeUntil(r)
@@ -183,7 +246,7 @@ export default function Instant() {
       </section>
 
       {room && (
-        <section className="card in-ends" aria-labelledby="end-title">
+        <section ref={endsRef} className="card in-ends" aria-labelledby="end-title">
           <div className="in-ends-head">
             <h2 id="end-title">언제까지 쓸까요?</h2>
             <span className="muted small">30분 단위 · 최대 2시간</span>
@@ -198,7 +261,9 @@ export default function Instant() {
         </section>
       )}
 
-      {room && !sample && <p className="in-warn"><b>10분 안({deadline}까지)</b>에 키패드로 입실하지 않으면 자동으로 취소돼요.</p>}
+      {room && !busy && <Link to={`/rooms/${room.roomId}`} className="in-later">나중에 쓸 거예요 · 창작실 {room.roomId} 시간 골라 예약하기</Link>}
+
+      {room && !sample && warn}
 
       <div className="rs-bar">
         <div className="rs-bar-row">

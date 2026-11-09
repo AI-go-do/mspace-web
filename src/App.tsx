@@ -1,21 +1,27 @@
 import { ViewTransition, type ReactNode } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, RequireAuth } from './auth/AuthProvider'
+import Confetti from './components/Confetti'
 import NotificationToast from './components/NotificationToast'
 import TabBar from './components/TabBar'
 import AccessCode from './pages/AccessCode'
+import Admin from './pages/Admin'
 import Assistant from './pages/Assistant'
 import Checkout from './pages/Checkout'
 import Home from './pages/Home'
+import Friends from './pages/Friends'
 import Instant from './pages/Instant'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
+import MyPage from './pages/MyPage'
 import MyReservations from './pages/MyReservations'
 import Alerts from './pages/Alerts'
 import Placeholder from './pages/Placeholder'
 import ReservationDetail from './pages/ReservationDetail'
+import Report from './pages/Report'
 import Rules from './pages/Rules'
 import Schedule from './pages/Schedule'
+import Showcase from './pages/Showcase'
 import Reserve from './pages/Reserve'
 
 /** 로그인해야 쓰는 화면 */
@@ -26,10 +32,12 @@ const auth = (page: ReactNode) => <RequireAuth>{page}</RequireAuth>
 export default function App() {
   const { pathname } = useLocation()
   // 로그인·예약·입실 번호 화면은 아래 탭 대신 화면 자체의 아래 버튼을 쓴다
-  const fullScreen = pathname === '/login' || pathname === '/now' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  const fullScreen = pathname === '/login' || pathname === '/now' || pathname === '/report' || pathname === '/admin' || pathname.startsWith('/rooms/') || pathname.startsWith('/reservations/') || pathname.endsWith('/checkout')
+  // 발표용 미리보기는 로그인·알림 바깥에서 띄운다(토큰 새로 받기 요청도, 진짜 알림 팝업도 화면에 끼지 않게)
+  if (pathname === '/showcase') return <div className="app app-full"><Showcase /></div>
   return (
     <AuthProvider>
-      <div className={`app ${fullScreen ? 'app-full' : ''}`}>
+      <div className={`app ${fullScreen ? 'app-full' : ''} ${pathname === '/admin' ? 'app-wide' : ''}`}>
         {/* 화면이 바뀔 때 앞 화면은 살짝 가라앉고 새 화면이 떠오른다(View Transitions, 지원 안 하는 브라우저는 그냥 바뀜).
             주소 변경은 라우터가 startTransition 안에서 하므로 그때만 움직이고, 1분마다 새로 받는 데이터에는 안 움직인다 */}
         <ViewTransition default="page">
@@ -39,12 +47,16 @@ export default function App() {
           <Route path="/rooms/:roomId" element={auth(<Reserve />)} />
           <Route path="/reservations/:id" element={auth(<AccessCode />)} />
           <Route path="/map" element={auth(<MapPage />)} />
-          <Route path="/me" element={auth(<MyReservations />)} />
+          <Route path="/me" element={auth(<MyPage />)} />
+          <Route path="/me/reservations" element={auth(<MyReservations />)} />
           <Route path="/me/schedule" element={auth(<Schedule />)} />
+          <Route path="/me/friends" element={auth(<Friends />)} />
           <Route path="/me/:id" element={auth(<ReservationDetail />)} />
           <Route path="/me/:id/checkout" element={auth(<Checkout />)} />
           <Route path="/assistant" element={auth(<Assistant />)} />
           <Route path="/rules" element={<Rules />} />
+          <Route path="/report" element={auth(<Report />)} />
+          <Route path="/admin" element={auth(<Admin />)} />
           <Route path="/now" element={auth(<Instant />)} />
           <Route path="/alerts" element={auth(<Alerts />)} />
           <Route path="*" element={<Placeholder title="없는 화면" message="주소가 바뀌었거나 없는 화면이에요." />} />
@@ -52,6 +64,7 @@ export default function App() {
         </ViewTransition>
         {!fullScreen && <TabBar />}
         {pathname !== '/login' && <NotificationToast />}
+        <Confetti />
       </div>
     </AuthProvider>
   )
