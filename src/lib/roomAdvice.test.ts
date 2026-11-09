@@ -97,3 +97,16 @@ describe('roomAdvice', () => {
     expect(a[1].action).toBe('reports')
   })
 })
+
+describe('평소와 다름 안내', () => {
+  it('몇 분째 평소보다 얼마나 다른지와 평소 값을 알려 준다', async () => {
+    const { mockEnvironment } = await import('../api/environmentMock')
+    const { ENV_RULES } = await import('../config/adminRooms')
+    const now = new Date('2026-11-09T04:21:00Z')
+    const v = toRoomView(mockEnvironment(now, ENV_RULES.fetchMinutes).rooms[4], ADMIN_ROOMS[4], now)
+    const a = roomAdvice(v, now).find((x) => x.title.startsWith('온도가 평소보다'))
+    expect(a?.title).toMatch(/^온도가 평소보다 \d+\.\d°C 낮아요 \(\d+분째\)$/)
+    expect(a?.todo).toMatch(/평소는 약 24\.\d°C예요/)
+    expect(a?.minor).toBeUndefined()
+  })
+})

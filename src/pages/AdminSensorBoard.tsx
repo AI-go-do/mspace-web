@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { ENV_RULES, type ChartRange, type SensorKind } from '../config/adminRooms'
 import { rangeLabel } from '../lib/chartRange'
+import type { Adaptive } from '../lib/adaptiveBand'
 import type { RoomView } from '../lib/roomHealth'
 import { seoulClock } from '../lib/time'
 import { ChartRangeSeg } from './ChartRangeSeg'
@@ -31,32 +32,46 @@ interface Spec {
   hot: boolean
   band: (boolean | null)[] | null
   note: string
+  /** 자동 기준: 이 방 평소 범위(옅은 띠)와 튄 값(빈 동그라미). 조도는 없음 */
+  auto: Adaptive | null
 }
 
 const finite = (xs: (number | null)[]) => xs.filter((v): v is number => v !== null)
 
+/** 평소와 다르면 칸 메모를 "평소보다 N 높아요"로 */
+function unusualNote(v: RoomView, m: 'co2' | 'temp', unit: string, digits: number): string | null {
+  const d = v.unusual.find((u) => u.metric === m)?.adaptive.deviation
+  if (!d) return null
+  return `평소보다 ${Math.abs(d.diff).toFixed(digits)}${unit} ${d.dir === 'high' ? '높아요' : '낮아요'}`
+}
+
 function specs(v: RoomView): Spec[] {
   const t = finite(v.temps)
   const c = finite(v.history)
+  const cU = unusualNote(v, 'co2', 'ppm', 0)
+  const tU = unusualNote(v, 'temp', '°C', 1)
   const hasBand = v.occupancy.some((o) => o !== null)
   return [
     {
       kind: 'co2', label: 'CO2', unit: 'ppm', digits: 0, sensor: 'co2', values: v.history,
       limit: ENV_RULES.co2LimitPpm, limitLabel: `환기 ${ENV_RULES.co2LimitPpm}`, bad: true,
       lo: Math.min(400, ...c) - 20, hi: Math.max(ENV_RULES.co2LimitPpm + 150, ...c) + 20,
-      hot: v.flags.co2Over || v.flags.co2Soon, band: null, note: v.co2Note,
+      hot: v.flags.co2Over || v.flags.co2Soon || cU !== null, band: null, note: v.flags.co2Over || v.flags.co2Soon ? v.co2Note : cU ?? v.co2Note,
+      auto: v.adaptive.co2,
     },
     {
       kind: 'temp', label: '온도', unit: '°C', digits: 1, sensor: 'temperature', values: v.temps,
       limit: ENV_RULES.hotC, limitLabel: `참고 ${ENV_RULES.hotC}`, bad: false,
       lo: Math.min(20, ...t) - 0.5, hi: Math.max(ENV_RULES.hotC + 1, ...t) + 0.5,
-      // 덥다는 느낌은 사람마다 달라서 주의 색 없이 참고선만
-      hot: false, band: null, note: v.tempNote,
+      // 덥다는 느낌은 사람마다 달라서 고정 기준은 참고선만. 평소와 다를 때만 노랑
+      hot: tU !== null, band: null, note: tU ?? v.tempNote,
+      auto: v.adaptive.temp,
     },
     {
       kind: 'light', label: '조도', unit: '%', digits: 0, sensor: 'light', values: v.lights,
       limit: ENV_RULES.lightOnPct, limitLabel: `불 켜짐 ${ENV_RULES.lightOnPct}%`, bad: false,
       lo: 0, hi: 100, hot: v.flags.lightLeftOn, band: hasBand ? v.occupancy : null, note: v.lightNote,
+      auto: null,
     },
   ]
 }
@@ -155,6 +170,9 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
             {/* 위·아래 눈금은 기준선 글자와 겹치면 뺀다 */}
             {Math.abs(yl - (PAD.t + 4)) > 11 && <text x={plotW + 4} y={PAD.t + 8} className="sb-tick">{fmt(s.hi, s.kind === 'temp' ? 1 : 0)}</text>}
             {Math.abs(yl - (PAD.t + plotH - 4)) > 11 && <text x={plotW + 4} y={PAD.t + plotH} className="sb-tick">{fmt(s.lo, s.kind === 'temp' ? 1 : 0)}</text>}
+            {s.auto?.band && (
+              <rect x="0" y={y(s.auto.band.hi)} width={plotW} height={Math.max(1, y(s.auto.band.lo) - y(s.auto.band.hi))} className="sb-normal" />
+            )}
             {runs.filter((r) => r.length > 1).map((r, k) => <path key={`a${k}`} d={area(r)} className="sb-area" />)}
             {runs.filter((r) => r.length > 1).map((r, k) => <path key={`l${k}`} d={d(r)} className="sb-line" pathLength={1} />)}
             {s.band && (
@@ -171,12 +189,13 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
                 <circle cx={x(hover!)} cy={y(hv)} r="3.5" />
               </g>
             )}
+            {s.auto?.spikes.map((sp, i) => (sp && s.values[i] !== null ? <circle key={`s${i}`} cx={x(i)} cy={y(s.values[i] as number)} r="3" className="sb-spike" /> : null))}
             <circle cx={x(last)} cy={y(now)} r="3.5" className="sb-dot" />
           </svg>
         )}
         {hover !== null && !empty && (
           <span className="sb-tip" style={{ left: Math.min(Math.max(x(hover), 40), plotW - 40) }} aria-hidden="true">
-            {at} · {hv === null || hv === undefined ? '값 없음' : `${fmt(hv, s.digits)}${s.unit}`}{occAt === null ? '' : occAt ? ' · 사람 있음' : ' · 빈 방'}
+            {at} · {hv === null || hv === undefined ? '값 없음' : `${fmt(hv, s.digits)}${s.unit}`}{hover !== null && s.auto?.spikes[hover] ? ' · 튐(무시)' : ''}{occAt === null ? '' : occAt ? ' · 사람 있음' : ' · 빈 방'}
           </span>
         )}
       </div>
@@ -192,7 +211,7 @@ export function AdminSensorBoard({ views, onOpen, range, onRange }: { views: Roo
       <header className="sb-head">
         <h2 id="sb-h">방별 센서 실시간 <small>방마다 CO2·온도·조도 · 지난 {rangeLabel(range)}</small></h2>
         <span className="sb-key" aria-hidden="true">
-          <i className="k-line" />측정 <i className="k-limit" />기준선 {anyBand && <><i className="k-band" />사람 있던 시간</>} <i className="k-none" />값 없음
+          <i className="k-line" />측정 <i className="k-normal" />평소 범위 <i className="k-spike" />튐(무시) <i className="k-limit" />기준선 {anyBand && <><i className="k-band" />사람 있던 시간</>} <i className="k-none" />값 없음
         </span>
         <ChartRangeSeg value={range} onChange={onRange} />
       </header>

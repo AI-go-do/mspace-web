@@ -1,5 +1,6 @@
 import type { RoomEnvironment } from '../api/environment'
-import { ENV_RULES, type AdminRoomConfig, type EnvRules, type SensorKind } from '../config/adminRooms'
+import { ADAPTIVE_RULES, ENV_RULES, type AdminRoomConfig, type EnvRules, type SensorKind } from '../config/adminRooms'
+import { adaptive, type Adaptive, type AdaptiveRules } from './adaptiveBand'
 import { timeRange } from './format'
 import { seoulClock } from './time'
 
@@ -54,7 +55,14 @@ export interface RoomView {
   noEntryMinutes: number
   /** 예약이 끝났는데 사람이 남은 분 (아니면 0) */
   overtimeMinutes: number
-  flags: { co2Soon: boolean; co2Over: boolean; hot: boolean; dry: boolean; overtime: boolean; unbooked: boolean; offline: boolean; stuck: boolean; doorLeftOpen: boolean; noEntry: boolean; nightDoor: boolean; lightLeftOn: boolean }
+  /**
+   * 자동 기준(lib/adaptiveBand): 이 방 최근 값으로 배운 평소 범위와 튐, 평소와 다름.
+   * 조도는 켜짐·꺼짐 두 값이라 평소 범위가 맞지 않아 "빈 방 불 켜짐" 규칙만 쓴다
+   */
+  adaptive: { co2: Adaptive; temp: Adaptive; hum: Adaptive }
+  /** 평소와 다름으로 알릴 것(다른 표시와 겹치는 건 뺀 뒤) */
+  unusual: { metric: 'co2' | 'temp' | 'hum'; adaptive: Adaptive }[]
+  flags: { co2Soon: boolean; co2Over: boolean; hot: boolean; dry: boolean; overtime: boolean; unbooked: boolean; offline: boolean; stuck: boolean; doorLeftOpen: boolean; noEntry: boolean; nightDoor: boolean; lightLeftOn: boolean; unusual: boolean }
   tone: Tone
   status: { text: string; tone: 'use' | 'empty' | 'warn' | 'off' }
   /** "14:00–16:00 · 예약 5명" / "다음 16:00 (예약 4명)" / "다음 예약 없음" */
@@ -93,7 +101,7 @@ export function trendSlope(values: (number | null)[], span = 10): number | null 
   return (last[1] - first[1]) / (last[0] - first[0])
 }
 
-export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefined, now: Date, rules: EnvRules = ENV_RULES): RoomView {
+export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefined, now: Date, rules: EnvRules = ENV_RULES, auto: AdaptiveRules = ADAPTIVE_RULES): RoomView {
   const sensors = new Set<SensorKind>(cfg?.sensors ?? ['co2', 'temperature', 'humidity', 'presence'])
   const history = env.series.map((p) => (sensors.has('co2') ? p.ppm : null))
   const temps = env.series.map((p) => (sensors.has('temperature') ? p.temperatureC ?? null : null))
@@ -172,9 +180,23 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   }
   const lightLeftOn = !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes
 
-  const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor, lightLeftOn }
+  // 자동 기준: 사람이 있으면 사람 있을 때 값으로, 없으면 빈 방 값으로 배운다(분마다 재실이 없으면 섞어서)
+  const occNow = env.presence === 'UNKNOWN' ? null : occupied
+  const auto3 = {
+    co2: adaptive('co2', history, occupancy, occNow, auto),
+    temp: adaptive('temp', temps, occupancy, occNow, auto),
+    hum: adaptive('hum', hums, occupancy, occNow, auto),
+  }
+  // 끊김·고장이면 값이 믿을 만하지 않고, CO2가 높은 건 기준 1000·예측·무단 사용 표시가 먼저 알린다
+  const unusualList = offline ? [] : (['co2', 'temp', 'hum'] as const)
+    .filter((m) => auto3[m].deviation !== null)
+    .filter((m) => !(m === 'co2' && (stuck || ((co2Over || co2Soon || unbooked) && auto3.co2.deviation?.dir === 'high'))))
+    .map((m) => ({ metric: m, adaptive: auto3[m] }))
+  const unusual = unusualList.length > 0
+
+  const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor, lightLeftOn, unusual }
   const tone: Tone = offline || stuck ? 'off'
-    : co2Soon || co2Over || overtime || unbooked || doorLeftOpen || noEntry || nightDoor || lightLeftOn ? 'warn' : 'ok'
+    : co2Soon || co2Over || overtime || unbooked || doorLeftOpen || noEntry || nightDoor || lightLeftOn || unusual ? 'warn' : 'ok'
 
   let status: RoomView['status']
   if (offline) status = { text: '신호 끊김', tone: 'off' }
@@ -185,6 +207,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   else if (doorLeftOpen) status = { text: '문 열림', tone: 'warn' }
   else if (noEntry) status = { text: '입실 안 함', tone: 'warn' }
   else if (lightLeftOn) status = { text: '빈 방 불 켜짐', tone: 'warn' }
+  else if (unusual) status = { text: '평소와 다름', tone: 'warn' }
   else if (env.presence === 'OCCUPIED') status = { text: '사용 중', tone: 'use' }
   else if (env.presence === 'EMPTY') status = { text: '비어 있음', tone: 'empty' }
   else status = { text: '재실 모름', tone: 'empty' }
@@ -215,6 +238,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   return {
     roomId: env.roomId,
     name: cfg?.name ?? env.roomName,
+    adaptive: auto3, unusual: unusualList,
     sensors, co2, temperatureC, humidityPct, history, temps, hums, light, pir: env.pir?.detected ?? null, lights, occupancy, lightOnEmptyMinutes, doors, door, times, current: env.current ?? null,
     presence: env.presence, lastSignalAt: env.lastSignalAt, forecast, forecastFrom, etaMinutes, sameForMinutes,
     overtimeMinutes, noEntryMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote, lightNote,
@@ -228,5 +252,9 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
 export function trimView(v: RoomView, minutes: number): RoomView {
   if (v.times.length <= minutes) return v
   const cut = <T,>(xs: T[]) => xs.slice(-minutes)
-  return { ...v, history: cut(v.history), temps: cut(v.temps), hums: cut(v.hums), lights: cut(v.lights), occupancy: cut(v.occupancy), doors: cut(v.doors), times: cut(v.times) }
+  const cutA = (a: Adaptive): Adaptive => ({ ...a, spikes: cut(a.spikes) })
+  return {
+    ...v, history: cut(v.history), temps: cut(v.temps), hums: cut(v.hums), lights: cut(v.lights), occupancy: cut(v.occupancy), doors: cut(v.doors), times: cut(v.times),
+    adaptive: { co2: cutA(v.adaptive.co2), temp: cutA(v.adaptive.temp), hum: cutA(v.adaptive.hum) },
+  }
 }

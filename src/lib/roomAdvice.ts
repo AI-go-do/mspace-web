@@ -61,6 +61,25 @@ export function roomAdvice(v: RoomView, now: Date, ctx: AdviceContext = {}, rule
   if (flags.lightLeftOn) {
     out.push({ tone: 'warn', title: `빈 방에 불이 ${v.lightOnEmptyMinutes}분째 켜져 있어요`, todo: v.nextAt ? '다음 예약 전까지 비어 있으면 지나갈 때 꺼 주세요.' : '지나갈 때 불을 꺼 주세요. 밤이면 문이 잠겼는지도 같이 봐 주세요.' })
   }
+  for (const u of v.unusual) {
+    const d = u.adaptive.deviation!
+    const b = u.adaptive.band!
+    const basis = b.basis === 'occupied' ? '사람 있을 때' : b.basis === 'empty' ? '빈 방일 때' : '최근'
+    const unit = u.metric === 'co2' ? 'ppm' : u.metric === 'temp' ? '°C' : '%'
+    const amt = u.metric === 'temp' ? Math.abs(d.diff).toFixed(1) : String(Math.round(Math.abs(d.diff)))
+    const usual = u.metric === 'temp' ? b.median.toFixed(1) : String(Math.round(b.median))
+    const name = u.metric === 'co2' ? 'CO2' : u.metric === 'temp' ? '온도' : '습도'
+    const why = u.metric === 'co2'
+      ? (d.dir === 'high' ? '문이 닫혀 있거나 사람이 많을 수 있어요. 환기를 권해 주세요.' : '창문이 열려 있거나 센서 자리가 바뀌었을 수 있어요.')
+      : u.metric === 'temp'
+        ? (d.dir === 'high' ? '난방이 켜진 채인지, 센서에 햇빛이 드는지 봐 주세요.' : '창문이 열려 있거나 냉방이 켜진 채인지 봐 주세요.')
+        : (d.dir === 'high' ? '가습기가 켜진 채인지 봐 주세요.' : '오래 쓰는 방이면 가습기를 확인해 주세요.')
+    out.push({
+      tone: 'warn',
+      title: `${name}가 평소보다 ${amt}${unit} ${d.dir === 'high' ? '높아요' : '낮아요'} (${d.minutes}분째)`,
+      todo: `이 방 ${basis} 평소는 약 ${usual}${unit}예요. ${why}`,
+    })
+  }
   if (flags.hot) {
     const before = v.nextAt && v.presence !== 'OCCUPIED' && new Date(v.nextAt).getTime() > now.getTime()
     // 덥게 느끼는지는 사람마다 달라서 경고가 아니라 참고. 켤지는 방을 쓰는 학생이 정한다

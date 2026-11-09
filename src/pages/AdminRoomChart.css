@@ -8,6 +8,8 @@
 .rc-hatch-bg { fill: color-mix(in srgb, var(--yellow) 7%, transparent); }
 .rc-hatch-line { stroke: color-mix(in srgb, var(--yellow) 30%, transparent); stroke-width: 1.5; }
 .rc-caution { fill: color-mix(in srgb, var(--yellow) 6%, transparent); }
+.rc-normal { fill: color-mix(in srgb, var(--navy) 6%, transparent); }
+.rc-spike { fill: var(--white); stroke: var(--navy-70); stroke-width: 1.3; }
 .rc-limit { stroke: var(--yellow); stroke-width: 1.6; stroke-dasharray: 6 4; }
 .rc-limit-t { font-size: 11px; font-weight: 800; fill: var(--navy-70); }
 /* 온도·습도는 참고선만(덥다·건조하다는 사람마다 달라 주의 색을 쓰지 않는다) */

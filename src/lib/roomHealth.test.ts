@@ -313,3 +313,22 @@ describe('trimView (그래프 범위)', () => {
     expect(short.flags).toBe(full.flags)
   })
 })
+
+describe('자동 기준이 방 표시에 붙는다', () => {
+  it('평소보다 온도가 오래 낮으면 "평소와 다름"으로 노랗게 보인다(가짜 값 5번 방: 창문 연 시간)', () => {
+    const now = new Date('2026-11-09T04:21:00Z')
+    const env = mockEnvironment(now, ENV_RULES.fetchMinutes).rooms[4]
+    const v = toRoomView(env, ADMIN_ROOMS[4], now)
+    expect(v.unusual.map((u) => u.metric)).toContain('temp')
+    expect(v.adaptive.temp.deviation?.dir).toBe('low')
+    expect(v.flags.unusual).toBe(true)
+    expect(v.tone).toBe('warn')
+  })
+
+  it('끊긴 방은 평소와 다름으로 알리지 않는다', () => {
+    const now = new Date('2026-11-09T04:21:00Z')
+    const env = { ...mockEnvironment(now, ENV_RULES.fetchMinutes).rooms[4], offline: true }
+    const v = toRoomView(env, ADMIN_ROOMS[4], now)
+    expect(v.unusual).toHaveLength(0)
+  })
+})

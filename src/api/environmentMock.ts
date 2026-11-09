@@ -51,7 +51,10 @@ function reading(scene: number, roomId: number, t: number): Reading {
       // 센서가 멈춘 방: 값이 그대로
       return { ppm: 452, temperatureC: 22.6, humidityPct: 41, light: 95 + jitter(14, 4) }
     case 5:
-      if (phase >= 45) return { ppm: 500 + 6 * (phase - 45) + jitter(8, 1), temperatureC: 24.2 + jitter(0.1, 2), humidityPct: 48 + jitter(2, 3), light: 610 + jitter(24, 4) }
+      // 사람이 있는 뒤 15분(75~90분)은 추운 날 창문을 열어 온도가 평소보다 떨어진다(자동 기준 "평소와 다름" 시연)
+      if (phase >= 45) return { ppm: 500 + 6 * (phase - 45) + jitter(8, 1), temperatureC: (phase >= 75 ? 21.4 : 24.2) + jitter(0.1, 2), humidityPct: 48 + jitter(2, 3), light: 610 + jitter(24, 4) }
+      // 30분에 1분 동안 CO2가 혼자 튄다(센서 잡음. 자동 기준은 이 값을 "튐"으로 보고 무시한다)
+      if (n % CYCLE === 30) return { ppm: 1150, temperatureC: 24.8 + jitter(0.1, 2), humidityPct: 50 + jitter(2, 3), light: 600 + jitter(24, 4) }
       // 예약 칸이 시작되고 8분 동안은 아무도 없어 불이 꺼져 있다(아래 입실 안 함과 같은 때)
       return { ppm: 690 + 30 * Math.sin((phase / 45) * 2 * Math.PI) + jitter(12, 1), temperatureC: 24.8 + jitter(0.1, 2), humidityPct: 50 + jitter(2, 3),
         light: (((t % 30) + 30) % 30) >= 8 ? 600 + jitter(24, 4) : 75 + jitter(12, 4) }

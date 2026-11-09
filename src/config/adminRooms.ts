@@ -72,3 +72,20 @@ export type EnvRules = { readonly [K in keyof typeof ENV_RULES]: number }
 /** 관리자 그래프 범위 단추(분). 기본은 ENV_RULES.historyMinutes */
 export const CHART_RANGES = [10, 30, 60, 120] as const
 export type ChartRange = (typeof CHART_RANGES)[number]
+
+/**
+ * 자동 기준(lib/adaptiveBand). 방마다 최근 값으로 "평소 범위"를 배워 그 밖에 오래 있으면 알린다.
+ * 모두 임시값이라 실습실 실제 값이 며칠 쌓이면 다시 맞춘다. CO2 1000ppm(FR-DEV-104)은 이것과 따로 늘 고정 기준이다
+ */
+export const ADAPTIVE_RULES = {
+  /** 기준을 정하려면 최소 이만큼(분) 값이 있어야 한다. 모자라면 "기준 배우는 중" */
+  minSamples: 30,
+  /** 흔들림 폭의 3배 밖이면 평소와 다르다고 본다 */
+  k: 3,
+  /** 선 밖에 5분 넘게 머물러야 알린다(한두 번 튀는 건 무시) */
+  sustainMinutes: 5,
+  /** 값이 아주 고르면 선이 너무 좁아져 알림이 쏟아지니 최소 폭(위아래 각각) */
+  floor: { co2: 100, temp: 1.5, hum: 8, light: 15 },
+  /** 1분 사이 앞뒤 값과 이만큼 넘게 달랐다 돌아오면 "튐"으로 보고 뺀다 */
+  spike: { co2: 150, temp: 2, hum: 10, light: 40 },
+} as const

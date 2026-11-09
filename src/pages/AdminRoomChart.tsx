@@ -113,6 +113,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   const plotW = Math.max(1, w - padR)
   const plotH = Math.max(1, h - padT - padB)
   const x = (i: number) => (i / (total - 1)) * plotW
+  const auto = m.key === 'co2' || m.key === 'temp' || m.key === 'hum' ? view.adaptive[m.key] : null
   const y = (v: number) => padT + (1 - (Math.max(m.lo, Math.min(m.hi, v)) - m.lo) / (m.hi - m.lo)) * plotH
 
   const lastIdx = m.values.reduce<number>((a, v, i) => (v === null ? a : i), -1)
@@ -240,6 +241,10 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
             <clipPath id={`${uid}-bad`}><rect x="0" y={badTop} width={plotW} height={Math.max(0, badH)} /></clipPath>
           </defs>
 
+          {/* 자동 기준: 이 방 평소 범위(옅은 띠). 튄 값은 아래에 빈 동그라미 */}
+          {!empty && auto?.band && (
+            <rect x="0" y={y(auto.band.hi)} width={plotW} height={Math.max(1, y(auto.band.lo) - y(auto.band.hi))} className="rc-normal" />
+          )}
           {/* 배경 띠 */}
           {!empty && m.zone && <rect x="0" y={badTop} width={plotW} height={Math.max(0, badH)} fill={`url(#${uid}-hatch)`} className="rc-zone" />}
           {!empty && cautionH > 0 && <rect x="0" y={cautionTop} width={plotW} height={cautionH} className="rc-caution" />}
@@ -261,6 +266,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
               {lines.map((r, k) => <path key={`g${k}`} d={d(r)} className="rc-glow" />)}
             </g>}
             {lines.map((r, k) => <path key={`l${k}`} d={d(r)} className="rc-line" />)}
+            {auto?.spikes.map((sp, i) => (sp && m.values[i] !== null ? <circle key={`s${i}`} cx={x(i)} cy={y(m.values[i] as number)} r="3.5" className="rc-spike" /> : null))}
           </g>
 
           {/* 예측: 범위 + 점선 */}
