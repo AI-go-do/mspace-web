@@ -110,7 +110,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
               : (
                 <ul className="rd-advice">
                   {advice.map((a) => (
-                    <li key={a.title} className={`a-${a.tone}`}>
+                    <li key={a.title} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
                       <b>{a.title}</b>
                       <span>{a.todo}</span>
                     </li>

@@ -92,7 +92,8 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   }).filter((e): e is { id: number; y: number } => e.y !== null).sort((a, b) => a.y - b.y)
   for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 18) ends[k].y = ends[k - 1].y + 18
 
-  const hot = (v: RoomView) => metric === 'co2' ? v.flags.co2Over || v.flags.co2Soon : metric === 'temp' ? v.flags.hot : v.flags.dry
+  // 주의 색은 CO2만. 온도·습도는 사람마다 느낌이 달라 참고로만 둔다
+  const hot = (v: RoomView) => metric === 'co2' && (v.flags.co2Over || v.flags.co2Soon)
 
   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
