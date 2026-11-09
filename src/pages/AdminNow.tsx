@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
-import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { envSource, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
 import { majorAdvice, roomAdvice, type Advice, type AdviceContext } from '../lib/roomAdvice'
@@ -76,7 +76,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   onBlockRoom: (roomId: number, inspection: boolean) => void
 }) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
-  const [sample, setSample] = useState(ENV_SOURCE === 'mock')
+  const [sample, setSample] = useState(envSource() === 'mock')
   const [error, setError] = useState<string | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
   const [openRoom, setOpenRoom] = useState<number | null>(null)
