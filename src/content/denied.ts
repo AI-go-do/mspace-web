@@ -27,7 +27,7 @@ const BY_CODE: Record<string, Denied> = {
   // 관리자가 공사·점검·대관으로 막은 기간 (Q-23 제안, core #95 초안의 이름)
   ROOM_BLOCKED: { title: '이 시간은 방을 쓸 수 없어요', hint: '공사·점검·대관으로 막힌 시간이에요. 같은 방의 다른 시간이나 다른 방을 골라 주세요.', action: '다른 시간 보기', next: 'time' },
   // 빈방 릴레이 (core #101): 기다리던 학생에게 5분 동안 잡아 둔 칸 / 넘겨받은 칸의 받을 시간이 지났거나 구간이 다름
-  RELAY_HELD: { title: '기다리던 학생에게 먼저 넘겨진 자리예요', hint: '5분 안에 그 학생이 받지 않으면 다시 비어요. 지금은 다른 시간이나 다른 방을 골라 주세요.', action: '다른 시간 보기', next: 'time' },
+  RELAY_HELD: { title: '기다리던 학생에게 먼저 넘겨진 자리예요', hint: '5분 안에 그 학생이 받지 않으면 다음으로 기다리는 학생에게 넘어가거나, 기다리는 사람이 없으면 다시 비어요. 지금은 다른 시간이나 다른 방을 골라 주세요.', action: '다른 시간 보기', next: 'time' },
   RELAY_OFFER_INVALID: { title: '넘겨받은 자리를 받을 시간이 지났어요', hint: '5분이 지나 다음 사람에게 넘어갔거나, 넘겨받은 시간 밖을 골랐어요. 비어 있는 칸을 다시 골라 주세요.', action: '다른 시간 보기', next: 'time' },
   RESERVATION_TIME_TAKEN: { title: '방금 다른 팀이 이 시간을 예약했어요', hint: '같은 방의 다른 시간이나 다른 방을 골라 주세요.', action: '다른 시간 보기', next: 'time' },
   OWNER_HAS_ACTIVE_RESERVATION: { title: '이미 끝나지 않은 예약이 있어요', hint: '대표자든 참여자든 끝나지 않은 예약은 1건만 가질 수 있어요. 지금 예약이 끝나거나 취소된 뒤 다시 예약해 주세요.', action: '내 예약 보기', next: 'mine' },

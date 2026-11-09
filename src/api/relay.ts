@@ -43,17 +43,21 @@ export interface RelayOffer {
 const BUILD_API = import.meta.env.VITE_RELAY_SOURCE === 'api'
 let apiOverride: boolean | null = null
 
+/** 이 빌드(또는 테스트)가 core 릴레이 API를 켰는지. 화면 보이기와 요청 길이 같은 값을 보게 한 곳에서만 정한다 */
+const apiEnabled = () => apiOverride ?? BUILD_API
+
 /** core API를 부를지. 예시 화면(?demo=1)은 늘 예시 */
-const callsApi = () => !demoOn() && (apiOverride ?? BUILD_API)
+const callsApi = () => !demoOn() && apiEnabled()
 
 /** 릴레이 화면을 보일지. core API를 쓰는 빌드이거나 예시 화면이면 보인다 */
-export const relayOn = () => demoOn() || (apiOverride ?? BUILD_API)
+export const relayOn = () => demoOn() || apiEnabled()
 
 /** 테스트에서 빌드 값을 바꾼다. null이면 빌드 값으로 */
 export function _setRelayApiForTest(on: boolean | null): void {
   apiOverride = on
 }
 
+/** 내 기다리기 목록(기다린 순서 포함) */
 export function getMyWaits(member: number): Promise<RelayWait[]> {
   if (!callsApi()) return Promise.resolve(demoWaits(member))
   return api('/api/relay/waits/me', { member })
@@ -65,16 +69,19 @@ export function addWait(member: number, roomId: number, startAt: string, endHint
   return api('/api/relay/waits', { method: 'POST', member, body: JSON.stringify({ roomId, startAt }) })
 }
 
+/** 그만 기다리기 */
 export function cancelWait(member: number, id: number): Promise<void> {
   if (!callsApi()) return Promise.resolve(demoDrop(member, id))
   return api(`/api/relay/waits/${id}/cancel`, { method: 'POST', member })
 }
 
+/** 나에게 넘어온 칸 중 받을 시간이 남은 것 */
 export function getMyOffers(member: number, signal?: AbortSignal): Promise<RelayOffer[]> {
   if (!callsApi()) return Promise.resolve(demoOffers(member))
   return api('/api/relay/offers/me', { member, signal })
 }
 
+/** 넘길게요: 다음으로 기다린 사람에게 넘긴다 */
 export function declineOffer(member: number, id: number): Promise<void> {
   if (!callsApi()) return Promise.resolve(demoDrop(member, id))
   return api(`/api/relay/offers/${id}/decline`, { method: 'POST', member })
@@ -159,18 +166,21 @@ function liveDemo(member: number, now: number): DemoWait[] {
   return live
 }
 
+/** 예시: 아직 넘어오지 않은 기다리기 */
 export function demoWaits(member: number, now = Date.now()): RelayWait[] {
   return liveDemo(member, now)
     .filter((w) => now < w.at + DEMO_OFFER_AFTER_MS)
     .map((w) => ({ id: w.id, roomId: w.roomId, startAt: w.startAt, order: 1 }))
 }
 
+/** 예시: 걸고 20초가 지나 넘어온 칸(받을 시간 5분) */
 export function demoOffers(member: number, now = Date.now()): RelayOffer[] {
   return liveDemo(member, now)
     .filter((w) => now >= w.at + DEMO_OFFER_AFTER_MS)
     .map((w) => ({ id: w.id, roomId: w.roomId, startAt: w.startAt, endAt: w.endAt, expiresAt: new Date(w.at + DEMO_OFFER_AFTER_MS + DEMO_HOLD_MS).toISOString(), order: 1 }))
 }
 
+/** 예시: 기다리기 걸기(같은 칸은 하나) */
 export function demoAddWait(member: number, roomId: number, startAt: string, endAt: string, now = Date.now()): RelayWait {
   const list = liveDemo(member, now)
   const same = list.find((w) => w.roomId === roomId && w.startAt === startAt)
