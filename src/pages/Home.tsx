@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
+import Spacey from '../components/Spacey'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { getSchedule, type Schedule } from '../api/schedule'
@@ -180,6 +181,16 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* 말 몇 마디로 예약 (FR-AGT-105, 11/9 회의). 비서 화면이 "언제, 몇 명이서?"로 시작한다 */}
+      <Link to="/assistant?quick=1" className="card quick-ai">
+        <Spacey size={36} />
+        <span className="quick-ai-text">
+          <strong>AI로 간단히 예약하기</strong>
+          <span className="muted">"내일 3시, 4명" 한마디면 돼요</span>
+        </span>
+        <span className="quick-ai-go" aria-hidden="true">›</span>
+      </Link>
 
       {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}

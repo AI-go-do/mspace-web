@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
-import { findFriend } from '../api/friends'
+import { findFriend, getFriends, type Friend } from '../api/friends'
+import { matchFriends } from '../lib/friendMatch'
 import Spacey from '../components/Spacey'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
 import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
@@ -11,6 +12,10 @@ import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, sto
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
+
+/** 간단히 예약하기 첫 질문과 예시 답 (FR-AGT-105). 한 번에 다 말하면 비서가 바로 확인 카드까지 간다 */
+export const QUICK_GREETING = '언제, 나 포함 몇 명이서 쓰실 건가요? 말로 해 주셔도 돼요. 함께할 친구는 다음 카드에서 이름으로 골라요.'
+export const QUICK_STARTERS = ['내일 오후 3시부터 2시간, 나 포함 4명', '오늘 수업 끝나고 2시간, 나 포함 3명', '지금 바로 1시간, 나 포함 3명']
 
 /** 서버 기준(1,000자)과 같게 */
 const MAX_CHARS = 1000
@@ -50,6 +55,9 @@ export default function Assistant() {
   // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
   const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
+  // 홈 [AI로 간단히 예약하기] → /assistant?quick=1 (FR-AGT-105)
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
   const mounted = useRef(true)
@@ -199,6 +207,20 @@ export default function Assistant() {
       stopSpeaking()
     }
   }, [])
+
+  // 간단히 예약하기: 첫 질문은 화면이 띄우고 읽는다(모델 호출 없음). 주소의 ?quick=1은 지워서 새로고침에 또 뜨지 않게 한다
+  useEffect(() => {
+    if (params.get('quick') !== '1') return
+    navigate('/assistant', { replace: true })
+    const owner = currentMemberId()
+    const now = loadChat(owner)
+    // 이미 첫 질문이 마지막 말이면 다시 붙이지 않는다(개발 모드 StrictMode 두 번 실행, 홈 버튼 연타)
+    if (now.pending !== null || now.messages.at(-1)?.text === QUICK_GREETING) return
+    const id = newMessageId()
+    update((s) => ({ ...s, messages: [...s.messages, { id, role: 'assistant', text: QUICK_GREETING, suggestions: QUICK_STARTERS }] }), owner)
+    if (ttsOk) read(id, QUICK_GREETING)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   // 같은 브라우저 다른 탭에서 다른 학생이 로그인하면 이 탭의 토큰도 그 학생 것으로 바뀐다.
   // 그때 앞 학생의 대화·확인 카드가 화면에 남지 않게, 회원이 바뀌면 조회를 멈추고 그 회원 기록으로 바꾼다
@@ -498,6 +520,89 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
   // 칸마다 마지막 조회 번호. 입력이 바뀌면 늦게 온 앞 조회 결과는 버린다
   const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
+  // 친구 고르기(FR-AGT-105): 친구 목록을 버튼으로 보여 주고, 이름을 말하면 브라우저 안에서 맞춰 학번 칸을 채운다
+  const [friends, setFriends] = useState<Friend[] | null>(null)
+  const [pickNote, setPickNote] = useState('')
+  const [choices, setChoices] = useState<Friend[]>([])
+  const [hearing, setHearing] = useState(false)
+  const stopHear = useRef<(() => void) | null>(null)
+  const voiceOk = useRef(canListen()).current
+  useEffect(() => {
+    if (c.needsParticipants <= 0 || state.kind === 'done' || state.kind === 'closed') return
+    let live = true
+    getFriends(undefined, owner ?? undefined).then((l) => { if (live) setFriends(l.friends) }, () => { if (live) setFriends([]) })
+    return () => {
+      live = false
+      stopHear.current?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.token, c.needsParticipants, owner])
+
+  /** 친구 버튼: 안 들어 있으면 빈 칸 맨 앞에 넣고, 들어 있으면 뺀다 */
+  function toggleFriend(f: Friend) {
+    setChoices([])
+    const at = ids.indexOf(f.studentId)
+    if (at >= 0) return setSlot(at, '', '')
+    const empty = ids.findIndex((v) => !v.trim())
+    if (empty < 0) return setPickNote(`이미 ${c.needsParticipants}명을 다 골랐어요. 바꾸려면 넣은 친구를 한 번 더 눌러 빼 주세요`)
+    setPickNote('')
+    setSlot(empty, f.studentId, f.name)
+  }
+
+  function setSlot(i: number, sid: string, name: string) {
+    setIds((cur) => cur.map((v, j) => (j === i ? sid : v)))
+    lookups.current[i] = (lookups.current[i] ?? 0) + 1
+    setNames((n) => ({ ...n, [i]: name }))
+    if (state.kind === 'open' && state.error) {
+      saveCardOutcome(owner, c.token, undefined)
+      setState({ kind: 'open' })
+    }
+  }
+
+  /** 들은 이름들을 친구와 맞춰 빈 칸을 차례로 채운다. 못 정한 이름은 안내와 후보 버튼으로 */
+  function fillFromSpeech(text: string) {
+    const list = friends ?? []
+    const r = matchFriends(text, list, ids)
+    const next = [...ids]
+    const nextNames: Record<number, string> = {}
+    let over = 0
+    for (const f of r.picked) {
+      const empty = next.findIndex((v) => !v.trim())
+      if (empty < 0) { over++; continue }
+      next[empty] = f.studentId
+      nextNames[empty] = f.name
+      lookups.current[empty] = (lookups.current[empty] ?? 0) + 1
+    }
+    setIds(next)
+    setNames((n) => ({ ...n, ...nextNames }))
+    const lines: string[] = []
+    if (r.picked.length - over > 0) lines.push(`${r.picked.slice(0, r.picked.length - over).map((f) => f.name).join(', ')}님을 넣었어요.`)
+    for (const a of r.ambiguous) lines.push(`'${a.spoken}'은 ${a.candidates.map((x) => x.name).join('·')} 중 누구인지 눌러 주세요.`)
+    if (r.unknown.length > 0) lines.push(`${r.unknown.map((u) => `'${u}'`).join(', ')}은 친구 목록에 없어요. 친구 탭에서 먼저 친구를 맺어 주세요.`)
+    if (over > 0) lines.push(`${c.needsParticipants}명이 넘어서 ${over}명은 넣지 않았어요.`)
+    if (lines.length === 0) lines.push(`'${text}'에서 친구 이름을 찾지 못했어요. 아래 버튼으로 골라 주세요.`)
+    setChoices(r.ambiguous.flatMap((a) => a.candidates).filter((f, i, all) => all.findIndex((x) => x.studentId === f.studentId) === i))
+    setPickNote(lines.join(' '))
+  }
+
+  function hearNames() {
+    if (hearing) return stopHear.current?.()
+    stopSpeaking()
+    setPickNote('')
+    const stop = listenOnce({
+      onInterim: (t) => setPickNote(t ? `듣는 중: ${t}` : ''),
+      onFinal: (t) => fillFromSpeech(t),
+      onError: (m) => setPickNote(m),
+      onEnd: () => {
+        stopHear.current = null
+        setHearing(false)
+      },
+    })
+    if (stop) {
+      stopHear.current = stop
+      setHearing(true)
+    }
+  }
 
   /** 학번을 내 친구 중에서 찾아 이름을 보여 준다(친구만 참여자로 넣을 수 있음, core #68). 찾았고 그사이 입력이 안 바뀌었을 때만 true */
   async function lookup(i: number, sid = ids[i].trim()): Promise<boolean> {
@@ -579,7 +684,29 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       {c.notes.map((n) => <p key={n} className="muted card-note">{n}</p>)}
       {!closed && c.needsParticipants > 0 && (
         <div className="card-people">
-          <p className="muted card-note">함께 쓸 사람 학번 {c.needsParticipants}명 (나는 빼고)</p>
+          <p className="muted card-note">함께할 친구 {c.needsParticipants}명 (나는 빼고) · 이름을 말하거나 눌러 고르세요</p>
+          {voiceOk && (
+            <button type="button" className={`ask-chip name-mic ${hearing ? 'on' : ''}`} onClick={hearNames}
+              disabled={state.kind === 'sending' || friends === null || friends.length === 0} aria-pressed={hearing}>
+              {hearing ? '■ 그만 듣기' : '🎤 친구 이름 말하기'}
+            </button>
+          )}
+          {friends === null && <p className="muted card-note">친구 목록을 불러오는 중…</p>}
+          {friends !== null && friends.length === 0 && (
+            <p className="muted card-note">아직 친구가 없어요. <Link to="/me/friends" className="link">친구 맺기 →</Link></p>
+          )}
+          {friends !== null && friends.length > 0 && (
+            <div className="ask-chips friend-chips" aria-label="친구 고르기">
+              {(choices.length > 0 ? choices : friends).map((f) => (
+                <button key={f.studentId} type="button" className={`ask-chip ${ids.includes(f.studentId) ? 'picked' : ''}`}
+                  onClick={() => toggleFriend(f)} disabled={state.kind === 'sending'} aria-pressed={ids.includes(f.studentId)}>
+                  {ids.includes(f.studentId) ? '✓ ' : ''}{f.name}
+                </button>
+              ))}
+              {choices.length > 0 && <button type="button" className="ask-chip back" onClick={() => setChoices([])}>친구 모두 보기</button>}
+            </div>
+          )}
+          {pickNote && <p className="muted card-note pick-note" role="status">{pickNote}</p>}
           {ids.map((v, i) => (
             <div key={i} className="person">
               <input

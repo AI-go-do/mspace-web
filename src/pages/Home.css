@@ -160,3 +160,15 @@
   background-size: 200% 100%; animation: shimmer 1.3s linear infinite;
 }
 .sk-line { display: block; width: 46%; height: 10px; border-radius: 5px; }
+
+/* AI로 간단히 예약하기 (FR-AGT-105) */
+.quick-ai {
+  position: relative; margin: -28px 12px 0; padding: 14px 16px; border-radius: 24px; box-shadow: var(--shadow-2);
+  display: flex; flex-direction: row; align-items: center; gap: 12px; min-height: 64px; color: var(--navy); text-decoration: none;
+}
+/* 간단히 예약 카드가 머리 위로 겹쳐 올라가니 방 현황은 그 아래에 띄운다 */
+.quick-ai ~ .today { margin-top: 12px; }
+.quick-ai-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.quick-ai-text strong { font-size: 16px; color: var(--blue); }
+.quick-ai-text .muted { font-size: 13px; }
+.quick-ai-go { font-size: 24px; color: var(--blue); }

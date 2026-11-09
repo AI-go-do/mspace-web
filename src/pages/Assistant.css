@@ -104,3 +104,10 @@
   color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; min-height: 28px;
 }
 .read-btn.on { color: var(--navy); }
+
+/* 간단히 예약하기: 확인 카드 친구 고르기 (FR-AGT-105) */
+.friend-chips { margin-top: 2px; }
+.ask-chip.picked { border-color: var(--blue); background: var(--sky-soft); color: var(--blue); font-weight: 700; }
+.name-mic { align-self: flex-start; border-color: var(--sky); color: var(--blue); font-weight: 700; }
+.name-mic.on { background: var(--blue); color: var(--white); }
+.pick-note { line-height: 1.5; }
