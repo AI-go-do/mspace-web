@@ -1,9 +1,10 @@
 import type { ApplianceCommand, ApplianceState } from '../api/appliances'
 import { ENV_RULES, type EnvRules } from '../config/adminRooms'
 import type { OutdoorWeather, WeatherAlert } from '../api/weather'
-import { CLIMATE_RULES, ROOM_APPLIANCES, WEATHER_RULES, type ApplianceConfig } from '../config/appliances'
+import { CLIMATE_RULES, LEARN_RULES, ROOM_APPLIANCES, WEATHER_RULES, type ApplianceConfig } from '../config/appliances'
 import type { RoomView } from './roomHealth'
 import { seoulClock } from './time'
+import { learnedPrecool, rateLabel, type RoomLearning } from './climateLearn'
 
 /**
  * 방 공기·온도를 보고 "지금 켜면 좋은 기기" 권유를 만든다. 관리자 방 상세 창·지금 화면, 학생 홈이 같이 쓴다.
@@ -29,6 +30,8 @@ export interface ClimateTip {
   /** 자동 제어가 대신 실행해도 되는지 */
   auto: boolean
   urgent: boolean
+  /** AI가 배운 값으로 정했으면 그 근거 한 줄 ("이 방은 1°C에 약 9분 → 55분 전부터") */
+  ai?: string
 }
 
 type Rules = typeof CLIMATE_RULES
@@ -41,6 +44,18 @@ export interface TipRules extends Rules {
   season?: Season
   alert?: WeatherAlert
   outdoor?: OutdoorWeather | null
+  /** 방마다 배운 속도·목표 온도 (lib/climateLearn.ts). 없으면 모든 방이 같은 규칙 */
+  learned?: Readonly<Record<number, RoomLearning>>
+}
+
+/** 이 방에 맞출 온도: 배운 목표가 있으면 그것, 없으면 기본 */
+export function roomTargets(rules: TipRules, roomId: number, env: EnvRules = ENV_RULES): { heatTargetC: number; coolTargetC: number } {
+  const l = rules.learned?.[roomId]
+  const step = LEARN_RULES.targetStepC
+  // 배운 목표라도 켜는 기준(추움·더움)을 넘지 않게: 켰는데 이미 목표라 바로 꺼지는 일이 없게
+  const heat = l?.HEAT.targetC != null ? Math.max(l.HEAT.targetC, rules.coldC + step) : rules.heatTargetC
+  const cool = l?.COOL.targetC != null ? Math.min(l.COOL.targetC, (rules.hotC ?? env.hotC) - step) : rules.coolTargetC
+  return { heatTargetC: Math.min(heat, rules.heatTargetC), coolTargetC: Math.max(cool, rules.coolTargetC) }
 }
 
 export function seasonOf(normalC: number, w = WEATHER_RULES): Season {
@@ -86,6 +101,13 @@ export function climateTips(
   const alert = alertWord(rules.alert)
   const o = rules.outdoor
   if (v.flags.offline || v.flags.stuck) return []
+  const L = rules.learned?.[v.roomId]
+  const { heatTargetC, coolTargetC } = roomTargets(rules, v.roomId, env)
+  // 미리 켜기: 이 방이 지금 온도에서 목표까지 걸릴 시간(배운 속도). 모르면 기본(60분, 한파·폭염 90분)
+  const tC = v.temperatureC
+  const needMode = tC === null ? null : tC >= hotC ? 'COOL' : tC < rules.coldC ? 'HEAT' : null
+  const learnedMin = L && needMode && tC !== null ? learnedPrecool(L[needMode], tC, needMode === 'HEAT' ? heatTargetC : coolTargetC, rules.alert) : null
+  const precool = learnedMin ?? rules.precoolMinutes
   const out: ClimateTip[] = []
   const ac = appliances.find((a) => a.kind === 'ac')
   const purifier = appliances.find((a) => a.kind === 'purifier')
@@ -96,7 +118,7 @@ export function climateTips(
   const t0 = now.getTime()
   const reservedNow = !!v.current && new Date(v.current.startAt).getTime() <= t0 && t0 < new Date(v.current.endAt).getTime()
   // 지금 쓰는 사람이 있거나 곧 올 사람이 있으면 편하게 만들 이유가 있다
-  const someone = occupied || reservedNow || nextSoon(rules.precoolMinutes)
+  const someone = occupied || reservedNow || nextSoon(precool)
   const nextLabel = v.nextAt ? seoulClock(new Date(v.nextAt)) : ''
 
   // 1) CO2: 사람이 있을 때만 (빈 방 CO2는 혼자 내려간다)
@@ -129,6 +151,15 @@ export function climateTips(
     // 한파·폭염인 날 빈 방: "오늘 한파(최저 -13°C)라 미리 데워 둘까요?"
     const alertNote = alert && o ? `오늘 ${alert}(${rules.alert === 'COLD_WAVE' ? `최저 ${o.minC.toFixed(0)}°C` : `최고 ${o.maxC.toFixed(0)}°C`})라 ` : ''
     const lead = !occupied && alertNote ? `${alertNote}${ahead}미리 ` : ahead
+    // AI 근거: 빈 방을 미리 켤 때는 배운 속도, 목표 온도를 고쳤으면 그 이유
+    const aiFor = (mode: 'HEAT' | 'COOL') => {
+      const m = L?.[mode]
+      if (!m) return undefined
+      const parts: string[] = []
+      if (!occupied && learnedMin !== null && m.minutesPerC !== null) parts.push(`이 방은 ${rateLabel(m.minutesPerC)}(지난 ${m.runs}번) → ${learnedMin}분 전부터 켜요`)
+      if (m.targetC !== null && m.offMedianC !== null) parts.push(`학생들이 ${m.offMedianC.toFixed(1)}°C쯤에서 ${m.offs}번 꺼서 ${m.targetC}°C로 맞춰요`)
+      return parts.length ? parts.join(' · ') : undefined
+    }
     if (v.temperatureC >= hotC && !isOn(s, 'COOL')) {
       // 봄·가을에 바깥이 충분히 시원하면 에어컨보다 창문 (자동으로 켜지 않는다)
       const windowFirst = !!o && rules.season === 'mid' && !rules.alert
@@ -137,25 +168,25 @@ export function climateTips(
         key: `${v.roomId}:cool`, roomId: v.roomId, why: 'cool',
         title: occupied ? `${t}°C, 더워요` : `빈 방이 ${t}°C까지 올랐어요`,
         sub: windowFirst
-          ? `바깥이 ${o!.tempC.toFixed(0)}°C라 창문을 열면 금방 시원해져요. 그래도 더우면 에어컨을 ${rules.coolTargetC}°C 냉방으로 켜요.${doorNote}`
-          : `${lead}에어컨을 ${rules.coolTargetC}°C 냉방으로 켜 둘까요?${doorNote}`,
-        appliance: ac, command: { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }, button: '냉방 켜기',
+          ? `바깥이 ${o!.tempC.toFixed(0)}°C라 창문을 열면 금방 시원해져요. 그래도 더우면 에어컨을 ${coolTargetC}°C 냉방으로 켜요.${doorNote}`
+          : `${lead}에어컨을 ${coolTargetC}°C 냉방으로 켜 둘까요?${doorNote}`,
+        appliance: ac, command: { power: 'ON', mode: 'COOL', targetC: coolTargetC }, button: '냉방 켜기',
         // 에어컨이 이미 다른 모드로 켜져 있으면 사람이 고른 것일 수 있어 자동으로 바꾸지 않는다(버튼은 남김)
-        auto: !doorOpen && !windowFirst && !isOn(s), urgent: occupied,
+        auto: !doorOpen && !windowFirst && !isOn(s), urgent: occupied, ai: aiFor('COOL'),
       })
     } else if (v.temperatureC < rules.coldC && !isOn(s, 'HEAT')) {
       out.push({
         key: `${v.roomId}:heat`, roomId: v.roomId, why: 'heat',
         title: occupied ? `${t}°C, 추워요` : `빈 방이 ${t}°C로 차가워요`,
-        sub: `${lead}에어컨을 ${rules.heatTargetC}°C 난방으로 켜 둘까요?${doorNote}`,
-        appliance: ac, command: { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC }, button: '난방 켜기',
-        auto: !doorOpen && !isOn(s), urgent: occupied,
+        sub: `${lead}에어컨을 ${heatTargetC}°C 난방으로 켜 둘까요?${doorNote}`,
+        appliance: ac, command: { power: 'ON', mode: 'HEAT', targetC: heatTargetC }, button: '난방 켜기',
+        auto: !doorOpen && !isOn(s), urgent: occupied, ai: aiFor('HEAT'),
       })
     }
   }
 
   // 3) 빈 방이고 지금 예약도, 곧 올 사람도 없는데 켜져 있으면 끄기. 재실을 모르면(UNKNOWN) 끄지 않는다
-  if (v.presence === 'EMPTY' && !reservedNow && !nextSoon(rules.precoolMinutes)) {
+  if (v.presence === 'EMPTY' && !reservedNow && !nextSoon(precool)) {
     for (const a of appliances) {
       if (!isOn(state(a.id))) continue
       out.push({
