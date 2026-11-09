@@ -67,6 +67,8 @@ export default function Assistant() {
   const navigate = useNavigate()
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
+  // 팀 미리 채우기 차례. 새 대화를 시작하면 올려서, 아직 끝나지 않은 앞 채우기를 버린다
+  const prefillRound = useRef(0)
   const mounted = useRef(true)
 
   /**
@@ -301,6 +303,7 @@ export default function Assistant() {
     // 보내기를 늦추지 않게 뒤에서 한다(답이 오기까지 몇 초 걸리니 카드가 뜨기 전에 끝난다).
     // 팀 목록을 아직 못 받았으면 받아서 보고, 지금 친구가 아닌 팀원은 뺀다(친구 목록을 못 받으면 그대로)
     const me = owner
+    const round = prefillRound.current
     void (async () => {
       const cached = knownTeams(me)
       const teams = cached.length > 0 ? cached : await getTeams(me).then((r) => r.teams, () => [])
@@ -309,7 +312,8 @@ export default function Assistant() {
       if (!team) return
       const now = await getFriends(undefined, me).then((l) => l.friends, () => null)
       const members = teamFriends(team, now)
-      if (members.length > 0) savePicked(me, members)
+      // 그사이 새 대화를 시작했으면 버린다(지난 팀이 다음 카드에 채워지지 않게)
+      if (members.length > 0 && prefillRound.current === round) savePicked(me, members)
     })()
     const startedAt = Date.now()
     update((s) => ({
@@ -341,7 +345,7 @@ export default function Assistant() {
     setClearing(true)
     // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
     // 새 대화면 고른 친구도 버린다(카드 안 뜬 "팀A랑"이 다음 엉뚱한 카드에 채워지지 않게)
-    const cleared = clearChatHistory(owner).then(() => { clearChatOf(owner); takePicked(owner) })
+    const cleared = clearChatHistory(owner).then(() => { clearChatOf(owner); prefillRound.current += 1; takePicked(owner) })
     rememberClearing(owner, cleared)
     try {
       await cleared
