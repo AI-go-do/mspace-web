@@ -13,6 +13,10 @@ describe('알림에서 갈 곳', () => {
     expect(notificationAction(n('START_SOON'))?.to).toBe('/reservations/12')
     expect(notificationAction(n('NO_SHOW_SOON'))?.to).toBe('/reservations/12')
   })
+  it('기다리던 자리가 넘어오면(예약 번호 없음) 홈 릴레이 카드로 간다 (core #101)', () => {
+    expect(notificationAction(n('RELAY_OFFER', null))).toEqual({ to: '/', label: '받으러 가기' })
+    expect(toastTarget(n('RELAY_OFFER', null))).toBe('/')
+  })
   it('예약이 없거나 모르는 종류면 버튼이 없다', () => {
     expect(notificationAction(n('START_SOON', null))).toBeNull()
     expect(notificationAction(n('VENTILATE'))).toBeNull()
