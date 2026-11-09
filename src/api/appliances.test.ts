@@ -19,8 +19,7 @@ describe('에어컨·공기청정기 가짜 창구', () => {
   it('보내는 중에 같은 기기를 또 누르면 겹쳐 보내지 않는다', async () => {
     vi.useFakeTimers()
     const a = sendApplianceCommand(1, 'r1-purifier', { power: 'ON' }, 'STUDENT')
-    const b = sendApplianceCommand(1, 'r1-purifier', { power: 'OFF' }, 'STUDENT')
-    expect((await b).power).toBe('OFF') // 두 번째는 지금 상태(아직 꺼짐)만 돌려준다
+    await expect(sendApplianceCommand(1, 'r1-purifier', { power: 'OFF' }, 'STUDENT')).rejects.toMatchObject({ code: 'APPLIANCE_BUSY' })
     await vi.runAllTimersAsync()
     expect((await a).power).toBe('ON')
     expect(applianceState('r1-purifier').power).toBe('ON')

@@ -120,6 +120,16 @@ export function climateTips(
   return out
 }
 
+/**
+ * 사람이 방금(autoCooldownMinutes 안) 손으로 바꾼 기기는 자동 제어가 건드리지 않는다.
+ * 예: 학생이 공기청정기를 끈 직후 자동이 다시 켜지 않게
+ */
+export function manualHold(s: ApplianceState, now: Date, rules: Rules = CLIMATE_RULES): boolean {
+  if ((s.by !== 'ADMIN' && s.by !== 'STUDENT') || !s.changedAt) return false
+  const ago = now.getTime() - new Date(s.changedAt).getTime()
+  return ago >= 0 && ago < rules.autoCooldownMinutes * 60_000
+}
+
 /** 기기 상태 한 줄: "켜짐 · 냉방 26°C · 14:32 자동" */
 export function stateLabel(s: ApplianceState): string {
   if (s.power === 'OFF') return s.changedAt ? `꺼짐 · ${seoulClock(new Date(s.changedAt))} ${byLabel(s.by)}` : '꺼짐'

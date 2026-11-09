@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ApplianceState } from '../api/appliances'
 import type { RoomEnvironment } from '../api/environment'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { autoText, climateTips, josa, stateLabel } from './climate'
+import { autoText, climateTips, josa, manualHold, stateLabel } from './climate'
 import { toRoomView } from './roomHealth'
 
 const now = new Date('2026-11-09T14:00:00+09:00')
@@ -102,5 +102,16 @@ describe('글 만들기', () => {
     expect(stateLabel({ applianceId: 'x', power: 'ON', mode: 'COOL', targetC: 26, changedAt: iso(0), by: 'AUTO' })).toBe('켜짐 · 냉방 26°C · 14:00 자동')
     const [tip] = climateTips(view(room((i) => 480 + (i % 2), { presence: 'EMPTY' })), now, states({ 'r1-purifier': {} }))
     expect(autoText(tip)).toBe('빈 방이라 공기청정기를 껐어요')
+  })
+})
+
+describe('manualHold', () => {
+  it('사람이 10분 안에 바꾼 기기는 자동이 건드리지 않고, 자동이 바꾼 것·오래된 것은 건드린다', () => {
+    const s = (by: ApplianceState['by'], minAgo: number): ApplianceState => ({ applianceId: 'x', power: 'OFF', changedAt: iso(minAgo), by })
+    expect(manualHold(s('STUDENT', 3), now)).toBe(true)
+    expect(manualHold(s('ADMIN', 9), now)).toBe(true)
+    expect(manualHold(s('ADMIN', 11), now)).toBe(false)
+    expect(manualHold(s('AUTO', 1), now)).toBe(false)
+    expect(manualHold(off('x'), now)).toBe(false)
   })
 })

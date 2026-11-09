@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { api } from './client'
+import { api, ApiError } from './client'
 import { CLIMATE_RULES } from '../config/appliances'
 
 /**
@@ -79,7 +79,8 @@ export async function sendApplianceCommand(
   by: CommandBy,
   opts: { member?: number | null; now?: Date } = {},
 ): Promise<ApplianceState> {
-  if (pending.has(applianceId)) return applianceState(applianceId)
+  // 이미 보내는 중이면 보내지 않았다고 알린다(부른 쪽이 "켰어요"·자동 기록을 남기지 않게)
+  if (pending.has(applianceId)) throw new ApiError(409, 'APPLIANCE_BUSY', '이미 보내는 중이에요')
   pending.add(applianceId)
   set({ ...store }) // 보내는 중 표시
   try {

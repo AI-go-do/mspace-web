@@ -35,6 +35,8 @@ export const CLIMATE_RULES = {
   precoolMinutes: 60,
   /** 자동 제어가 같은 기기에 같은 명령을 다시 보내기 전 기다리는 시간 (사람이 끈 걸 바로 다시 켜지 않게) */
   autoCooldownMinutes: 10,
+  /** 자동 명령이 실패했을 때 다시 해 보기 전 기다리는 시간 (실패한 API를 10초마다 두드리지 않게) */
+  autoRetryMinutes: 1,
   /** 가짜 명령이 "보내는 중"으로 보이는 시간 */
   mockDelayMs: 900,
 }
