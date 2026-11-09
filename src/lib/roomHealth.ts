@@ -163,8 +163,10 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
 
   // 빈 방 불 켜짐: 끝에서부터 불이 켜져 있고 사람이 없던 분을 센다.
   // 분마다 재실이 없으면(core가 아직 안 줌) 지금 재실로 대신한다(지금 비어 있으면 그동안도 비었다고 본다)
+  // 조도 측정이 오래됐으면 지금 상태를 모르는 것으로 보고 경고하지 않는다(그래프는 그대로, 글에는 잰 시각을 붙인다)
+  const lightStale = light !== null && !!env.lightAt && now.getTime() - Date.parse(env.lightAt) > LIGHT_STALE_MINUTES * 60_000
   let lightOnEmptyMinutes = 0
-  if (light !== null && light >= rules.lightOnPct && env.presence === 'EMPTY') {
+  if (light !== null && !lightStale && light >= rules.lightOnPct && env.presence === 'EMPTY') {
     for (let i = lights.length - 1; i >= 0; i--) {
       const l = lights[i]
       if (l === null || l < rules.lightOnPct || occupancy[i] === true) break
@@ -212,8 +214,6 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const humNote = humidityPct === null ? '센서 없음' : dry ? '참고: 낮은 편' : ''
   const lightState = light === null ? '센서 없음' : lightLeftOn ? `빈 방 ${lightOnEmptyMinutes}분째 불 켜짐`
     : light >= rules.lightOnPct ? '불 켜짐' : '불 꺼짐'
-  // 조도 측정이 오래됐으면 지금 상태처럼 보이지 않게 잰 시각을 붙인다
-  const lightStale = light !== null && !!env.lightAt && now.getTime() - Date.parse(env.lightAt) > LIGHT_STALE_MINUTES * 60_000
   const lightNote = lightStale ? `${seoulClock(new Date(env.lightAt as string))}에 잰 값 · ${lightState}` : lightState
 
   return {
