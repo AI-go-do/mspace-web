@@ -210,6 +210,8 @@ export default function Assistant() {
     return () => {
       mounted.current = false
       alive.current?.abort()
+      // 진행 중인 팀 미리 고르기도 무효로 한다(선택 저장소는 화면 밖에서도 남아, 다시 들어와 새 대화를 지운 뒤 옛 팀이 들어오지 않게)
+      prefillRound.current += 1
       // 화면을 떠나며 멈출 때 늦게 오는 중간·마지막 결과도 같은 방식으로 버린다
       session.current?.invalidate()
       stopListen.current?.()
@@ -313,7 +315,7 @@ export default function Assistant() {
       const now = await getFriends(undefined, me).then((l) => l.friends, () => null)
       const members = teamFriends(team, now)
       // 그사이 새 대화를 시작했으면 버린다(지난 팀이 다음 카드에 채워지지 않게)
-      if (members.length > 0 && prefillRound.current === round) savePicked(me, members)
+      if (members.length > 0 && mounted.current && prefillRound.current === round) savePicked(me, members)
     })()
     const startedAt = Date.now()
     update((s) => ({
