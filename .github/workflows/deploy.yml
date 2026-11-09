@@ -65,6 +65,7 @@ jobs:
           build-args: |
             VITE_ADMIN_ENV_SOURCE=${{ github.ref_name == 'develop' && 'api' || 'mock' }}
             VITE_ADMIN_BLOCKS_SOURCE=${{ github.ref_name == 'develop' && 'api' || 'mock' }}
+            VITE_RELAY_SOURCE=${{ github.ref_name == 'develop' && 'api' || 'mock' }}
           cache-from: type=gha       # 지난 빌드 층을 재사용해서 빨라진다
           cache-to: type=gha,mode=max
 

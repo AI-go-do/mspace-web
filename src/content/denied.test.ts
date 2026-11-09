@@ -11,6 +11,10 @@ describe('예약 거절 안내 (FR-WEB-006)', () => {
     expect(deniedFor('RESERVATION_INVALID_LENGTH').next).toBe('time')
     expect(deniedFor('RESERVATION_OUT_OF_RANGE').next).toBe('date')
   })
+  it('빈방 릴레이로 잡아 둔 칸·받을 시간이 지난 넘김은 다른 시간을 고르게 한다 (core #101)', () => {
+    expect(deniedFor('RELAY_HELD')).toMatchObject({ next: 'time', action: '다른 시간 보기' })
+    expect(deniedFor('RELAY_OFFER_INVALID').next).toBe('time')
+  })
   it('모르는 code는 다시 시도', () => {
     expect(deniedFor('RESERVATION_BUSY')).toMatchObject({ next: 'retry', action: '다시 시도' })
   })

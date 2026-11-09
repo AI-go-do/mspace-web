@@ -11,6 +11,9 @@ ENV VITE_ADMIN_ENV_SOURCE=$VITE_ADMIN_ENV_SOURCE
 # 관리자 기간 막기가 core API(#98)를 쓸지(api) 이 브라우저 가짜 저장소를 쓸지(mock). 위와 같이 develop만 api
 ARG VITE_ADMIN_BLOCKS_SOURCE=mock
 ENV VITE_ADMIN_BLOCKS_SOURCE=$VITE_ADMIN_BLOCKS_SOURCE
+# 학생 빈방 릴레이가 core API(#101)를 쓸지(api), 예시 화면(?demo=1)에서만 보일지(mock). develop만 api
+ARG VITE_RELAY_SOURCE=mock
+ENV VITE_RELAY_SOURCE=$VITE_RELAY_SOURCE
 RUN npm run build
 
 # 2단계: 빌드 결과(정적 파일)만 nginx로 내보낸다
