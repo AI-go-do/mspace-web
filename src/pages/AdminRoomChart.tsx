@@ -33,7 +33,7 @@ interface Metric {
   hi: number
   /** 예측 범위가 1분마다 넓어지는 정도 */
   spread: number
-  /** 기준 너머를 "나쁨" 띠로 칠할지. 조도는 기준선이 "불 켜짐" 표시일 뿐이라 칠하지 않는다 */
+  /** 기준 너머를 "나쁨" 띠로 칠할지. 조도는 "불 켜짐" 표시, 온도·습도는 참고선일 뿐이라 칠하지 않는다 */
   zone: boolean
   /** 이 값을 재는 센서가 방에 있는지(없으면 "센서 없음", 있는데 값이 없으면 "아직 값이 없어요") */
   installed: boolean
@@ -48,7 +48,7 @@ export function metricOf(view: RoomView, key: MetricKey): Metric {
     return {
       key, label: '온도', unit: '°C', digits: 1, values: view.temps, forecast: [], limit, dir: 'above', caution: limit - 1.5,
       lo: Math.min(20, ...vs.map((v) => v - 0.8)), hi: Math.max(limit + 1.5, ...vs.map((v) => v + 0.8)), spread: 0,
-      zone: true, installed: view.sensors.has('temperature'),
+      zone: false, installed: view.sensors.has('temperature'),
     }
   }
   if (key === 'hum') {
@@ -57,7 +57,7 @@ export function metricOf(view: RoomView, key: MetricKey): Metric {
     return {
       key, label: '습도', unit: '%', digits: 0, values: view.hums, forecast: [], limit, dir: 'below', caution: limit + 5,
       lo: Math.min(limit - 10, ...vs.map((v) => v - 4)), hi: Math.max(65, ...vs.map((v) => v + 4)), spread: 0,
-      zone: true, installed: view.sensors.has('humidity'),
+      zone: false, installed: view.sensors.has('humidity'),
     }
   }
   if (key === 'light') {
@@ -224,7 +224,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
     <div ref={box} className={`rc ${detail ? 'rc-detail' : ''}`} onPointerDown={onMove} onPointerMove={onMove}
       onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>
       {ready && (
-        <svg width={w} height={h} role="img" aria-label={label}>
+        <svg width={w} height={h} role="img" aria-label={label} className={m.key === 'temp' || m.key === 'hum' ? 'rc-ref' : undefined}>
           <defs>
             <linearGradient id={`${uid}-fill`} x1="0" x2="0" y1="0" y2="1">
               <stop offset="0" className="rc-fill-top" />
