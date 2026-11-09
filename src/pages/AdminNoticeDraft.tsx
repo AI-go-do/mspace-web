@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { createBlock, mockReservations, useRoomBlocks } from '../api/roomBlocks'
+import { createBlock, previewReservations, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { timeRange } from '../lib/format'
 import { NOTICE_EXAMPLES, parseNotice, splitBySpans, type DraftRow, type NoticeDraft } from '../lib/noticeParse'
@@ -31,22 +31,27 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
   const [text, setText] = useState('')
   const [draft, setDraft] = useState<{ text: string; d: NoticeDraft } | null>(null)
   const [done, setDone] = useState<{ ok: number; errors: string[] } | null>(null)
-  const { canceled } = useRoomBlocks()
+  // 막기·취소가 바뀌면 겹칠 예약 수를 다시 센다
+  useRoomBlocks()
+  const [sending, setSending] = useState(false)
 
   function read(t = text) {
     setDone(null)
     setDraft({ text: t, d: parseNotice(t, new Date()) })
   }
 
-  function blockAll(d: NoticeDraft) {
+  async function blockAll(d: NoticeDraft) {
+    if (sending) return
+    setSending(true)
     const errors: string[] = []
     const failed: DraftRow[] = []
     let ok = 0
     for (const r of d.rows) {
-      const res = createBlock({ roomId: r.roomId, startAt: new Date(r.startAt), endAt: new Date(r.endAt), reason: d.reason, memo: d.memo })
+      const res = await createBlock({ roomId: r.roomId, startAt: new Date(r.startAt), endAt: new Date(r.endAt), reason: d.reason, memo: d.memo })
       if ('error' in res) { errors.push(`${roomName(r.roomId)} ${period(r)}: ${res.error}`); failed.push(r) }
       else ok++
     }
+    setSending(false)
     setDone({ ok, errors })
     if (errors.length === 0) { setDraft(null); setText('') }
     // 일부만 막혔으면 막기안에는 못 막은 줄만 남겨, 다시 눌러도 막힌 줄을 또 막지 않게
@@ -54,7 +59,7 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
   }
 
   const now = new Date()
-  const reservations = mockReservations(now).filter((r) => !canceled.includes(r.reservationId))
+  const reservations = previewReservations(now)
   const d = draft?.d
   // 막기안을 만든 뒤 공지 문장을 고쳤으면 화면의 막기안은 옛 문장 것이라 누르지 못하게
   const stale = draft !== null && text !== draft.text
@@ -124,7 +129,7 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
               {conflictTotal > 0 && <p className="nd-warn">막으면 이미 잡힌 예약 {conflictTotal}건이 아래 목록에 떠요. 바로 지우지 않고, 확인한 뒤 취소·알림을 보내요.</p>}
               {stale && <p className="nd-warn" role="status">공지 문장이 바뀌었어요. [막기안 만들기]를 다시 누르거나 앞 문장으로 되돌려 주세요.</p>}
               <div className="nd-actions">
-                <button type="button" className="adm-btn" disabled={stale} onClick={() => blockAll(d)}>이대로 {d.rows.length}건 막기</button>
+                <button type="button" className="adm-btn" disabled={stale || sending} onClick={() => void blockAll(d)}>이대로 {d.rows.length}건 막기</button>
                 <button type="button" className="adm-btn line" disabled={stale} onClick={() => onEdit(d.rows[0], d)}>{d.rows.length > 1 ? '첫 건을 양식에서 고치기' : '양식에서 고치기'}</button>
               </div>
               <p className="adm-foot">학생 화면에는 "{reasonStatus(d.reason)}"으로 보여요. 지금은 규칙으로 읽어요(나중에 AI로 바꿔요).</p>

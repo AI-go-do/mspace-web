@@ -64,6 +64,7 @@ jobs:
           # 개발 서버(develop)만 관리자 센서 화면이 실제 core 값을 읽는다. 시연 서버(main)는 core 조도 API(#105)가 main에 들어갈 때까지 가짜 값
           build-args: |
             VITE_ADMIN_ENV_SOURCE=${{ github.ref_name == 'develop' && 'api' || 'mock' }}
+            VITE_ADMIN_BLOCKS_SOURCE=${{ github.ref_name == 'develop' && 'api' || 'mock' }}
           cache-from: type=gha       # 지난 빌드 층을 재사용해서 빨라진다
           cache-to: type=gha,mode=max
 

@@ -30,14 +30,21 @@ export interface RoomBlock {
   releasedAt: string | null
 }
 
-/** 막은 기간과 겹친 예약 (가짜 단계에서는 이름·학번 없이 번호·시간·인원만) */
+/** 막은 기간과 겹친 예약. 이름·학번 없이 번호·시간·인원만 (core #98 Conflict) */
 export interface BlockConflict {
   reservationId: number
   roomId: number
   startAt: string
   endAt: string
   people: number
+  /** core가 주는 상태 (BOOKED·IN_USE). 가짜 예약에는 없다 */
+  status?: string
+  /** 아직 시작 전이라 여기서 취소할 수 있는지. 없으면(가짜 예약) 취소할 수 있다고 본다 */
+  cancelable?: boolean
 }
+
+/** 여기서 취소할 수 있는 겹친 예약인지 (사용 중이면 강제 퇴실로 따로) */
+export const isCancelable = (c: BlockConflict) => c.cancelable !== false
 
 export interface BlockInput {
   roomId: number

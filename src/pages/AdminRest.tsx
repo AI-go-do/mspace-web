@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { getReports, type AdminReport } from '../api/admin'
-import { createBlock, mockReservations, useRoomBlocks } from '../api/roomBlocks'
+import { blocksSource, createBlock, previewReservations, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { demoOn } from '../lib/demo'
 import { timeRange } from '../lib/format'
@@ -34,7 +34,7 @@ function when(p: Pick<RestProposal, 'startAt' | 'endAt'>): string {
 /**
  * 할 일 맨 위 "아픈 방 휴업안" (웹 화면만). 판정 안 된 비품 고장 신고(GET /api/reports?verdict=OPEN)가 한 방에 쌓이면
  * 그 방을 쉬게 하자는 카드를 띄운다. [쉬게 하기]는 기간 막기(점검)로 막고, [아직 괜찮아요]는 이 신고 묶음을 다시 묻지 않는다.
- * ?demo=1이면 3번 방 예시 신고 3건을 섞는다. 막기는 아직 가짜 저장소라 학생에게 알림이 가지 않는다
+ * ?demo=1이면 3번 방 예시 신고 3건을 섞는다. 막기는 api/roomBlocks 창구(개발 서버는 core, 그 밖은 가짜 저장소)로 한다
  */
 export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const member = useMemberId()
@@ -43,7 +43,7 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const reports = loaded.member === member ? loaded.list : []
   const [skipped, setSkipped] = useState<string[]>(readSkipped)
   const [rested, setRested] = useState<{ p: RestProposal; error: string | null }[]>([])
-  const { blocks, canceled } = useRoomBlocks()
+  const { blocks } = useRoomBlocks()
   const busy = useRef(new Set<string>())
 
   // 할 일 숫자와 같은 때(1분마다, 판정 뒤) 다시 읽어 새 신고·판정된 신고를 맞춘다
@@ -67,7 +67,7 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
 
   const now = new Date()
   const source = demoOn() ? [...reports, ...demoBrokenReportsCached(now)] : reports
-  const reservations = mockReservations(now).filter((r) => !canceled.includes(r.reservationId))
+  const reservations = previewReservations(now)
   const doneKeys = new Set(rested.map((r) => r.p.key))
   const list = proposeRests(source, blocks, reservations, now).filter((p) => !isSkipped(p, skipped) && !doneKeys.has(p.key))
 
@@ -81,8 +81,9 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
     // 빠르게 두 번 눌러도 한 번만 막는다
     if (busy.current.has(p.key) || rested.some((x) => x.p.key === p.key)) return
     busy.current.add(p.key)
-    const r = createBlock({ roomId: p.roomId, startAt: new Date(p.startAt), endAt: new Date(p.endAt), reason: 'INSPECTION', memo: REST_MEMO })
-    setRested((x) => [...x, { p, error: 'error' in r ? r.error : null }])
+    void createBlock({ roomId: p.roomId, startAt: new Date(p.startAt), endAt: new Date(p.endAt), reason: 'INSPECTION', memo: REST_MEMO })
+      .then((r) => setRested((x) => [...x, { p, error: 'error' in r ? r.error : null }]))
+      .finally(() => busy.current.delete(p.key))
   }
 
   if (list.length === 0 && rested.length === 0) return null
@@ -143,7 +144,7 @@ function RestCard({ p, i, now, onRest, onSkip }: { p: RestProposal; i: number; n
         <div>
           <dt>겹친 예약</dt>
           <dd>
-            {p.moves.length === 0 ? '없어요' : (
+            {p.moves.length === 0 ? (blocksSource() === 'api' ? '쉬게 한 뒤 방 관리 목록에 떠요' : '없어요') : (
               <ul className="rest-moves">
                 {p.moves.map((m) => (
                   <li key={m.reservation.reservationId}>
@@ -162,7 +163,7 @@ function RestCard({ p, i, now, onRest, onSkip }: { p: RestProposal; i: number; n
         <button type="button" className="adm-btn" onClick={onRest}>쉬게 하기</button>
         <button type="button" className="adm-btn line" onClick={onSkip}>아직 괜찮아요</button>
       </div>
-      <p className="adm-foot">기간 막기(점검)로 막아요. 경고·벌과는 상관없어요. 가짜 값 단계라 학생에게 알림은 가지 않아요.</p>
+      <p className="adm-foot">기간 막기(점검)로 막아요. 경고·벌과는 상관없어요. {blocksSource() === 'mock' ? '가짜 값 단계라 학생에게 알림은 가지 않아요.' : '겹친 예약은 방 관리에서 확인한 뒤에만 취소돼요.'}</p>
     </article>
   )
 }
