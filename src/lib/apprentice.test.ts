@@ -73,7 +73,7 @@ describe('proposalsFromRooms', () => {
     const base = views[0]
     const hotEmpty = {
       ...base,
-      flags: { co2Soon: false, co2Over: false, hot: true, dry: false, overtime: false, unbooked: false, offline: false, stuck: false },
+      flags: { co2Soon: false, co2Over: false, hot: true, dry: false, overtime: false, unbooked: false, offline: false, stuck: false, doorLeftOpen: false, noEntry: false, nightDoor: false },
       status: { text: '비어 있음', tone: 'empty' as const },
       temperatureC: 28.4,
     }

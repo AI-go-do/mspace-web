@@ -21,17 +21,19 @@ function ago(iso: string | null, now: Date): string {
  * 위 숫자 셋을 누르면 큰 그래프가 CO2·온도·습도로 바뀌고, 아래에 "지금 확인할 것"(왜 노랑·남색인지 + 할 일)과
  * 바로 할 수 있는 버튼(강제 퇴실·이 방 막기)을 둔다. 버튼은 방 관리 칸으로 값을 채워 넘기고, 실제 처리는 거기서 한 번 더 확인한다
  */
-export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlockRoom }: {
+export function RoomDetail({ view, now, blocked, reports = 0, onClose, onForceCheckout, onBlockRoom, onOpenReports }: {
   view: RoomView
   now: Date
   blocked: string | null
+  reports?: number
   onClose: () => void
+  onOpenReports: () => void
   onForceCheckout: (reservationId: number) => void
   onBlockRoom: (roomId: number, inspection: boolean) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const [metric, setMetric] = useState<MetricKey>('co2')
-  const advice = roomAdvice(view, now)
+  const advice = roomAdvice(view, now, { blocked, openReports: reports })
   const { flags } = view
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
     { key: 'temp', label: '온도', value: view.temperatureC === null ? null : view.temperatureC.toFixed(1), unit: '°C', hot: flags.hot, has: view.sensors.has('temperature') },
     { key: 'hum', label: '습도', value: view.humidityPct === null ? null : String(view.humidityPct), unit: '%', hot: flags.dry, has: view.sensors.has('humidity') },
   ]
+  const hasDoorNote = view.sensors.has('door') ? ' 아래 하늘색 띠는 문이 열려 있던 때예요.' : ''
   const canCheckout = !!view.current && view.presence === 'OCCUPIED'
   const inspection = flags.offline || flags.stuck
   const notes: Record<MetricKey, string> = {
@@ -82,7 +85,7 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
 
         <div className="rd-chart" role="tabpanel">
           <RoomChart key={metric} view={view} metric={metric} now={now} detail />
-          <p className="rd-note">{notes[metric]} 그래프를 누르거나 마우스를 올리면 그 분의 값이 보여요.</p>
+          <p className="rd-note">{notes[metric]} 그래프를 누르거나 마우스를 올리면 그 분의 값이 보여요.{hasDoorNote}</p>
         </div>
 
         <div className="rd-grid">
@@ -111,10 +114,19 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
               <dd>{view.nextAt ? seoulClock(new Date(view.nextAt)) : '없음'}</dd>
               <dt>재실</dt>
               <dd>{PRESENCE[view.presence]}</dd>
+              {view.sensors.has('door') && (
+                <>
+                  <dt>문</dt>
+                  <dd>{view.door ? `${view.door.open ? '열림' : '닫힘'} (${seoulClock(new Date(view.door.since))}부터 ${view.door.minutes}분)` : '모름'}</dd>
+                </>
+              )}
               <dt>마지막 신호</dt>
               <dd>{ago(view.lastSignalAt, now)}</dd>
             </dl>
             <div className="rd-actions">
+              {reports > 0 && (
+                <button type="button" className="adm-btn" onClick={onOpenReports}>신고 {reports}건 판정하러</button>
+              )}
               {canCheckout && (
                 <button type="button" className={`adm-btn ${flags.overtime ? '' : 'line'}`} onClick={() => onForceCheckout(view.current!.reservationId)}>
                   강제 퇴실로

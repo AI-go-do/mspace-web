@@ -91,8 +91,10 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   const f = metric === 'co2' ? ENV_RULES.forecastMinutes : 0
   const total = Math.max(2, n + f)
 
+  const hasDoor = view.sensors.has('door') && view.doors.some((d) => d !== null)
   const padT = 10
-  const padB = 20
+  const doorH = hasDoor ? (detail ? 10 : 7) : 0
+  const padB = 20 + (hasDoor ? doorH + 4 : 0)
   const padR = detail ? 52 : 40
   const plotW = Math.max(1, w - padR)
   const plotH = Math.max(1, h - padT - padB)
@@ -155,6 +157,18 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   if (n > 0) ticks.push({ i: nowIdx, label: '지금', now: true })
   if (f > 0) ticks.push({ i: total - 1, label: `+${f}분` })
 
+  // 문 열린 구간(연속된 분을 한 칸으로)
+  const doorRuns: [number, number][] = []
+  if (hasDoor) {
+    let from = -1
+    view.doors.forEach((d, i) => {
+      if (d === true && from < 0) from = i
+      if (d !== true && from >= 0) { doorRuns.push([from, i]); from = -1 }
+    })
+    if (from >= 0) doorRuns.push([from, Math.max(from + 1, nowIdx)])
+  }
+  const doorY = padT + plotH + 4
+
   const ready = w > 0 && h > 0
   const empty = last === null
 
@@ -174,6 +188,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
         co2 !== undefined && view.sensors.has('co2') ? `CO2 ${co2 === null ? '–' : co2}ppm` : null,
         t !== undefined && view.sensors.has('temperature') ? `온도 ${t === null ? '–' : t.toFixed(1)}°C` : null,
         hu !== undefined && view.sensors.has('humidity') ? `습도 ${hu === null ? '–' : hu}%` : null,
+        hasDoor && view.doors[hover] !== null ? `문 ${view.doors[hover] ? '열림' : '닫힘'}` : null,
       ].filter(Boolean) as string[] }
     }
     const k = hover - lastIdx
@@ -255,6 +270,17 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
             <g className="rc-eta">
               <line x1={x(eta)} x2={x(eta)} y1={padT} y2={padT + plotH} />
               <circle cx={x(eta)} cy={yLimit} r="5" />
+            </g>
+          )}
+
+          {/* 문 열린 구간 띠 */}
+          {hasDoor && (
+            <g className="rc-door">
+              <rect x="0" y={doorY} width={plotW} height={doorH} rx={doorH / 2} className="rc-door-bg" />
+              {doorRuns.map(([a, b]) => (
+                <rect key={a} x={x(a)} y={doorY} width={Math.max(3, x(b) - x(a))} height={doorH} rx={doorH / 2} className="rc-door-open" />
+              ))}
+              <text x={plotW + 6} y={doorY + doorH - 1} className="rc-door-t">문</text>
             </g>
           )}
 
