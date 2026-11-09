@@ -8,7 +8,7 @@ import { AdminBlocks } from './AdminBlocks'
 import { AdminTodo, useTodoCounts } from './AdminTodo'
 import { ForceCheckoutForm } from './AdminReports'
 import { useApprenticeFeed } from '../api/apprentice'
-import { ENV_SOURCE } from '../api/environment'
+import { envSource } from '../api/environment'
 import { useMemberId } from '../lib/useMemberId'
 import { seoulClockSec } from '../lib/time'
 import './Admin.css'
@@ -136,7 +136,7 @@ export default function Admin() {
           ))}
         </nav>
         <div className="adm-top-end">
-          {ENV_SOURCE === 'mock' && <span className="adm-mock">가짜 값 · 시연용</span>}
+          {envSource() === 'mock' && <span className="adm-mock">가짜 값 · 시연용</span>}
           <LiveClock />
         </div>
       </header>

@@ -5,7 +5,7 @@ import {
   type AutoDone, type Proposal, type ScoreResult, type TaskKind, type Trainee,
 } from '../lib/apprentice'
 import { toRoomView } from '../lib/roomHealth'
-import { ENV_SOURCE } from './environment'
+import { envSource } from './environment'
 import { mockEnvironment } from './environmentMock'
 
 /**
@@ -70,7 +70,7 @@ function load(): ApprenticeState {
     if (raw) {
       const s = JSON.parse(raw) as ApprenticeState
       // 가짜 방에서 만든 처리안(p…)은 실제 센서 모드에서 되살리지 않는다. 처음 넣어 둔 예시(s…)만 남긴다
-      if (isState(s)) return ENV_SOURCE === 'mock' ? s : { ...s, inbox: s.inbox.filter((p) => !p.id.startsWith('p')) }
+      if (isState(s)) return envSource() === 'mock' ? s : { ...s, inbox: s.inbox.filter((p) => !p.id.startsWith('p')) }
     }
   } catch {
     /* 저장소 없음·깨짐: 처음부터 */
@@ -107,7 +107,7 @@ const replaceTrainee = (s: ApprenticeState, t: Trainee) => s.trainees.map((x) =>
 /** 방 상태를 보고 새 처리안을 만든다. 레벨 2 이상인 일은 AI가 먼저 처리하고 기록만 남긴다 */
 export function refreshApprentice(now = new Date()): void {
   // 실제 센서 값(api)을 쓸 때 가짜 방에서 만든 처리안을 옆에 띄우지 않는다. 처리안은 core #94가 생기면 그쪽에서 받는다
-  if (ENV_SOURCE !== 'mock') return
+  if (envSource() !== 'mock') return
   const s = get()
   const env = mockEnvironment(now, ENV_RULES.historyMinutes)
   const views = env.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))

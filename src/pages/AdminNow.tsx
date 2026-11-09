@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
-import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { envSource, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
 import { withLightTrail, type LightTrail } from '../lib/lightTrail'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
@@ -16,7 +16,7 @@ import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
-import { setClimateAuto, useAppliances } from '../api/appliances'
+import { APPLIANCE_SOURCE, setClimateAuto, useAppliances } from '../api/appliances'
 import { useClimateRules, WeatherChip } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
@@ -78,7 +78,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
   // core가 조도를 최신 값 하나만 줄 때, 받은 값을 모아 그래프를 그린다(lib/lightTrail)
   const trail = useRef<LightTrail>(new Map())
-  const [sample, setSample] = useState(ENV_SOURCE === 'mock')
+  const [sample, setSample] = useState(envSource() === 'mock')
   const [error, setError] = useState<string | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
   const [openRoom, setOpenRoom] = useState<number | null>(null)
@@ -155,17 +155,22 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)} />
     )
   }
-  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게
-  const small = views.slice(0, -1)
+  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
+  const small = views.length === 1 ? views : views.slice(0, -1)
   const wide = views.length > 1 ? views[views.length - 1] : null
+  // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
+  const known = data !== null && views.length > 0
+  // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
+  const missingRooms = ADMIN_ROOMS.filter((r) => !views.some((v) => v.roomId === r.roomId)).length
+  const unknownRooms = views.filter((v) => v.presence === 'UNKNOWN').length + missingRooms
 
   return (
     <section className="admin-now ctl" aria-label="관제실 지금 방 상태">
       <div className="ctl-top">
-        <Big label="지금 쓰는 방" value={data ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
-        <Big label="주의" value={data ? warn : null} tone={warn ? 'warn' : ''} hint="환기·시간 넘김·입실 안 함·문" />
-        <Big label="확인 필요" value={data ? off : null} tone={off ? 'off' : ''} hint="센서 멈춤·끊김" />
-        <Big label="평균 CO2" value={data ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
+        <Big label="지금 쓰는 방" value={known ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
+        <Big label="주의" value={known ? warn : null} tone={warn ? 'warn' : ''} hint="환기·시간 넘김·입실 안 함·문" />
+        <Big label="확인 필요" value={known ? off : null} tone={off ? 'off' : ''} hint="센서 멈춤·끊김" />
+        <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
         <button type="button" className={`ctl-big as-btn ${todo.total ? 'todo' : ''}`} onClick={onOpenTodo}>
           <span className="cb-label">할 일</span>
           <b className="cb-num" aria-hidden="true">{todo.reportsKnown ? todo.total : '–'}</b>
@@ -185,7 +190,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
           <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
             onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
-          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}
+          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}{APPLIANCE_SOURCE === 'mock' && ' · 시연: 실제 기기에 신호를 보내지 않아요'}
         </span>
         <span className="ctl-legend" aria-hidden="true"><i className="lg-use" />사람 있음 <i className="lg-warn" />주의 <i className="lg-off" />확인 필요 <i className="lg-empty" />빈 방</span>
       </div>
@@ -203,8 +208,14 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
           <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />지금 확인할 것 <b>{now ? issues.length : '–'}</b></h2>
           {issues.length > 0 && <IssueFeed issues={issues} onOpen={setOpenRoom} />}
-          {data && issues.length === 0 && (
+          {known && issues.length === 0 && unknownRooms === 0 && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 확인할 것이 없어요.</p>
+          )}
+          {known && issues.length === 0 && unknownRooms > 0 && (
+            <p className="ctl-allok" role="status">확인할 것은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요{missingRooms > 0 ? ` (${missingRooms}개 방은 값이 오지 않았어요)` : ''}.</p>
+          )}
+          {data && views.length === 0 && (
+            <p className="ctl-allok" role="status">방 정보를 받지 못했어요. 잠시 뒤 다시 확인해요.</p>
           )}
           <button type="button" className="ctl-todo" onClick={onOpenTodo}>
             <b>{todo.reportsKnown ? todo.total : '?'}</b>
