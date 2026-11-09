@@ -40,6 +40,8 @@ export interface ChatResult {
 
 /** 시간표가 없어서 답했다 → [내 시간표 넣기] */
 export const HINT_OPEN_SCHEDULE = 'OPEN_SCHEDULE'
+/** 비서가 함께할 사람을 물었다 → 친구 버튼으로 "누구랑?"을 고르게 한다(이름은 모델로 안 보냄, FR-AGT-105) */
+export const HINT_PICK_FRIENDS = 'PICK_FRIENDS'
 
 export type ChatStatus = 'PENDING' | 'DONE' | 'FAILED'
 
