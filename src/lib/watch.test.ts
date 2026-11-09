@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { changedRooms, loadWatched, queued, reverted, toggled, withServer } from './watch'
+import { changedRooms, inScope, loadWatched, queued, reverted, toggled, withServer } from './watch'
 
 function fakeStorage() {
   const m = new Map<string, string>()
@@ -120,5 +120,20 @@ describe('같은 방 요청은 누른 순서대로 (queued)', () => {
     await a
     await new Promise((r) => setTimeout(r, 0))
     expect(queue.size).toBe(0)
+  })
+})
+
+describe('늦게 끝난 요청은 그 회원·그 날 몫만 (inScope)', () => {
+  it('같은 몫이면 바꾼 목록을 준다', () => {
+    expect(inScope({ scope: '7|2026-11-09', rooms: [1, 3] }, '7|2026-11-09', (r) => reverted(r, 3, true))).toEqual([1])
+  })
+
+  it('날짜가 바뀐 뒤 어제 켜기가 실패하면 오늘 목록을 건드리지 않는다', () => {
+    // given: 어제(11/9) 켠 3번 방 요청이 오늘(11/10) 실패로 돌아옴
+    const today = { scope: '7|2026-11-10', rooms: [2, 3] }
+    // when
+    const next = inScope(today, '7|2026-11-09', (r) => reverted(r, 3, true))
+    // then
+    expect(next).toBeNull()
   })
 })

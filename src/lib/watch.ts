@@ -77,6 +77,11 @@ export function queued<T>(queue: Map<number, Promise<unknown>>, roomId: number, 
   return next
 }
 
+/** 지금 상태가 그 회원·그 날(scope) 몫일 때만 바꾼 새 목록. 다른 몫이면 null(늦게 끝난 앞 요청이 새 목록을 건드리지 않게) */
+export function inScope(prev: { scope: string; rooms: number[] }, scope: string, change: (rooms: number[]) => number[]): number[] | null {
+  return prev.scope === scope ? change(prev.rooms) : null
+}
+
 /** 서버에 켜고 끄기를 못 했을 때 화면에 보일 말 */
 const WATCH_FAILED = '알림 켜기·끄기를 서버에 보내지 못했어요. 잠시 후 다시 눌러 주세요'
 
@@ -106,11 +111,12 @@ export function useWatched(member: number | null, now: Date): { watched: number[
   // 방마다 core에 보낸 요청 줄. 같은 방 켜기·끄기를 누른 순서대로 보낸다
   const queue = useRef(new Map<number, Promise<unknown>>())
 
-  // 바꾸는 기준은 화면 상태다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 함수형 갱신이라 연달아 눌러도 앞 변경을 잃지 않는다
+  // 바꾸는 기준은 화면 상태다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 함수형 갱신이라 연달아 눌러도 앞 변경을 잃지 않는다.
+  // 늦게 끝난 요청이 앞 회원·어제 몫으로 부르면 아무것도 바꾸지 않는다(저장 키가 회원별이라, 쓰면 오늘 목록을 덮는다)
   const update = useCallback((change: (rooms: number[]) => number[]) => {
     setState((prev) => {
-      const base = prev.scope === scope ? prev.rooms : read(member, today)
-      const next = change(base)
+      const next = inScope(prev, scope, change)
+      if (next === null) return prev
       write(member, today, next)
       return { scope, rooms: next }
     })
