@@ -137,7 +137,8 @@ export function climateTips(
           ? `바깥이 ${o!.tempC.toFixed(0)}°C라 창문을 열면 금방 시원해져요. 그래도 더우면 에어컨을 ${rules.coolTargetC}°C 냉방으로 켜요.${doorNote}`
           : `${lead}에어컨을 ${rules.coolTargetC}°C 냉방으로 켜 둘까요?${doorNote}`,
         appliance: ac, command: { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }, button: '냉방 켜기',
-        auto: !doorOpen && !windowFirst, urgent: occupied,
+        // 에어컨이 이미 다른 모드로 켜져 있으면 사람이 고른 것일 수 있어 자동으로 바꾸지 않는다(버튼은 남김)
+        auto: !doorOpen && !windowFirst && !isOn(s), urgent: occupied,
       })
     } else if (v.temperatureC < rules.coldC && !isOn(s, 'HEAT')) {
       out.push({
@@ -145,7 +146,7 @@ export function climateTips(
         title: occupied ? `${t}°C, 추워요` : `빈 방이 ${t}°C로 차가워요`,
         sub: `${lead}에어컨을 ${rules.heatTargetC}°C 난방으로 켜 둘까요?${doorNote}`,
         appliance: ac, command: { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC }, button: '난방 켜기',
-        auto: !doorOpen, urgent: occupied,
+        auto: !doorOpen && !isOn(s), urgent: occupied,
       })
     }
   }

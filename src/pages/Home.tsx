@@ -128,7 +128,8 @@ export default function Home() {
   const climate = useMemo(() => {
     if (!demoOn() || inRoom === null) return null
     const env = mockEnvironment(now, ENV_RULES.historyMinutes).rooms.find((r) => r.roomId === inRoom)
-    return env ? toRoomView(env, ADMIN_ROOMS.find((c) => c.roomId === inRoom), now) : null
+    // 내가 입실해 있으니 이 방은 "사람 있음". 가짜 값이 빈 방이라고 해도 "빈 방이라 끄기"를 권하지 않게 맞춘다
+    return env ? toRoomView({ ...env, presence: 'OCCUPIED' }, ADMIN_ROOMS.find((c) => c.roomId === inRoom), now) : null
   }, [now, inRoom])
   const climateUrgent = !!climate && (climate.flags.co2Soon || climate.flags.co2Over)
 

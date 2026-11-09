@@ -129,6 +129,15 @@ describe('manualHold', () => {
   })
 })
 
+describe('에어컨 모드 바꾸기', () => {
+  it('에어컨이 이미 냉방으로 켜져 있는데 추우면 난방을 권하지만 자동으로 바꾸지는 않는다', () => {
+    const [tip] = climateTips(view(room((i) => 600 + (i % 2), busy, 16.5)), now, states({ 'r1-ac': { mode: 'COOL', targetC: 26 } }))
+    expect(tip.why).toBe('heat')
+    expect(tip.button).toBe('난방 켜기')
+    expect(tip.auto).toBe(false)
+  })
+})
+
 describe('seasonRules', () => {
   const w = (over: Partial<OutdoorWeather>): OutdoorWeather => ({ tempC: 10, minC: 6, maxC: 14, normalC: 9.8, alert: null, source: 'mock', ...over })
 
