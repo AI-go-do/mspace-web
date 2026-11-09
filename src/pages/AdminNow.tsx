@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
 import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
@@ -9,60 +9,11 @@ import { blockNow, reasonStatus } from '../lib/roomBlocks'
 import { useCountUp } from '../lib/useCountUp'
 import { seoulClock } from '../lib/time'
 import type { TodoCounts } from './AdminTodo'
+import { RoomChart } from './AdminRoomChart'
+import { RoomDetail } from './AdminRoomDetail'
 import './AdminNow.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
-
-/** CO2 지난 45분 선 + 15분 예측 점선 + 기준선. 가로로 늘어나도 선 굵기는 그대로 */
-export function Co2Chart({ view, limit = ENV_RULES.co2LimitPpm }: { view: RoomView; limit?: number }) {
-  const W = 300
-  const H = 86
-  const n = view.history.length
-  const f = ENV_RULES.forecastMinutes
-  const values = [...view.history, ...view.forecast].filter((v): v is number => v !== null)
-  const lo = 400
-  const hi = Math.max(limit + 200, ...values.map((v) => v + 50))
-  const total = Math.max(2, n + f)
-  const x = (i: number) => (i / (total - 1)) * (W - 4) + 2
-  const y = (v: number) => H - 4 - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (H - 10)
-
-  // 센서 값이 빈 분에서 선을 끊는다
-  const runs: [number, number][][] = []
-  view.history.forEach((v, i) => {
-    if (v === null) { runs.push([]); return }
-    if (!runs.length) runs.push([])
-    runs[runs.length - 1].push([x(i), y(v)])
-  })
-  const lines = runs.filter((r) => r.length > 1)
-  const lastIdx = view.history.map((v, i) => (v === null ? -1 : i)).reduce((a, b) => Math.max(a, b), -1)
-  const last = lastIdx >= 0 ? (view.history[lastIdx] as number) : null
-  const pred = last !== null && view.forecast.length
-    ? [[x(lastIdx), y(last)], ...view.forecast.map((v, i) => [x(lastIdx + i + 1), y(v)])]
-    : []
-  const pts = (p: number[][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(' ')
-  const label = view.co2 === null
-    ? `${view.name} CO2 센서 없음`
-    : `${view.name} CO2 지난 ${n}분${view.forecast.length ? `과 ${view.forecast.length}분 예측` : ''}. 지금 ${view.co2}ppm`
-
-  return (
-    <div className="co2-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
-        <line x1="0" x2={W} y1={y(limit)} y2={y(limit)} className="c-limit" vectorEffect="non-scaling-stroke" />
-        {lines.map((r, i) => (
-          <g key={i}>
-            <polygon points={`${r[0][0]},${H} ${pts(r)} ${r[r.length - 1][0]},${H}`} className="c-fill" />
-            <polyline points={pts(r)} className="c-line" pathLength={1} vectorEffect="non-scaling-stroke" />
-          </g>
-        ))}
-        {pred.length > 1 && <polyline points={pts(pred)} className="c-pred" vectorEffect="non-scaling-stroke" />}
-        {last !== null && <line x1={x(lastIdx)} x2={x(lastIdx)} y1="4" y2={H} className="c-now" vectorEffect="non-scaling-stroke" />}
-      </svg>
-      <span className="c-limit-label" style={{ top: `${(y(limit) / H) * 100}%` }}>{limit}</span>
-      {last !== null && <span className="c-dot" style={{ left: `${(x(lastIdx) / W) * 100}%`, top: `${(y(last) / H) * 100}%` }} />}
-      {view.co2 === null && <span className="c-empty">CO2 센서 없음</span>}
-    </div>
-  )
-}
 
 function Value({ label, value, unit, note, hot, big }: { label: string; value: string | null; unit: string; note: string; hot?: boolean; big?: boolean }) {
   return (
@@ -74,10 +25,12 @@ function Value({ label, value, unit, note, hot, big }: { label: string; value: s
   )
 }
 
-export function RoomCard({ view, blocked, i = 0 }: { view: RoomView; blocked?: string | null; i?: number }) {
+/** 방 한 장(넓은 화면은 한 줄). 아무 곳이나 누르면 방 상세 창이 열린다 */
+export function RoomCard({ view, now, blocked, i = 0, onOpen }: { view: RoomView; now: Date; blocked?: string | null; i?: number; onOpen?: () => void }) {
   const { flags } = view
   return (
-    <article className={`card now-room t-${view.tone}`} aria-label={`${view.name} ${view.status.text}`} style={{ '--k': i } as CSSProperties}>
+    <article className={`card now-room t-${view.tone} ${onOpen ? 'can-open' : ''}`} aria-label={`${view.name} ${view.status.text}`} style={{ '--k': i } as CSSProperties}
+      onClick={onOpen}>
       <header className="nr-head">
         <span className="nr-no">{view.roomId}</span>
         <div className="nr-title">
@@ -93,7 +46,12 @@ export function RoomCard({ view, blocked, i = 0 }: { view: RoomView; blocked?: s
         <Value label="온도" value={view.temperatureC === null ? null : view.temperatureC.toFixed(1)} unit="°C" note={view.tempNote} hot={flags.hot} />
         <Value label="습도" value={view.humidityPct === null ? null : String(view.humidityPct)} unit="%" note={view.humNote} />
       </div>
-      <Co2Chart view={view} />
+      <RoomChart view={view} now={now} />
+      {onOpen && (
+        <button type="button" className="nr-open" onClick={(e) => { e.stopPropagation(); onOpen() }} aria-label={`${view.name} 자세히 보기`}>
+          자세히<span aria-hidden="true"> ›</span>
+        </button>
+      )}
     </article>
   )
 }
@@ -119,11 +77,18 @@ function Kpi({ label, value, of, tone, onClick, hint }: { label: string; value: 
  * 지켜보는 화면보다 "어디를 봐야 하나"가 먼저 보이게 이상한 방은 테두리 색으로 표시한다(노랑 주의, 남색 확인 필요).
  * 데이터는 api/environment 창구 하나에서만 받는다(지금은 가짜 값)
  */
-export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: () => void }) {
+export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
+  todo: TodoCounts
+  onOpenTodo: () => void
+  onForceCheckout: (reservationId: number) => void
+  onBlockRoom: (roomId: number, inspection: boolean) => void
+}) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
   const [sample, setSample] = useState(ENV_SOURCE === 'mock')
   const [error, setError] = useState<string | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
+  const [openRoom, setOpenRoom] = useState<number | null>(null)
+  const closeRoom = useCallback(() => setOpenRoom(null), [])
 
   useEffect(() => {
     const memberId = currentMemberId()
@@ -163,6 +128,13 @@ export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: (
     return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
   }, [data])
 
+  const now = data ? new Date(data.now) : null
+  const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
+  const blockedOf = (roomId: number) => {
+    const b = now ? blockNow(roomId, blocks, now) : null
+    return b ? reasonStatus(b.reason) : null
+  }
+
   const used = views.filter((v) => v.status.tone === 'use' || v.flags.overtime || v.flags.unbooked).length
   const warn = views.filter((v) => v.tone === 'warn').length
   const off = views.filter((v) => v.tone === 'off').length
@@ -175,7 +147,7 @@ export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: (
         <Kpi label="사용 중" value={data ? used : null} of={views.length || ADMIN_ROOMS.length} tone="blue" />
         <Kpi label="주의" value={data ? warn : null} tone={warn ? 'yellow' : ''} hint="환기·더움·시간 넘김" />
         <Kpi label="확인 필요" value={data ? off : null} tone={off ? 'navy' : ''} hint="센서 멈춤·끊김" />
-        <Kpi label="할 일" value={todo.reportsKnown ? todo.total : null} tone={todo.total ? 'todo' : ''} onClick={onOpenTodo}
+        <Kpi label="할 일" value={todo.reportsKnown ? todo.total : null} tone={todo.total ? 'k-todo' : ''} onClick={onOpenTodo}
           hint={!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
             : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'} />
       </div>
@@ -184,18 +156,24 @@ export function AdminNow({ todo, onOpenTodo }: { todo: TodoCounts; onOpenTodo: (
           {readAt ? <>마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다 새 값</span>
         {sample && <span className="now-sample">가짜 값 · 시연용</span>}
         <span className="now-legend">
-          <i className="lg-line" />측정 <i className="lg-pred" />{ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(최근 추세)' : ''} <i className="lg-limit" />환기 기준 {ENV_RULES.co2LimitPpm}
+          <i className="lg-line" />측정 <i className="lg-pred" />{ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(최근 추세)' : ''}·범위
+          <i className="lg-limit" />환기 기준 {ENV_RULES.co2LimitPpm} <i className="lg-over" />넘은 구간 <i className="lg-eta" />넘을 때
         </span>
+        <span className="now-tap">방을 누르면 자세히 · 할 일</span>
       </div>
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
       {!data && !error && <div className="now-rooms">{Array.from({ length: 5 }, (_, i) => <div key={i} className="card now-room skel" />)}</div>}
       {views.length > 0 && (
         <div className="now-rooms">
-          {views.map((v, i) => {
-            const b = data ? blockNow(v.roomId, blocks, new Date(data.now)) : null
-            return <RoomCard key={v.roomId} i={i} view={v} blocked={b ? reasonStatus(b.reason) : null} />
-          })}
+          {views.map((v, i) => (
+            <RoomCard key={v.roomId} i={i} view={v} now={now!} blocked={blockedOf(v.roomId)} onOpen={() => setOpenRoom(v.roomId)} />
+          ))}
         </div>
+      )}
+      {opened && now && (
+        <RoomDetail view={opened} now={now} blocked={blockedOf(opened.roomId)} onClose={closeRoom}
+          onForceCheckout={(id) => { closeRoom(); onForceCheckout(id) }}
+          onBlockRoom={(id, insp) => { closeRoom(); onBlockRoom(id, insp) }} />
       )}
     </section>
   )

@@ -28,7 +28,7 @@ function nextSlot(now: Date): Date {
 }
 
 /** 공지 막기안에서 [양식에서 고치기]로 채울 값 */
-interface Preset { roomId: number; startAt: string; endAt: string; reason: BlockReason; memo: string }
+interface Preset { roomId: number; startAt: string; endAt: string; reason: BlockReason; memo: string; note?: string }
 
 function BlockForm({ preset }: { preset?: Preset | null }) {
   const first = preset ? new Date(preset.startAt) : nextSlot(new Date())
@@ -41,7 +41,7 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
   const [reason, setReason] = useState<BlockReason>(preset?.reason ?? 'INSPECTION')
   const [memo, setMemo] = useState(preset?.memo ?? '')
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(
-    preset ? { text: '공지 막기안으로 채웠어요. 고친 뒤 [기간 막기]를 눌러 주세요.', error: false } : null)
+    preset ? { text: preset.note ?? '공지 막기안으로 채웠어요. 고친 뒤 [기간 막기]를 눌러 주세요.', error: false } : null)
   const ref = useRef<HTMLFormElement>(null)
   // 막기안에서 넘어오면 양식이 보이게 내리고 첫 칸에 손이 가게
   useEffect(() => {
@@ -159,11 +159,21 @@ function BlockItem({ b, now }: { b: RoomBlock; now: Date }) {
   )
 }
 
+function roomPreset({ roomId, inspection }: { roomId: number; inspection: boolean }): Preset {
+  const start = nextSlot(new Date(Date.now() - 30 * 60_000))
+  return {
+    roomId, startAt: start.toISOString(), endAt: new Date(start.getTime() + 2 * 3_600_000).toISOString(),
+    reason: inspection ? 'INSPECTION' : 'OTHER', memo: inspection ? '센서·장치 점검' : '',
+    note: `"지금" 화면에서 ${roomName(roomId)}을 골라 채웠어요. 기간·사유를 확인하고 [기간 막기]를 눌러 주세요.`,
+  }
+}
+
 /** 관리자 "기간 막기" 탭: 막기 + 목록(겹친 예약 확인·취소, 풀기) */
-export function AdminBlocks() {
+export function AdminBlocks({ fromRoom = null }: { fromRoom?: { roomId: number; inspection: boolean } | null }) {
   const { blocks } = useRoomBlocks()
   // 공지 막기안 → 양식 채우기. 누를 때마다 양식을 새로 그려 값이 들어가게(seq를 key로)
-  const [preset, setPreset] = useState<{ seq: number; p: Preset } | null>(null)
+  // "지금" 방 상세 창에서 왔으면 그 방을 지금부터 2시간 막는 안으로 채운다
+  const [preset, setPreset] = useState<{ seq: number; p: Preset } | null>(() => fromRoom ? { seq: 1, p: roomPreset(fromRoom) } : null)
   const now = new Date()
   const active = blocks.filter((b) => isActive(b, now))
   const past = blocks.filter((b) => !isActive(b, now))
