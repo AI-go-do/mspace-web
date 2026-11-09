@@ -1,0 +1,105 @@
+/*
+ * 11/9 "차분한 도구형" (재웅 결정). "AI가 만든 티"를 줄인다:
+ * 그라데이션·빛·흐림·떠 있는 그림자·장식 그림을 빼고, 흰 면 + 얇은 선 + 상태에만 색.
+ * 색은 tokens.css 4+2색 그대로. 화면 구조는 건드리지 않고 겉모양만 덮는다(맨 마지막에 불러옴).
+ */
+
+/* ---------- 공통 ---------- */
+:root { background: var(--white); }
+body, .app { background: var(--white); }
+.card { border: 1px solid var(--line); box-shadow: none; }
+.btn-primary::after { display: none; }
+.btn-primary, .btn-line { height: 52px; font-weight: 600; }
+.splash { background: var(--blue); }
+.splash svg { animation: none; filter: none; }
+.rs-bar { background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; box-shadow: 0 -1px 0 var(--line); }
+.sheet { border-radius: 14px 14px 0 0; box-shadow: none; }
+.sheet-dim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet-icon { box-shadow: none; }
+
+/* 아래 탭: 떠 있는 유리 막대 → 화면 끝에 붙은 평평한 줄 */
+.tabbar {
+  left: 0; right: 0; bottom: 0; transform: none; width: 100%; max-width: 480px; margin: 0 auto;
+  height: calc(64px + env(safe-area-inset-bottom)); padding: 0 0 env(safe-area-inset-bottom);
+  border-radius: 0; border: 0; border-top: 1px solid var(--line); box-shadow: none;
+  background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.tab-glow { display: none; }
+
+/* ---------- 홈 머리: 파란 그라데이션 판 → 흰 바탕 제목 ---------- */
+.home-head { background: var(--white); color: var(--navy); padding: 20px 16px 16px; border-bottom: 1px solid var(--line); }
+.home-head::before, .home-head::after, .campus { display: none; }
+.home-brand::before { display: none; }
+.home-brand { font-size: 15px; }
+.icon-btn { background: transparent; box-shadow: inset 0 0 0 1px var(--line); border-radius: 10px; }
+.home-sub { opacity: 1; color: var(--navy-70); font-size: 13px; }
+.home-count { font-size: 22px; }
+.count-num { text-shadow: none; font-size: 36px; }
+.dot-sky { box-shadow: none; width: 10px; height: 10px; }
+.chip { height: 40px; border-radius: 8px; font-size: 14px; }
+.chip-solid { background: var(--blue); color: var(--white); box-shadow: none; }
+.chip-solid::before { display: none; }
+.chip-line { background: var(--white); color: var(--navy); box-shadow: inset 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.chip-off { background: var(--gray); color: var(--navy-70); }
+
+/* 카드가 머리 위로 겹쳐 올라오던 것 → 평범하게 쌓기 */
+.today, .butler, .apology { margin: 12px 12px 0; border-radius: 12px; box-shadow: none; border: 1px solid var(--line); animation: none; }
+.apology { border-left: 3px solid var(--yellow); }
+.butler-mascot { background: var(--gray); border-radius: 10px; }
+.butler-mascot svg, .my-mascot svg { animation: none; }
+.butler-eyebrow::before { animation: none; }
+.workshop { background: none; border-radius: 6px; }
+
+/* ---------- 마이 탭 머리 ---------- */
+.my-head { background: var(--white); color: var(--navy); border-radius: 0; padding: 28px 16px 20px; border-bottom: 1px solid var(--line); }
+.my-mascot { width: 52px; height: 52px; border-radius: 12px; background: var(--gray); box-shadow: none; }
+.my-id { color: var(--navy-70); }
+.my-badge { background: var(--gray); color: var(--navy-70); border-radius: 6px; }
+.my-badge.on { background: var(--blue); color: var(--white); }
+.my > .inuse, .my > .mine-item { margin-top: 12px; }
+.my-menu { border-radius: 12px; }
+.my-row { border-radius: 0; border-top-color: var(--line); }
+.my-dot { box-shadow: none; animation: none; }
+
+/* ---------- 로그인·입실 번호·지난 예약 머리 ---------- */
+.login, .access { background: var(--white) !important; }
+
+/* ---------- 관리자: 남색 관제실 → 밝은 운영 화면 ---------- */
+.adm {
+  --c-bg: var(--white);
+  --c-ink: var(--navy);
+  --c-dim: var(--navy-70);
+  --c-faint: rgba(21, 35, 61, 0.45);
+  --c-line: var(--line);
+  --c-glass: var(--white);
+  --c-glass-2: var(--gray);
+  background: var(--white);
+}
+.adm-top { background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; animation: none; }
+.adm-mark { background: var(--blue); color: var(--white); box-shadow: none; border-radius: 8px; }
+.adm-back { color: var(--navy); }
+.adm-back:hover { background: var(--gray); }
+.adm-nav { background: transparent; box-shadow: none; padding: 0; }
+.adm-nav-glow { top: auto; bottom: -15px; height: 2px; border-radius: 0; background: var(--navy); box-shadow: none; }
+.adm-nav-item { color: var(--navy-70); }
+.adm-nav-item:hover { color: var(--navy); }
+.adm-nav-item[aria-current='page'] svg { color: var(--navy); }
+.adm-live b { font-size: clamp(18px, 1.8vw, 24px); font-weight: 700; }
+.adm-live i::after { display: none; }
+.adm-panel.is-sheet { margin: 0; border-radius: 0; background: var(--white); box-shadow: none; padding-top: 0; }
+.adm-bar { background: var(--white); box-shadow: 0 0 0 1px var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 14px; }
+
+/* 큰 숫자 상자 5개 → 한 줄 표 */
+.ctl-top { gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ctl-big { border-radius: 0; background: var(--white) !important; box-shadow: none !important; border-left: 1px solid var(--line); animation: none; padding: 12px 16px; }
+.ctl-big:first-child { border-left: 0; }
+.cb-num, .ctl-big.lead .cb-num { font-size: clamp(26px, 2.4vw, 34px); font-weight: 700; }
+.ctl-big.warn .cb-num { color: var(--navy); }
+.ctl-big.warn .cb-label::after, .ctl-big.off .cb-label::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--yellow); vertical-align: middle; }
+.ctl-big.off .cb-label::after { background: var(--navy-70); }
+.ctl-big.todo .cb-num { color: var(--blue); }
+.ctl-live b { color: var(--navy); }
+.ctl-live i { animation: none; }
+.ctl-sample, .adm-mock { background: var(--gray); color: var(--navy-70); }
+.ctl-legend .lg-use { box-shadow: none; background: var(--blue); }
+.ctl-legend .lg-off { border-color: var(--navy-70); background: var(--gray); }

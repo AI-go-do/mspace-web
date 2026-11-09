@@ -7,6 +7,7 @@ import { syncDemoFromUrl } from './lib/demo'
 import { syncWeatherFromUrl } from './api/weather'
 import './styles/tokens.css'
 import './styles/motion.css'
+import './styles/calm.css'
 
 registerSW({ immediate: true })
 // ?demo=1로 열면 core API가 아직 없는 화면(방의 사과·빈방 릴레이)을 예시 데이터로 보여 준다

@@ -11,17 +11,17 @@
   --taken: rgba(21, 35, 61, 0.22); /* 다른 사람 예약 막대 */
   --taken-solid: color-mix(in srgb, rgb(21, 35, 61) 22%, var(--white)); /* 같은 색을 불투명하게 (밝은 하늘 위에 겹쳐도 범례와 같은 색) */
   --blocked: color-mix(in srgb, var(--navy) 75%, var(--white)); /* 관리자가 막은 칸 (공사·점검·대관) */
-  --radius: 16px;
+  --radius: 10px;
   --touch: 44px;        /* 누르는 곳 최소 크기 */
 
   /* 깊이감(11/6 디자인 다듬기). 새 색을 만들지 않고 위 색을 섞어 명암만 만든다 */
   --blue-deep: color-mix(in srgb, var(--blue) 78%, var(--navy));   /* 파랑 그늘 */
   --blue-lift: color-mix(in srgb, var(--blue) 82%, var(--sky));    /* 파랑 빛 받는 쪽 */
-  --grad-blue: linear-gradient(150deg, var(--blue-lift) 0%, var(--blue) 48%, var(--blue-deep) 100%);
-  --line: rgba(21, 35, 61, 0.07);                                  /* 머리카락 선 */
-  --shadow-1: 0 1px 2px rgba(21, 35, 61, 0.05), 0 4px 14px -4px rgba(21, 35, 61, 0.08);
-  --shadow-2: 0 2px 6px rgba(21, 35, 61, 0.06), 0 16px 36px -10px rgba(21, 35, 61, 0.18);
-  --shadow-blue: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 10px 24px -8px rgba(10, 77, 162, 0.6);
+  --grad-blue: var(--blue); /* 11/9 차분한 도구형: 그라데이션 없이 평평한 파랑 */
+  --line: rgba(21, 35, 61, 0.12);                                  /* 머리카락 선 */
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-blue: none;
   font-family: 'Noto Sans KR', system-ui, sans-serif;
   letter-spacing: -0.01em;
   color: var(--navy);
