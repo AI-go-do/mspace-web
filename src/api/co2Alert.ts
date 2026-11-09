@@ -56,9 +56,23 @@ function load(): DemoStore {
   try {
     const raw = sessionStorage.getItem(DEMO_KEY)
     const s = raw ? (JSON.parse(raw) as Partial<DemoStore>) : null
-    if (s && s.tracks && typeof s.tracks === 'object' && Array.isArray(s.list)) return { tracks: s.tracks, list: s.list }
+    if (s && s.tracks && typeof s.tracks === 'object' && !Array.isArray(s.tracks) && Array.isArray(s.list)) {
+      // 손으로 고친 값이 섞여도 알림함이 깨지지 않게 모양이 맞는 것만
+      const list = s.list.filter(validDemo)
+      return { tracks: s.tracks, list }
+    }
   } catch { /* 처음이거나 저장소를 못 씀 */ }
   return { tracks: {}, list: [] }
+}
+
+/** 저장된 예시 알림이 알림함에 그려도 되는 모양인지 (번호는 안전한 정수, 날짜는 읽을 수 있는 값) */
+function validDemo(n: unknown): n is AppNotification {
+  if (!n || typeof n !== 'object') return false
+  const x = n as Partial<AppNotification>
+  return Number.isSafeInteger(x.id) && (x.id as number) <= ID_BASE
+    && typeof x.title === 'string' && typeof x.body === 'string' && typeof x.kind === 'string' && typeof x.read === 'boolean'
+    && (x.reservationId === null || Number.isSafeInteger(x.reservationId))
+    && typeof x.createdAt === 'string' && !Number.isNaN(Date.parse(x.createdAt))
 }
 
 function save(s: DemoStore): void {
@@ -75,12 +89,19 @@ export function noteCo2Demo(reservationId: number, v: RoomView, now: Date): AppN
   const s = load()
   const key = String(reservationId)
   const urgent = v.flags.co2Over || (v.flags.co2Soon && v.etaMinutes !== null)
-  const { track, fire } = stepCo2Alert(s.tracks[key], urgent, now.getTime())
+  const before = s.tracks[key]
+  const { track, fire } = stepCo2Alert(before, urgent, now.getTime())
+  // 바뀐 게 없으면 저장하지 않는다(1분마다 부르니까)
+  if (!fire && before && JSON.stringify(before) === JSON.stringify(track)) return null
   s.tracks[key] = track
   let made: AppNotification | null = null
   if (fire) {
     const { title, body } = co2AlertText(v, track.sent)
-    made = { id: ID_BASE - 1 - s.list.length, reservationId, kind: CO2_ALERT_KIND, title, body, createdAt: now.toISOString(), read: false }
+    // 아직 안 쓴 번호 중 -101부터 차례로(목록이 줄거나 바뀌어도 겹치지 않고, 늘 안전한 정수)
+    const used = new Set(s.list.map((n) => n.id))
+    let id = ID_BASE - 1
+    while (used.has(id)) id--
+    made = { id, reservationId, kind: CO2_ALERT_KIND, title, body, createdAt: now.toISOString(), read: false }
     s.list = [made, ...s.list]
   }
   save(s)
