@@ -151,8 +151,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)} />
     )
   }
-  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게
-  const small = views.slice(0, -1)
+  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
+  const small = views.length === 1 ? views : views.slice(0, -1)
   const wide = views.length > 1 ? views[views.length - 1] : null
 
   return (
