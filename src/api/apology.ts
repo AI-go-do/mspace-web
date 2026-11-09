@@ -1,13 +1,16 @@
 import type { AppNotification } from './notifications'
 
 /**
- * 방의 사과 (요구사항 Q-19, core #94, 11/9 회의 결정 대기).
- * 문 장치가 와이파이 끊김·오류로 문을 못 열어 생긴 노쇼는 core가 규칙으로 경고를 무르고, 이 종류의 알림을 남긴다.
- * 제목·본문은 서버가 준 그대로 쓴다(사과 문장은 비서가 쓴다, assistant #97). 화면은 홈 맨 위 카드와 알림함에 보여 준다
+ * 방의 사과 (요구사항 Q-19, core #99).
+ * 문 장치가 와이파이 끊김·오류로 문을 못 열어 생긴 노쇼는 core가 규칙으로 노쇼에서 빼고(정지도 풂), 대표자·참여자에게
+ * `DEVICE_APOLOGY` 알림을 남긴다. 제목·본문은 서버가 준 그대로 쓴다. 화면은 홈 맨 위 카드와 알림함에 보여 준다
  */
-export const APOLOGY_KIND = 'ROOM_APOLOGY'
+export const APOLOGY_KIND = 'DEVICE_APOLOGY'
 
-export const isApology = (n: AppNotification) => n.kind === APOLOGY_KIND
+/** core #99 전에 웹이 가정한 이름. 예전 예시 기록이 남아 있어도 사과로 보이게 같이 받는다 */
+const OLD_APOLOGY_KIND = 'ROOM_APOLOGY'
+
+export const isApology = (n: Pick<AppNotification, 'kind'>) => n.kind === APOLOGY_KIND || n.kind === OLD_APOLOGY_KIND
 
 /** 홈에 띄울 사과 하나: 아직 안 읽은 것 중 가장 최근 것. 숨긴 번호(방금 "괜찮아요"를 누름)는 뺀다 */
 export function pickApology(list: AppNotification[], hidden: ReadonlySet<number> = new Set()): AppNotification | null {
@@ -51,8 +54,8 @@ export function demoApologies(now = Date.now()): AppNotification[] {
     id: -1,
     reservationId: null,
     kind: APOLOGY_KIND,
-    title: '창작실 3: 제 잘못이에요. 미안해요',
-    body: '14:01–14:09에 제 문 장치가 와이파이가 끊겨 문을 못 열었어요. 그래서 붙은 노쇼 경고 1회를 물렀어요.',
+    title: '장치 문제로 못 들어가셨어요',
+    body: '창작실 3 14:00 예약은 문 장치 문제로 입실을 못 하셔서 노쇼에서 뺐어요. 불편을 드려 죄송해요.',
     createdAt: new Date(s.at).toISOString(),
     read: s.read,
   }]
