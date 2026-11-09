@@ -527,12 +527,18 @@ function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: 
       onInterim: (t) => setNote(t ? `듣는 중: ${t}` : ''),
       onFinal: (t) => {
         const r = matchFriends(t, friendsNow.current ?? [], chosenNow.current.map((x) => x.studentId))
-        setChosen((cur) => {
-          const have = new Set(cur.map((x) => x.studentId))
-          return [...cur, ...r.picked.filter((x) => !have.has(x.studentId))].slice(0, MAX_FRIENDS)
-        })
+        // 상태와 안내가 같은 결과를 보도록 넣을 친구를 먼저 정한다(중복 빼고 7명까지)
+        const cur = chosenNow.current
+        const have = new Set(cur.map((x) => x.studentId))
+        const fresh = r.picked.filter((x) => !have.has(x.studentId))
+        const added = fresh.slice(0, Math.max(0, MAX_FRIENDS - cur.length))
+        const over = fresh.length - added.length
+        const next = [...cur, ...added]
+        chosenNow.current = next
+        setChosen(next)
         const lines: string[] = []
-        if (r.picked.length) lines.push(`${r.picked.map((x) => x.name).join(', ')}님을 골랐어요.`)
+        if (added.length) lines.push(`${added.map((x) => x.name).join(', ')}님을 골랐어요.`)
+        if (over > 0) lines.push(`${MAX_FRIENDS}명까지만 고를 수 있어서 ${over}명은 넣지 않았어요.`)
         for (const a of r.ambiguous) lines.push(`'${a.spoken}'은 ${a.candidates.map((x) => x.name).join('·')} 중 누구인지 눌러 주세요.`)
         if (r.unknown.length) lines.push(`${r.unknown.map((u) => `'${u}'`).join(', ')}은 친구 목록에 없어요.`)
         setNote(lines.join(' ') || `'${t}'에서 친구 이름을 찾지 못했어요. 눌러서 골라 주세요.`)

@@ -18,19 +18,31 @@ export function knownTeams(member: number | null): Team[] {
   return member === null ? [] : known.get(member) ?? []
 }
 
-function remember(member: number | null | undefined, r: { teams: Team[] }) {
-  if (member !== null && member !== undefined) known.set(member, r.teams)
+// 학생별 마지막 요청 번호. 늦게 도착한 앞 요청 응답(예: 저장 전에 보낸 GET)이 새 목록을 덮지 않게
+const seq = new Map<number, number>()
+
+function nextSeq(member: number | null | undefined): number {
+  if (member === null || member === undefined) return 0
+  const n = (seq.get(member) ?? 0) + 1
+  seq.set(member, n)
+  return n
+}
+
+function remember(member: number | null | undefined, n: number, r: { teams: Team[] }) {
+  if (member !== null && member !== undefined && seq.get(member) === n) known.set(member, r.teams)
   return r
 }
 
 export function getTeams(member?: number | null): Promise<{ teams: Team[] }> {
-  return api<{ teams: Team[] }>('/api/agent/teams', { member }).then((r) => remember(member, r))
+  const n = nextSeq(member)
+  return api<{ teams: Team[] }>('/api/agent/teams', { member }).then((r) => remember(member, n, r))
 }
 
 /** 같은 이름이면 바꾸고 없으면 추가. 바뀐 전체 목록을 돌려준다 */
 export function saveTeam(name: string, members: TeamMember[], member?: number | null): Promise<{ teams: Team[] }> {
+  const n = nextSeq(member)
   return api<{ teams: Team[] }>(`/api/agent/teams/${encodeURIComponent(name.trim())}`, { method: 'PUT', body: JSON.stringify({ members }), member })
-    .then((r) => remember(member, r))
+    .then((r) => remember(member, n, r))
 }
 
 export function deleteTeam(name: string, member?: number | null): Promise<void> {

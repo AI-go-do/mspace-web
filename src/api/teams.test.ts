@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { teamFriends, teamInMessage, type Team } from './teams'
+import { describe, expect, it, vi } from 'vitest'
+import { getTeams, knownTeams, saveTeam, teamFriends, teamInMessage, type Team } from './teams'
+
+const api = vi.hoisted(() => vi.fn())
+vi.mock('./client', async (orig) => ({ ...(await orig<typeof import('./client')>()), api }))
 
 const A: Team = { name: '팀 A', members: [{ studentId: '99999002', name: '김*영' }, { studentId: '99999003', name: '박*웅' }] }
 const AB: Team = { name: '팀 AB', members: [{ studentId: '99999004', name: '이*연' }] }
@@ -24,5 +27,24 @@ describe('teamFriends', () => {
   })
   it('친구 목록을 모르면 그대로', () => {
     expect(teamFriends(A, null)).toHaveLength(2)
+  })
+})
+
+describe('팀 목록 기억', () => {
+  it('저장 뒤에 늦게 도착한 앞 GET 응답은 새 목록을 덮지 않는다', async () => {
+    // given: GET이 먼저 나가고, 저장(PUT)이 먼저 끝난다
+    let finishGet: (v: { teams: Team[] }) => void = () => {}
+    api.mockImplementationOnce(() => new Promise((ok) => { finishGet = ok }))
+    const saved = [{ name: '팀 A', members: [{ studentId: '99999002', name: '김*영' }] }]
+    api.mockImplementationOnce(() => Promise.resolve({ teams: saved }))
+
+    // when
+    const pending = getTeams(7)
+    await saveTeam('팀 A', saved[0].members, 7)
+    finishGet({ teams: [] })
+    await pending
+
+    // then
+    expect(knownTeams(7)).toEqual(saved)
   })
 })
