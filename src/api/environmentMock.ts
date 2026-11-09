@@ -124,6 +124,8 @@ function room(cfg: AdminRoomConfig, scene: number, now: Date, minutes: number, s
     temperatureC: live.temperatureC ?? null,
     humidityPct: live.humidityPct ?? null,
     ...(has('light') ? { light: live.light ?? null } : {}),
+    // PIR은 재실 판단에 쓰는 움직임 센서. 가짜 값은 재실과 같게 둔다
+    ...(has('presence') ? { pir: { detected: occupied, at: iso(nowMs - 4_000) } } : {}),
     series,
     current,
     next,
