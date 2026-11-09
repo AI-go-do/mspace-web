@@ -42,7 +42,7 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const [loaded, setLoaded] = useState<{ member: number | null; list: AdminReport[] }>({ member: null, list: [] })
   const reports = loaded.member === member ? loaded.list : []
   const [skipped, setSkipped] = useState<string[]>(readSkipped)
-  const [rested, setRested] = useState<{ p: RestProposal; error: string | null }[]>([])
+  const [rested, setRested] = useState<{ p: RestProposal; error: string | null; conflicts: number }[]>([])
   const { blocks } = useRoomBlocks()
   const busy = useRef(new Set<string>())
 
@@ -85,14 +85,14 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
     if (busy.current.has(p.key) || rested.some((x) => x.p.key === p.key && x.error === null)) return
     busy.current.add(p.key)
     void createBlock({ roomId: p.roomId, startAt: new Date(p.startAt), endAt: new Date(p.endAt), reason: 'INSPECTION', memo: REST_MEMO })
-      .then((r) => setRested((x) => [...x.filter((e) => e.p.key !== p.key), { p, error: 'error' in r ? r.error : null }]))
+      .then((r) => setRested((x) => [...x.filter((e) => e.p.key !== p.key), 'error' in r ? { p, error: r.error, conflicts: 0 } : { p, error: null, conflicts: r.conflicts.length }]))
       .finally(() => busy.current.delete(p.key))
   }
 
   if (list.length === 0 && rested.length === 0) return null
   return (
     <section className="rest" aria-label="아픈 방 휴업안">
-      {rested.map(({ p, error }) => (
+      {rested.map(({ p, error, conflicts }) => (
         <div key={p.key} className={`card rest-card done ${error ? 'err' : ''}`} role="status">
           {error ? (
             <p className="rest-done-text"><b>{roomName(p.roomId)}을 쉬게 하지 못했어요</b><span>{error}</span></p>
@@ -101,7 +101,7 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
               <span className="rest-zzz" aria-hidden="true">z<i>z</i><i>z</i></span>
               <p className="rest-done-text">
                 <b>{roomName(p.roomId)}이 쉬는 중이에요</b>
-                <span>{when(p)} · 학생 화면에 "점검 중"으로 보여요{p.moves.length > 0 && `. 겹친 예약 ${p.moves.length}건은 방 관리에서 확인해 주세요`}</span>
+                <span>{when(p)} · 학생 화면에 "점검 중"으로 보여요{conflicts > 0 && `. 겹친 예약 ${conflicts}건은 방 관리에서 확인해 주세요`}</span>
               </p>
               <button type="button" className="adm-btn line rest-go" onClick={onOpenRooms}>방 관리에서 보기</button>
             </>

@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { demoOn } from '../lib/demo'
 import { seoulDate } from '../lib/time'
-import { conflictsOf, isActive, validateBlock, type BlockConflict, type BlockInput, type RoomBlock } from '../lib/roomBlocks'
+import { conflictsOf, isActive, isCancelable, validateBlock, type BlockConflict, type BlockInput, type RoomBlock } from '../lib/roomBlocks'
 import { api, ApiError, currentMemberId } from './client'
 
 /**
@@ -167,6 +167,8 @@ let apiView: BlocksView = { source: 'api', blocks: [], canceled: [], conflicts: 
 let mockView: BlocksView | null = null
 let loadedAt = 0
 let inflight: Promise<void> | null = null
+/** 막기·풀기·취소가 성공할 때마다 하나씩 올린다. 그 전에 시작한 새로 읽기 결과가 새 기록을 덮지 않게 */
+let revision = 0
 
 /** api 상태를 바꾸고 화면에 알린다 */
 function setApi(next: Partial<BlocksView>) {
@@ -214,6 +216,8 @@ export function refreshBlocks(force = false): Promise<void> {
   if (blocksSource() !== 'api') return Promise.resolve()
   if (inflight) return inflight
   if (!force && apiView.loaded && Date.now() - loadedAt < 30_000) return Promise.resolve()
+  const startRev = revision
+  let again = false
   const run = (async () => {
     try {
       const raw = await api<unknown>('/api/admin/room-blocks', { member: currentMemberId() })
@@ -222,6 +226,8 @@ export function refreshBlocks(force = false): Promise<void> {
       const now = new Date()
       const pairs = await Promise.all(blocks.filter((b) => isActive(b, now))
         .map(async (b) => [b.id, await fetchConflicts(b.id)] as const))
+      // 읽는 동안 막기·풀기·취소가 성공했으면 이 결과는 옛것이라 버리고 한 번 더 읽는다
+      if (revision !== startRev) { again = true; return }
       loadedAt = Date.now()
       setApi({ blocks, conflicts: Object.fromEntries(pairs), loaded: true, error: null })
     } catch (e) {
@@ -231,8 +237,8 @@ export function refreshBlocks(force = false): Promise<void> {
       inflight = null
     }
   })()
-  inflight = run
-  return run
+  inflight = run.then(() => (again ? refreshBlocks(true) : undefined))
+  return inflight
 }
 
 // ---- 화면이 쓰는 함수 (api·mock 같은 모양) ----
@@ -254,6 +260,7 @@ export async function createBlock(input: BlockInput, now = new Date()): Promise<
     })
     const block = toBlock(res?.block)
     const conflicts = toConflicts(res?.conflicts)
+    revision++
     setApi({ blocks: [block, ...apiView.blocks.filter((b) => b.id !== block.id)], conflicts: { ...apiView.conflicts, [block.id]: conflicts } })
     return { block, conflicts }
   } catch (e) {
@@ -266,6 +273,7 @@ export async function releaseBlock(id: number, now = new Date()): Promise<string
   if (blocksSource() === 'mock') { mockRelease(id, now); return null }
   try {
     const block = toBlock(await api<unknown>(`/api/admin/room-blocks/${id}/release`, { method: 'POST', member: currentMemberId() }))
+    revision++
     const conflicts = Object.fromEntries(Object.entries(apiView.conflicts).filter(([k]) => Number(k) !== id))
     setApi({ blocks: apiView.blocks.map((b) => (b.id === id ? block : b)), conflicts })
     return null
@@ -286,10 +294,18 @@ export function blockConflicts(id: number, now = new Date()): BlockConflict[] {
 export async function cancelConflicts(id: number, now = new Date()): Promise<number | { error: string }> {
   if (blocksSource() === 'mock') return mockCancel(id, now)
   try {
-    const res = await api<{ canceled?: unknown }>(`/api/admin/room-blocks/${id}/cancel-conflicts`, { method: 'POST', member: currentMemberId() })
+    const res = await api<{ canceled?: unknown; reservationIds?: unknown }>(`/api/admin/room-blocks/${id}/cancel-conflicts`, { method: 'POST', member: currentMemberId() })
     const n = typeof res?.canceled === 'number' ? res.canceled : 0
-    // 사용 중인 예약은 남으므로 목록을 다시 읽는다
-    try { setApi({ conflicts: { ...apiView.conflicts, [id]: await fetchConflicts(id) } }) } catch { /* 다음 새로 읽기에서 맞춘다 */ }
+    revision++
+    // 서버가 취소했다고 한 예약은 바로 목록에서 뺀다. 다시 읽기가 실패해도 취소한 예약을 또 보여 주지 않게
+    const gone = new Set(Array.isArray(res?.reservationIds) ? res.reservationIds.filter((x): x is number => typeof x === 'number') : [])
+    const kept = (apiView.conflicts[id] ?? []).filter((c) => !gone.has(c.reservationId) && (gone.size > 0 || !isCancelable(c)))
+    setApi({ conflicts: { ...apiView.conflicts, [id]: kept } })
+    // 사용 중인 예약은 남으므로 서버 목록으로 다시 맞춘다. 기다린 뒤의 최신 상태에 합친다
+    try {
+      const fresh = await fetchConflicts(id)
+      setApi({ conflicts: { ...apiView.conflicts, [id]: fresh } })
+    } catch { /* 위에서 취소한 예약은 이미 뺐다. 다음 새로 읽기에서 맞춘다 */ }
     return n
   } catch (e) {
     return { error: message(e) }
@@ -345,4 +361,5 @@ export function _resetBlocksForTest(source: 'api' | 'mock' | null = null): void 
   apiView = { source: 'api', blocks: [], canceled: [], conflicts: {}, loaded: false, error: null }
   loadedAt = 0
   inflight = null
+  revision = 0
 }
