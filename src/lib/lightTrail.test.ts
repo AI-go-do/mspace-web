@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { flattenLight, isRoomsEnvironment, type RoomsEnvironment, type RoomEnvironment } from '../api/environment'
-import { withLightTrail, type LightTrail } from './lightTrail'
+import { trailFor, withLightTrail, type LightTrail } from './lightTrail'
 
 const MIN = 60_000
 const t0 = Date.parse('2026-11-09T02:40:00Z')
@@ -70,5 +70,24 @@ describe('조도 쌓기', () => {
     const r = room({ light: 500, series: [{ at: iso(t0), ppm: null, light: 510 }] })
     const out = withLightTrail(env(t0, r), trail, 60)
     expect(out.rooms[0]).toBe(r)
+  })
+})
+
+describe('조도 쌓기: 오래된 값과 탭 이동', () => {
+  it('측정 시각이 오래된 조도는 지금 분의 새 값으로 쌓지 않는다', () => {
+    // given: 2:40에 잰 값이 2:45에도 그대로 옴
+    const trail: LightTrail = new Map()
+    const series = [0, 5].map((i) => ({ at: iso(t0 + i * MIN), ppm: null, temperatureC: null, humidityPct: null }))
+    withLightTrail(env(t0 + 10_000, room({ light: 600, lightAt: iso(t0), series })), trail, 60)
+    // when
+    const out = withLightTrail(env(t0 + 5 * MIN + 5_000, room({ light: 600, lightAt: iso(t0), series })), trail, 60)
+    // then: 2:40 칸만 600, 2:45 칸은 값 없음
+    expect(out.rooms[0].series[0].light).toBe(600)
+    expect(out.rooms[0].series[1].light).toBeNull()
+  })
+
+  it('같은 사람이면 탭을 옮겨도 같은 trail을 쓴다', () => {
+    expect(trailFor(7)).toBe(trailFor(7))
+    expect(trailFor(7)).not.toBe(trailFor(8))
   })
 })
