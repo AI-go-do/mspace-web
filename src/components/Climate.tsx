@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { APPLIANCE_SOURCE, applianceState, isSending, sendApplianceCommand, useAppliances, type ApplianceCommand, type CommandBy } from '../api/appliances'
-import { CLIMATE_RULES, ROOM_APPLIANCES, type ApplianceConfig } from '../config/appliances'
+import { ROOM_APPLIANCES, type ApplianceConfig } from '../config/appliances'
+import { useOutdoorWeather, weatherLabel, type OutdoorWeather } from '../api/weather'
 import { ENV_RULES } from '../config/adminRooms'
-import { climateTips, josa, stateLabel, type ClimateTip } from '../lib/climate'
+import { climateTips, josa, seasonRules, stateLabel, type ClimateTip } from '../lib/climate'
 import type { RoomView } from '../lib/roomHealth'
 import './Climate.css'
 
@@ -19,6 +20,13 @@ function Icon({ kind, on }: { kind: ApplianceConfig['kind']; on: boolean }) {
       <circle cx="12" cy="12" r="2" /><path d="M12 10c0-4 1-7 4-7 2 0 2 3 0 5M14 12c4 0 7 1 7 4 0 2-3 2-5 0M12 14c0 4-1 7-4 7-2 0-2-3 0-5M10 12c-4 0-7-1-7-4 0-2 3-2 5 0" />
     </svg>
   )
+}
+
+/** "바깥 -9.5°C · 한파" (한파는 파랑, 폭염은 빨강) */
+export function WeatherChip({ w }: { w: OutdoorWeather }) {
+  const tone = w.alert === 'COLD_WAVE' ? 'cold' : w.alert === 'HEAT_WAVE' ? 'hot' : ''
+  const title = `오늘 최저 ${w.minC.toFixed(1)}°C · 최고 ${w.maxC.toFixed(1)}°C · 이 달 평년 ${w.normalC.toFixed(1)}°C${w.source === 'demo' ? ' (시연 날씨)' : w.source === 'mock' ? ' (평년값으로 만든 가짜 날씨)' : ''}`
+  return <span className={`cl-weather ${tone}`} title={title}>{weatherLabel(w)}</span>
 }
 
 /** 누른 뒤 잠깐 "켜졌어요"를 보여 준다 */
@@ -45,7 +53,9 @@ export function ClimatePanel({ view, now, by, member, compact }: {
   const [error, setError] = useState<string | null>(null)
   const appliances = ROOM_APPLIANCES[view.roomId] ?? []
   const get = (id: string) => applianceState(id, store)
-  const tips = climateTips(view, now, get)
+  const weather = useOutdoorWeather()
+  const rules = useMemo(() => seasonRules(weather), [weather])
+  const tips = climateTips(view, now, get, rules)
 
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
@@ -56,13 +66,17 @@ export function ClimatePanel({ view, now, by, member, compact }: {
   // 손으로 켤 때 에어컨 모드: 추우면 난방, 아니면 냉방
   const manualOn = (a: ApplianceConfig): ApplianceCommand => {
     if (a.kind !== 'ac') return { power: 'ON' }
-    const cold = view.temperatureC !== null && view.temperatureC < CLIMATE_RULES.coldC
-    return cold ? { power: 'ON', mode: 'HEAT', targetC: CLIMATE_RULES.heatTargetC } : { power: 'ON', mode: 'COOL', targetC: CLIMATE_RULES.coolTargetC }
+    // 겨울(난방철)엔 방이 덥지 않으면 난방, 다른 철엔 방이 추울 때만 난방
+    const t = view.temperatureC
+    const winter = rules.season === 'winter'
+    const cold = t === null ? winter : t < rules.coldC || (winter && t < (rules.hotC ?? ENV_RULES.hotC))
+    return cold ? { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC } : { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }
   }
 
   if (!appliances.length) return null
   return (
     <div className={`cl ${compact ? 'compact' : ''}`}>
+      {!compact && <WeatherChip w={weather} />}
       {tips.length > 0 && (
         <ul className="cl-tips">
           {tips.map((t: ClimateTip) => {
@@ -105,9 +119,9 @@ export function ClimatePanel({ view, now, by, member, compact }: {
                   {(['COOL', 'HEAT'] as const).map((m) => (
                     <button key={m} type="button" className={s.mode === m ? 'on' : ''} aria-pressed={s.mode === m} disabled={busy || s.mode === m}
                       onClick={() => send(a, m === 'COOL'
-                        ? { power: 'ON', mode: 'COOL', targetC: CLIMATE_RULES.coolTargetC }
-                        : { power: 'ON', mode: 'HEAT', targetC: CLIMATE_RULES.heatTargetC })}>
-                      {m === 'COOL' ? `냉방 ${CLIMATE_RULES.coolTargetC}°C` : `난방 ${CLIMATE_RULES.heatTargetC}°C`}
+                        ? { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }
+                        : { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC })}>
+                      {m === 'COOL' ? `냉방 ${rules.coolTargetC}°C` : `난방 ${rules.heatTargetC}°C`}
                     </button>
                   ))}
                 </span>
@@ -131,6 +145,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
  */
 export function ClimateCard({ view, now, top }: { view: RoomView; now: Date; top?: boolean }) {
   const { flags } = view
+  const weather = useOutdoorWeather()
   const eta = flags.co2Soon && view.etaMinutes !== null ? view.etaMinutes : null
   const level = flags.co2Over ? 'over' : eta !== null ? 'soon' : 'ok'
   const after = view.forecast.length ? view.forecast[view.forecast.length - 1] : null
@@ -138,6 +153,7 @@ export function ClimateCard({ view, now, top }: { view: RoomView; now: Date; top
     <section className={`card cl-card l-${level} ${top ? 'cl-top' : ''}`} aria-labelledby="cl-title">
       <header className="cl-card-head">
         <span className="cl-eyebrow">내 방 공기 · {view.name}</span>
+        <WeatherChip w={weather} />
         {level === 'soon' && <span className="cl-badge">숨 막히기 {eta}분 전</span>}
         {level === 'over' && <span className="cl-badge">환기 필요</span>}
       </header>

@@ -115,3 +115,16 @@
 .cl-mode button.on { background: var(--blue); color: var(--white); }
 .cl-mode button:nth-child(2).on { background: #e8743b; }
 .cl-mode button:disabled { cursor: default; }
+
+/* 바깥 날씨 칩: "바깥 -9.5°C · 한파" */
+.cl-weather {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--gray) 14%, var(--white)); color: var(--navy-70);
+}
+.cl-weather::before { content: '☁'; font-size: 11px; }
+.cl-weather.cold { background: color-mix(in srgb, var(--blue) 14%, var(--white)); color: var(--blue-deep); }
+.cl-weather.cold::before { content: '❄'; }
+.cl-weather.hot { background: color-mix(in srgb, #dc2626 14%, var(--white)); color: #b91c1c; }
+.cl-weather.hot::before { content: '☀'; }
+.cl > .cl-weather { align-self: flex-start; }

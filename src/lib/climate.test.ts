@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { ApplianceState } from '../api/appliances'
 import type { RoomEnvironment } from '../api/environment'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { autoText, climateTips, josa, manualHold, stateLabel } from './climate'
+import { mockWeather, type OutdoorWeather } from '../api/weather'
+import { autoText, climateTips, josa, manualHold, seasonOf, seasonRules, stateLabel } from './climate'
 import { toRoomView } from './roomHealth'
 
 const now = new Date('2026-11-09T14:00:00+09:00')
@@ -47,12 +48,12 @@ describe('climateTips', () => {
     expect(climateTips(view(room((i) => 460 + 10 * i, { presence: 'EMPTY' })), now, off).filter((t) => t.why === 'air')).toEqual([])
   })
 
-  it('더우면 냉방 26°C, 추우면 난방 22°C를 권한다', () => {
+  it('더우면 냉방 26°C, 추우면 난방 20°C를 권한다', () => {
     const hot = climateTips(view(room((i) => 600 + (i % 2), busy, 28.2)), now, off)
     expect(hot.map((t) => t.why)).toEqual(['cool'])
     expect(hot[0].command).toEqual({ power: 'ON', mode: 'COOL', targetC: 26 })
     const cold = climateTips(view(room((i) => 600 + (i % 2), busy, 16.5)), now, off)
-    expect(cold[0].command).toEqual({ power: 'ON', mode: 'HEAT', targetC: 22 })
+    expect(cold[0].command).toEqual({ power: 'ON', mode: 'HEAT', targetC: 20 })
   })
 
   it('이미 냉방 중이면 다시 권하지 않는다', () => {
@@ -106,12 +107,66 @@ describe('글 만들기', () => {
 })
 
 describe('manualHold', () => {
-  it('사람이 10분 안에 바꾼 기기는 자동이 건드리지 않고, 자동이 바꾼 것·오래된 것은 건드린다', () => {
-    const s = (by: ApplianceState['by'], minAgo: number): ApplianceState => ({ applianceId: 'x', power: 'OFF', changedAt: iso(minAgo), by })
+  const s = (by: ApplianceState['by'], minAgo: number): ApplianceState => ({ applianceId: 'x', power: 'OFF', changedAt: iso(minAgo), by })
+  it('관리자가 10분 안에 바꾼 기기는 자동이 건드리지 않고, 자동이 바꾼 것·오래된 것은 건드린다', () => {
     expect(manualHold(s('STUDENT', 3), now)).toBe(true)
     expect(manualHold(s('ADMIN', 9), now)).toBe(true)
     expect(manualHold(s('ADMIN', 11), now)).toBe(false)
     expect(manualHold(s('AUTO', 1), now)).toBe(false)
     expect(manualHold(off('x'), now)).toBe(false)
+  })
+
+  it('학생이 예약 중에 끈 기기는 그 예약이 끝날 때까지 자동이 다시 켜지 않는다', () => {
+    // 예약은 30분 전 시작, 60분 뒤 끝. 학생이 20분 전에 난방을 껐다
+    expect(manualHold(s('STUDENT', 20), now, busy.current)).toBe(true)
+    // 예약이 끝나면 풀린다
+    const after = new Date(now.getTime() + 61 * 60_000)
+    expect(manualHold(s('STUDENT', 20), after, busy.current)).toBe(false)
+    // 예약 전에 바꾼 건 10분만
+    expect(manualHold(s('STUDENT', 40), now, busy.current)).toBe(false)
+    // 관리자는 예약과 상관없이 10분
+    expect(manualHold(s('ADMIN', 20), now, busy.current)).toBe(false)
+  })
+})
+
+describe('seasonRules', () => {
+  const w = (over: Partial<OutdoorWeather>): OutdoorWeather => ({ tempC: 10, minC: 6, maxC: 14, normalC: 9.8, alert: null, source: 'mock', ...over })
+
+  it('계절은 광주 평년 기온으로 나눈다: 11–3월 겨울, 6–9월 여름', () => {
+    expect(seasonOf(9.8)).toBe('winter') // 11월
+    expect(seasonOf(13.5)).toBe('mid') // 4월
+    expect(seasonOf(26.4)).toBe('summer') // 7월
+  })
+
+  it('겨울엔 19°C 아래면 난방, 여름엔 27°C부터 냉방', () => {
+    const winter = seasonRules(w({}))
+    expect(climateTips(view(room((i) => 600 + (i % 2), busy, 18.5)), now, off, winter).map((t) => t.why)).toEqual(['heat'])
+    expect(climateTips(view(room((i) => 600 + (i % 2), busy, 18.5)), now, off).map((t) => t.why)).toEqual([])
+    const summer = seasonRules(w({ normalC: 27, tempC: 31, minC: 25, maxC: 32 }))
+    expect(climateTips(view(room((i) => 600 + (i % 2), busy, 27.2)), now, off, summer).map((t) => t.why)).toEqual(['cool'])
+  })
+
+  it('한파인 날은 빈 방도 다음 예약 90분 전부터 미리 데운다', () => {
+    const next = { presence: 'EMPTY' as const, next: { startAt: iso(-80), people: 4 } }
+    const env = room((i) => 480 + (i % 2), next, 16)
+    expect(climateTips(view(env), now, off, seasonRules(w({}))).map((t) => t.why)).toEqual([])
+    const cold = seasonRules(mockWeather(now, 'cold'))
+    expect(cold.alert).toBe('COLD_WAVE')
+    const [tip] = climateTips(view(env), now, off, cold)
+    expect(tip.why).toBe('heat')
+    expect(tip.sub).toContain('오늘 한파(최저 -13°C)라')
+    expect(tip.sub).toContain('미리')
+    expect(tip.auto).toBe(true)
+  })
+
+  it('봄·가을에 바깥이 시원하면 에어컨보다 창문을 권하고 자동으로 켜지 않는다', () => {
+    const spring = seasonRules(w({ normalC: 16.3, tempC: 18 }))
+    const [tip] = climateTips(view(room((i) => 600 + (i % 2), busy, 28.2)), now, off, spring)
+    expect(tip.sub).toContain('창문을 열면')
+    expect(tip.auto).toBe(false)
+  })
+
+  it('날씨를 모르면 기본 기준 그대로', () => {
+    expect(seasonRules(null).precoolMinutes).toBe(60)
   })
 })

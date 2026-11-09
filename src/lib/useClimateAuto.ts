@@ -1,26 +1,27 @@
 import { useEffect, useRef } from 'react'
 import { addAutoLog, applianceState, isSending, sendApplianceCommand } from '../api/appliances'
 import { CLIMATE_RULES } from '../config/appliances'
-import { autoText, climateTips, manualHold } from './climate'
+import { autoText, climateTips, manualHold, type TipRules } from './climate'
 import type { RoomView } from './roomHealth'
 
 /**
  * 자동 제어: 켜 두면 새 값을 받을 때마다(10초) 권유 중 자동으로 해도 되는 것(auto)을 대신 실행하고 기록을 남긴다.
- * 같은 기기에 같은 명령은 autoCooldownMinutes 안에 다시 보내지 않고, 사람이 그 안에 손으로 바꾼 기기는 건드리지 않는다.
+ * 같은 기기에 같은 명령은 autoCooldownMinutes 안에 다시 보내지 않는다. 사람이 손으로 바꾼 기기는 건드리지 않는다
+ * (학생이 바꾼 건 그 예약이 끝날 때까지, 관리자가 바꾼 건 10분). rules에 계절·한파·폭염 기준(seasonRules)을 넘긴다.
  * 실패하면 autoRetryMinutes 뒤에 다시 해 본다(실패한 API를 10초마다 두드리지 않게).
  * 켜기 권유(사람 있음·곧 옴)와 끄기 권유(빈 방·곧 올 사람 없음)는 조건이 겹치지 않아 서로 뒤집지 않는다.
  * 경고·정지 같은 판정은 하지 않는다. 기기 켜기·끄기만
  */
-export function useClimateAuto(views: RoomView[], now: Date | null, enabled: boolean, member?: number | null): void {
+export function useClimateAuto(views: RoomView[], now: Date | null, enabled: boolean, member?: number | null, rules: TipRules = CLIMATE_RULES): void {
   const sent = useRef(new Map<string, number>())
   useEffect(() => {
     if (!enabled || !now) return
     const t = now.getTime()
     for (const v of views) {
-      for (const tip of climateTips(v, now, (id) => applianceState(id))) {
+      for (const tip of climateTips(v, now, (id) => applianceState(id), rules)) {
         if (!tip.auto || !tip.appliance || !tip.command) continue
         const a = tip.appliance
-        if (manualHold(applianceState(a.id), now)) continue
+        if (manualHold(applianceState(a.id), now, v.current)) continue
         const key = `${a.id}:${tip.command.power}:${tip.command.mode ?? ''}`
         const last = sent.current.get(key)
         if (isSending(a.id) || (last !== undefined && t - last < CLIMATE_RULES.autoCooldownMinutes * 60_000)) continue
@@ -31,5 +32,5 @@ export function useClimateAuto(views: RoomView[], now: Date | null, enabled: boo
           .catch(() => { sent.current.set(key, t - (CLIMATE_RULES.autoCooldownMinutes - CLIMATE_RULES.autoRetryMinutes) * 60_000) })
       }
     }
-  }, [views, now, enabled, member])
+  }, [views, now, enabled, member, rules])
 }
