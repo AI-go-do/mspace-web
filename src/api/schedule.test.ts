@@ -131,6 +131,7 @@ describe('normalizeClass', () => {
     const bad = normalizeClass({ dayOfWeek: 'MONARCH', startTime: '09:00oops', endTime: '10:30', name: 'x' })
     expect(bad.dayOfWeek).toBe('MONARCH')
     expect(bad.startTime).toBe('09:00oops')
+    expect(normalizeClass({ dayOfWeek: 'MON', startTime: '09:00:99', endTime: '10:30', name: 'x' }).startTime).toBe('09:00:99')
     expect(checkSchedule([bad])).not.toBeNull()
     expect(normalizeClass({ dayOfWeek: 'wednesday', startTime: '9:05:00', endTime: '10:30', name: 'x' }))
       .toEqual(c('WED', '09:05', '10:30', 'x'))

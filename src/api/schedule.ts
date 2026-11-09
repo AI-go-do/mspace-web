@@ -46,7 +46,7 @@ export function normalizeClass(c: { dayOfWeek: string; startTime: string; endTim
   // MON 또는 MONDAY처럼 온전한 이름만 받는다(MONARCH를 MON으로 자르지 않게)
   const day = DAYS.find((d) => raw === d || raw === FULL_DAY[d]) ?? raw
   const hhmm = (t: string) => {
-    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t ?? '').trim())
+    const m = /^(\d{1,2}):(\d{2})(?::00)?$/.exec(String(t ?? '').trim())
     return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(t ?? '')
   }
   return {
