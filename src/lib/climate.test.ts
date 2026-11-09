@@ -135,6 +135,13 @@ describe('manualHold', () => {
   })
 })
 
+describe('예약 시작 뒤 아직 안 옴', () => {
+  it('예약이 시작됐는데 사람이 조금 늦으면 미리 켜 둔 에어컨을 끄지 않는다', () => {
+    const tips = climateTips(view(room((i) => 480 + (i % 2), { ...busy, presence: 'EMPTY' })), now, states({ 'r1-ac': { mode: 'HEAT', targetC: 20 } }))
+    expect(tips.filter((t) => t.why === 'idle')).toEqual([])
+  })
+})
+
 describe('에어컨 모드 바꾸기', () => {
   it('에어컨이 이미 냉방으로 켜져 있는데 추우면 난방을 권하지만 자동으로 바꾸지는 않는다', () => {
     const [tip] = climateTips(view(room((i) => 600 + (i % 2), busy, 16.5)), now, states({ 'r1-ac': { mode: 'COOL', targetC: 26 } }))

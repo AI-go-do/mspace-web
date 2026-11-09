@@ -9,7 +9,7 @@ import type { RoomView } from './roomHealth'
  * 같은 기기에 같은 명령은 autoCooldownMinutes 안에 다시 보내지 않는다. 사람이 손으로 바꾼 기기는 건드리지 않는다
  * (학생이 바꾼 건 그 예약이 끝날 때까지, 관리자가 바꾼 건 10분). rules에 계절·한파·폭염 기준(seasonRules)을 넘긴다.
  * 실패하면 autoRetryMinutes 뒤에 다시 해 본다(실패한 API를 10초마다 두드리지 않게).
- * 켜기 권유(사람 있음·곧 옴)와 끄기 권유(빈 방·곧 올 사람 없음)는 조건이 겹치지 않아 서로 뒤집지 않는다.
+ * 켜기 권유(사람 있음·지금 예약·곧 옴)와 끄기 권유(빈 방·지금 예약 없음·곧 올 사람 없음)는 조건이 겹치지 않아 서로 뒤집지 않는다.
  * 경고·정지 같은 판정은 하지 않는다. 기기 켜기·끄기만
  */
 export function useClimateAuto(views: RoomView[], now: Date | null, enabled: boolean, member?: number | null, rules: TipRules = CLIMATE_RULES): void {

@@ -92,8 +92,11 @@ export function climateTips(
   const occupied = v.presence === 'OCCUPIED'
   const nextMin = v.nextAt ? (new Date(v.nextAt).getTime() - now.getTime()) / 60_000 : null
   const nextSoon = (within: number) => nextMin !== null && nextMin >= 0 && nextMin <= within
+  // 예약이 시작됐는데 아직 안 온 사람(조금 늦음)도 곧 올 사람으로 본다. 노쇼 처리 전까지
+  const t0 = now.getTime()
+  const reservedNow = !!v.current && new Date(v.current.startAt).getTime() <= t0 && t0 < new Date(v.current.endAt).getTime()
   // 지금 쓰는 사람이 있거나 곧 올 사람이 있으면 편하게 만들 이유가 있다
-  const someone = occupied || nextSoon(rules.precoolMinutes)
+  const someone = occupied || reservedNow || nextSoon(rules.precoolMinutes)
   const nextLabel = v.nextAt ? seoulClock(new Date(v.nextAt)) : ''
 
   // 1) CO2: 사람이 있을 때만 (빈 방 CO2는 혼자 내려간다)
@@ -151,8 +154,8 @@ export function climateTips(
     }
   }
 
-  // 3) 빈 방이고 곧 올 사람도 없는데 켜져 있으면 끄기. 재실을 모르면(UNKNOWN) 끄지 않는다
-  if (v.presence === 'EMPTY' && !nextSoon(rules.precoolMinutes)) {
+  // 3) 빈 방이고 지금 예약도, 곧 올 사람도 없는데 켜져 있으면 끄기. 재실을 모르면(UNKNOWN) 끄지 않는다
+  if (v.presence === 'EMPTY' && !reservedNow && !nextSoon(rules.precoolMinutes)) {
     for (const a of appliances) {
       if (!isOn(state(a.id))) continue
       out.push({
