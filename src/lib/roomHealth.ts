@@ -2,6 +2,7 @@ import type { RoomEnvironment } from '../api/environment'
 import { ADAPTIVE_RULES, ENV_RULES, type AdminRoomConfig, type EnvRules, type SensorKind } from '../config/adminRooms'
 import { adaptive, type Adaptive, type AdaptiveRules } from './adaptiveBand'
 import { timeRange } from './format'
+import { LIGHT_STALE_MINUTES } from './lightTrail'
 import { seoulClock } from './time'
 
 /**
@@ -171,7 +172,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   // 빈 방 불 켜짐: 끝에서부터 불이 켜져 있고 사람이 없던 분을 센다.
   // 분마다 재실이 없으면(core가 아직 안 줌) 지금 재실로 대신한다(지금 비어 있으면 그동안도 비었다고 본다)
   let lightOnEmptyMinutes = 0
-  if (light !== null && env.presence === 'EMPTY') {
+  if (light !== null && light >= rules.lightOnPct && env.presence === 'EMPTY') {
     for (let i = lights.length - 1; i >= 0; i--) {
       const l = lights[i]
       if (l === null || l < rules.lightOnPct || occupancy[i] === true) break
@@ -232,8 +233,11 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
 
   const tempNote = temperatureC === null ? '센서 없음' : hot ? '참고: 높은 편' : ''
   const humNote = humidityPct === null ? '센서 없음' : dry ? '참고: 낮은 편' : ''
-  const lightNote = light === null ? '센서 없음' : lightLeftOn ? `빈 방 ${lightOnEmptyMinutes}분째 불 켜짐`
+  const lightState = light === null ? '센서 없음' : lightLeftOn ? `빈 방 ${lightOnEmptyMinutes}분째 불 켜짐`
     : light >= rules.lightOnPct ? '불 켜짐' : '불 꺼짐'
+  // 조도 측정이 오래됐으면 지금 상태처럼 보이지 않게 잰 시각을 붙인다
+  const lightStale = light !== null && !!env.lightAt && now.getTime() - Date.parse(env.lightAt) > LIGHT_STALE_MINUTES * 60_000
+  const lightNote = lightStale ? `${seoulClock(new Date(env.lightAt as string))}에 잰 값 · ${lightState}` : lightState
 
   return {
     roomId: env.roomId,

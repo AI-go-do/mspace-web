@@ -93,6 +93,8 @@ function useWidth() {
 }
 
 const H = 92
+/** 끝에서 이만큼(분 칸) 넘게 값이 비면 마지막 값을 지금 값으로 보지 않는다 */
+const STALE_POINTS = 2
 const PAD = { t: 8, r: 34, b: 18 }
 const fmt = (v: number, d: number) => (d ? v.toFixed(d) : String(Math.round(v)))
 
@@ -142,16 +144,19 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
   const at = hover !== null && v.times[hover] ? seoulClock(new Date(v.times[hover])) : ''
   const occAt = hover !== null && s.band ? s.band[hover] : null
 
+  // 마지막 값이 2분보다 앞이면(보고가 끊김) 지금 값이 아니라 그 시각 값으로 보여 준다. 그래프는 그대로
+  const lastAt = !empty && n - 1 - last > STALE_POINTS && v.times[last] ? seoulClock(new Date(v.times[last])) : null
+  const note = lastAt ? `${lastAt} 값 · 지금은 안 들어와요` : s.note
   const label = empty
     ? `${v.name} ${s.label} ${installed ? '아직 값 없음' : '센서 없음'}`
-    : `${v.name} ${s.label} 지난 ${n}분, 지금 ${fmt(now, s.digits)}${s.unit}. ${s.note}`
+    : `${v.name} ${s.label} 지난 ${n}분, ${lastAt ? `마지막 ${lastAt}` : '지금'} ${fmt(now, s.digits)}${s.unit}. ${note}`
 
   return (
     <div className={`sb-cell k-${s.kind} ${s.hot ? 'hot' : ''} ${off ? 'off' : ''} ${empty ? 'empty' : ''}`}>
       <div className="sb-cell-head">
         <small>{s.label}</small>
         {empty ? <b className="none">–</b> : <b>{fmt(now, s.digits)}<i>{s.unit}</i></b>}
-        <em title={empty ? undefined : s.note}>{empty ? (installed ? '아직 값이 없어요' : '센서 없음') : s.note}</em>
+        <em title={empty ? undefined : note}>{empty ? (installed ? '아직 값이 없어요' : '센서 없음') : note}</em>
       </div>
       <div ref={ref} className="sb-plot" style={{ height: H }} role="img" aria-label={label}
         onPointerDown={onMove} onPointerMove={onMove} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>
