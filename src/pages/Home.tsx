@@ -182,15 +182,21 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 말 몇 마디로 예약 (FR-AGT-105, 11/9 회의). 비서 화면이 "언제, 몇 명이서?"로 시작한다 */}
-      <Link to="/assistant?quick=1" className="card quick-ai">
-        <Spacey size={36} />
-        <span className="quick-ai-text">
-          <strong>AI로 간단히 예약하기</strong>
-          <span className="muted">"내일 3시, 4명" 한마디면 돼요</span>
-        </span>
-        <span className="quick-ai-go" aria-hidden="true">›</span>
-      </Link>
+      {/* 비서를 첫 화면에 (FR-AGT-105, 11/9 회의). 안 읽은 소식은 카톡처럼 숫자 배지로(종 버튼보다 먼저 눈에 띄게) */}
+      <div className="card quick-ai">
+        <Link to="/assistant?quick=1" className="quick-ai-main">
+          <span className="quick-ai-face">
+            <Spacey size={36} />
+            {!!unread && <span className="quick-ai-badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
+          </span>
+          <span className="quick-ai-text">
+            <strong>AI로 간단히 예약하기</strong>
+            <span className="muted">"내일 3시에 잡아 줘" 한마디면 돼요</span>
+          </span>
+          <span className="quick-ai-go" aria-hidden="true">›</span>
+        </Link>
+        {!!unread && <Link to="/alerts" className="quick-ai-news">스페이시가 알려 줄 소식 {unread}개 →</Link>}
+      </div>
 
       {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
