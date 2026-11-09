@@ -90,11 +90,13 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
   const facts = [
     view.temperatureC === null ? null : `${view.temperatureC.toFixed(1)}°C`,
     view.humidityPct === null ? null : `${view.humidityPct}%`,
+    view.light === null ? null : `조도 ${view.light}%`,
+    view.pir === null ? null : view.pir ? 'PIR 움직임' : 'PIR 조용',
     view.door?.open ? `문 열림 ${view.door.minutes}분` : null,
   ].filter(Boolean).join(' · ')
   return (
     <button type="button" className={`ctl-tile st-${state} tn-${tone} ${big ? 'big' : ''}`} style={{ '--k': i } as CSSProperties} onClick={onOpen}
-      aria-label={`${view.name} ${view.status.text}${view.co2 === null ? '' : `, CO2 ${view.co2}ppm`}${advice.length ? `, ${line}` : ''}${reports > 0 ? `, 신고 ${reports}건` : ''}${blocked ? `, ${blocked}` : ''}. 자세히 보기`}>
+      aria-label={`${view.name} ${view.status.text}${view.co2 === null ? '' : `, CO2 ${view.co2}ppm`}${facts ? `, ${facts}` : ''}${advice.length ? `, ${line}` : ''}${reports > 0 ? `, 신고 ${reports}건` : ''}${blocked ? `, ${blocked}` : ''}. 자세히 보기`}>
       {tone === 'warn' && <span className="ctl-ring" aria-hidden="true" />}
       <span className="ct-head">
         <b className="ct-no">{view.roomId}</b>

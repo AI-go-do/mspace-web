@@ -10,6 +10,9 @@
 .rc-caution { fill: color-mix(in srgb, var(--yellow) 6%, transparent); }
 .rc-limit { stroke: var(--yellow); stroke-width: 1.6; stroke-dasharray: 6 4; }
 .rc-limit-t { font-size: 11px; font-weight: 800; fill: var(--navy-70); }
+/* 온도·습도는 참고선만(덥다·건조하다는 사람마다 달라 주의 색을 쓰지 않는다) */
+.rc-ref .rc-caution { fill: transparent; }
+.rc-ref .rc-limit { stroke: color-mix(in srgb, var(--navy) 35%, transparent); }
 
 .rc-line { fill: none; stroke: var(--blue); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
 .rc-detail .rc-line { stroke-width: 3; }

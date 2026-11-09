@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
 import { envSource, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { trailFor, withLightTrail } from '../lib/lightTrail'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
 import { majorAdvice, roomAdvice, type Advice, type AdviceContext } from '../lib/roomAdvice'
@@ -12,6 +13,7 @@ import { seoulClock } from '../lib/time'
 import type { TodoCounts } from './AdminTodo'
 import { RoomTile } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
+import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { APPLIANCE_SOURCE, setClimateAuto, useAppliances } from '../api/appliances'
@@ -83,6 +85,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   useEffect(() => {
     const memberId = currentMemberId()
     if (memberId === null) return
+    // core가 조도를 최신 값 하나만 줄 때, 받은 값을 모아 그래프를 그린다(lib/lightTrail). 탭을 옮겨도 남는다
+    const trail = trailFor(memberId)
     let stale = false
     let ctrl: AbortController | null = null
     let poll: ReturnType<typeof setInterval> | undefined
@@ -93,7 +97,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), REQUEST_TIMEOUT_MS)
       getRoomsEnvironment(mine.signal, memberId)
-        .then((r) => { if (stale) return; setData(r.data); setSample(r.sample); setError(null); setReadAt(new Date()) })
+        .then((r) => { if (stale) return; setData(r.sample ? r.data : withLightTrail(r.data, trail, ENV_RULES.historyMinutes)); setSample(r.sample); setError(null); setReadAt(new Date()) })
         .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
         .finally(() => { clearTimeout(timer); if (ctrl === mine) ctrl = null })
     }
@@ -198,7 +202,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
           {small.map((v, i) => tile(v, i))}
           {wide && tile(wide, views.length - 1, true)}
-          <p className="ctl-hall" aria-hidden="true"><span>복도</span>입구 키패드 · QR 입실 · 방마다 CO2·온도·습도·재실·문 센서</p>
+          <p className="ctl-hall" aria-hidden="true"><span>복도</span>입구 키패드 · QR 입실 · 방마다 CO2·온도·습도·조도·재실·문 센서</p>
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
@@ -221,6 +225,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         </aside>
 
         {views.length > 0 && <AdminOverview views={views} />}
+        {views.length > 0 && <AdminSensorBoard views={views} onOpen={setOpenRoom} />}
       </div>
 
       {opened && now && (

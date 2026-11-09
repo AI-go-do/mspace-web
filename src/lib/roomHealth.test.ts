@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isRoomsEnvironment, type RoomEnvironment } from '../api/environment'
 import { mockEnvironment } from '../api/environmentMock'
 import { ADMIN_ROOMS, ENV_RULES, type AdminRoomConfig } from '../config/adminRooms'
-import { toRoomView, trendSlope } from './roomHealth'
+import { lightPct, toRoomView, trendSlope } from './roomHealth'
 
 const now = new Date('2026-11-08T14:41:00+09:00')
 const iso = (minAgo: number) => new Date(now.getTime() - minAgo * 60_000).toISOString()
@@ -222,5 +222,95 @@ describe('isRoomsEnvironment (API 응답 검사)', () => {
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, forecast: [{ at: ok0, ppm: 800 }] }] })).toBe(true)
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, forecast: [{ ppm: 800 }] }] })).toBe(false)
     expect(isRoomsEnvironment({ now: env.now, rooms: [{ ...r, series: [{ at: '언젠가', ppm: 800 }] }] })).toBe(false)
+  })
+})
+
+describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
+  /** 지난 n분 조도 원시값과 분마다 재실로 방 하나 */
+  function lit(light: (i: number) => number | null, occupied: (i: number) => boolean | undefined, extra: Partial<RoomEnvironment> = {}, n = 30): RoomEnvironment {
+    const base = room((i) => 600 + (i % 2), { presence: 'EMPTY', ...extra }, n)
+    const series = base.series.map((p, i) => ({ ...p, light: light(i), ...(occupied(i) === undefined ? {} : { occupied: occupied(i) }) }))
+    return { ...base, series, light: series[n - 1].light }
+  }
+
+  it('원시값을 밝기 %로 바꾸고 범위를 넘으면 끝에 붙인다', () => {
+    expect(lightPct(0)).toBe(0)
+    expect(lightPct(512)).toBe(50)
+    expect(lightPct(1023)).toBe(100)
+    expect(lightPct(2000)).toBe(100)
+    expect(lightPct(null)).toBeNull()
+    expect(lightPct(undefined)).toBeNull()
+  })
+
+  it('빈 방에 불이 10분 넘게 켜져 있으면 주의로 표시하고 할 일을 만든다', () => {
+    // 앞 18분은 사람 있음·불 켜짐, 뒤 12분은 빈 방인데 불 켜짐
+    const v = toRoomView(lit(() => 620, (i) => i < 18), cfg, now)
+    expect(v.light).toBe(61)
+    expect(v.lightOnEmptyMinutes).toBe(12)
+    expect(v.flags.lightLeftOn).toBe(true)
+    expect(v.tone).toBe('warn')
+    expect(v.status.text).toBe('빈 방 불 켜짐')
+    expect(v.lightNote).toBe('빈 방 12분째 불 켜짐')
+  })
+
+  it('빈 방이 된 지 10분이 안 됐거나 불이 꺼져 있으면 표시하지 않는다', () => {
+    expect(toRoomView(lit(() => 620, (i) => i < 25), cfg, now).flags.lightLeftOn).toBe(false)
+    const off = toRoomView(lit(() => 80, () => false), cfg, now)
+    expect(off.flags.lightLeftOn).toBe(false)
+    expect(off.lightNote).toBe('불 꺼짐')
+  })
+
+  it('지금 값이 꺼짐이면 앞 분들이 켜져 있었어도 표시하지 않는다', () => {
+    const v = toRoomView({ ...lit(() => 620, () => false), light: 80 }, cfg, now)
+    expect(v.flags.lightLeftOn).toBe(false)
+    expect(v.lightNote).toBe('불 꺼짐')
+  })
+
+  it('조도 측정이 오래됐으면 잰 시각을 붙인다', () => {
+    const at = new Date(now.getTime() - 5 * 60_000).toISOString()
+    const v = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: at }), cfg, now)
+    expect(v.lightNote).toMatch(/^\d{2}:\d{2}에 잰 값 · 불 켜짐$/)
+    // 빈 방에 불 켜진 분이 쌓여 있어도 지금 값이 오래됐으면 경고하지 않는다
+    const staleEmpty = toRoomView(lit(() => 620, () => false, { lightAt: at }), cfg, now)
+    expect(staleEmpty.flags.lightLeftOn).toBe(false)
+    expect(staleEmpty.lightNote).toMatch(/에 잰 값 · 불 켜짐$/)
+    const fresh = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: now.toISOString() }), cfg, now)
+    expect(fresh.lightNote).toBe('불 켜짐')
+  })
+
+  it('사람이 있으면 불이 켜져 있어도 괜찮다', () => {
+    const v = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED' }), cfg, now)
+    expect(v.flags.lightLeftOn).toBe(false)
+    expect(v.lightNote).toBe('불 켜짐')
+  })
+
+  it('core가 분마다 재실을 안 주면 지금 빈 방인 것으로 대신 센다', () => {
+    const v = toRoomView(lit(() => 620, () => undefined), cfg, now)
+    expect(v.occupancy.every((o) => o === null)).toBe(true)
+    expect(v.lightOnEmptyMinutes).toBe(30)
+    expect(v.flags.lightLeftOn).toBe(true)
+  })
+
+  it('조도가 없으면(core가 아직 안 줌) 센서 없음이고 다른 판단은 그대로다', () => {
+    const v = toRoomView(room((i) => 600 + (i % 2)), cfg, now)
+    expect(v.light).toBeNull()
+    expect(v.lights.every((l) => l === null)).toBe(true)
+    expect(v.flags.lightLeftOn).toBe(false)
+    expect(v.lightNote).toBe('센서 없음')
+  })
+
+  it('API 응답의 light·occupied는 없어도 되고, 있으면 숫자·참거짓이어야 한다', () => {
+    const ok = lit(() => 500, (i) => i > 3)
+    expect(isRoomsEnvironment({ now: iso(0), rooms: [ok] })).toBe(true)
+    expect(isRoomsEnvironment({ now: iso(0), rooms: [room((i) => 600 + (i % 2))] })).toBe(true)
+    expect(isRoomsEnvironment({ now: iso(0), rooms: [{ ...ok, light: '밝음' }] })).toBe(false)
+    expect(isRoomsEnvironment({ now: iso(0), rooms: [{ ...ok, series: ok.series.map((p) => ({ ...p, occupied: 1 })) }] })).toBe(false)
+  })
+
+  it('가짜 값: 2번은 지금 실제처럼 조도·재실만 있고, 3번은 빈 방에 불이 켜진 때가 있다', () => {
+    const views = Array.from({ length: 90 }, (_, k) => new Date(now.getTime() + k * 60_000))
+      .map((t) => mockEnvironment(t, 60).rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), t)))
+    expect(views.every((vs) => vs[1].co2 === null && vs[1].temperatureC === null && vs[1].light !== null)).toBe(true)
+    expect(views.some((vs) => vs[2].flags.lightLeftOn)).toBe(true)
   })
 })

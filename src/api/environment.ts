@@ -19,6 +19,10 @@ export interface EnvPoint {
   humidityPct?: number | null
   /** 문 열림 센서(리드 스위치). 그 분에 한 번이라도 열려 있었으면 true. 장치가 없으면 빠진다 */
   doorOpen?: boolean | null
+  /** 조도 1분 평균 (우노 CDS 0~1023, 밝을수록 큼, lux 아님). core가 아직 안 주면 빠진다 */
+  light?: number | null
+  /** 그 분에 재실이었는지 (조도 그래프의 재실 띠). core가 아직 안 주면 빠진다 */
+  occupied?: boolean | null
 }
 
 export interface RoomEnvironment {
@@ -32,6 +36,14 @@ export interface RoomEnvironment {
   co2: { ppm: number; at: string } | null
   temperatureC: number | null
   humidityPct: number | null
+  /**
+   * 가장 최근 조도 (0~1023). core가 아직 안 주면 빠지거나 null.
+   * core는 `{ raw, at }`로 준다(core feat/admin-light-pir). 받자마자 숫자로 펴고 시각은 lightAt에 둔다
+   */
+  light?: number | null
+  lightAt?: string | null
+  /** PIR 움직임 최신 값. 보여 주기만 하고 재실 판단에는 안 쓴다(재실은 presence). 없으면 빠지거나 null */
+  pir?: { detected: boolean; at: string } | null
   /** 문 열림 지금 상태(since = 지금 상태가 된 시각). 문 장치가 없으면 빠지거나 null */
   door?: { open: boolean; since: string } | null
   /** 지난 N분 1분 값. 오래된 것이 앞 */
@@ -54,6 +66,19 @@ export interface RoomsEnvironment {
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
 const isNumOrNull = (v: unknown) => v === null || isNum(v)
+const isOptNum = (v: unknown) => v === undefined || isNumOrNull(v)
+const isOptBool = (v: unknown) => v === undefined || v === null || typeof v === 'boolean'
+/** 조도는 숫자(가짜 값·예전 초안) 또는 { raw, at }(core) */
+const isLight = (v: unknown) => {
+  if (isOptNum(v)) return true
+  const l = v as Record<string, unknown>
+  return typeof v === 'object' && isNum(l.raw) && isDate(l.at)
+}
+const isPir = (v: unknown) => {
+  if (v === undefined || v === null) return true
+  const d = v as Record<string, unknown>
+  return typeof v === 'object' && typeof d.detected === 'boolean' && isDate(d.at)
+}
 const isDate = (v: unknown) => typeof v === 'string' && Number.isFinite(new Date(v).getTime())
 /** current·next는 없거나 null이어도 되고, 있으면 시각·인원이 맞아야 한다 */
 const isCurrent = (v: unknown) => {
@@ -72,7 +97,7 @@ const isNext = (v: unknown) => {
   return typeof v === 'object' && isDate(n.startAt) && isNum(n.people)
 }
 
-/** 화면이 읽는 칸이 다 있는지. current·next·forecast만 빠져도 된다 */
+/** 화면이 읽는 칸이 다 있는지. current·next·forecast·light·pir만 빠져도 된다 */
 export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
   if (!v || typeof v !== 'object') return false
   const d = v as Partial<RoomsEnvironment>
@@ -82,8 +107,8 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && ['OCCUPIED', 'EMPTY', 'UNKNOWN'].includes(r.presence)
     && typeof r.offline === 'boolean'
     && (r.co2 === null || (!!r.co2 && isNum(r.co2.ppm)))
-    && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct)
-    && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm))
+    && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct) && isLight(r.light) && isPir(r.pir)
+    && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm) && isOptNum(p.light) && isOptBool(p.occupied))
     && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isDate(f.at) && isNum(f.ppm))))
     && isCurrent(r.current) && isNext(r.next) && isDoor(r.door))
 }
@@ -108,5 +133,18 @@ export async function getRoomsEnvironment(
   const data = await api<unknown>(`/api/admin/rooms/environment?minutes=${minutes}`, { signal, member })
   // API 모양이 아직 초안이라, 칸이 빠진 응답은 화면을 깨뜨리지 않고 오류 문구로 보여 준다
   if (!isRoomsEnvironment(data)) throw new ApiError(0, 'INVALID_RESPONSE', '방 센서 응답 모양이 달라요(core API 확인 필요).')
-  return { data, sample: false }
+  return { data: flattenLight(data), sample: false }
+}
+
+/** core의 light { raw, at }를 화면이 쓰는 숫자 + lightAt으로 편다. 숫자면 그대로. isRoomsEnvironment(isLight)로 검사한 값만 넣는다 */
+export function flattenLight(d: RoomsEnvironment): RoomsEnvironment {
+  return {
+    ...d,
+    rooms: d.rooms.map((r) => {
+      const l = r.light as unknown
+      if (!l || typeof l !== 'object') return r
+      const { raw, at } = l as { raw: number; at: string }
+      return { ...r, light: raw, lightAt: at }
+    }),
+  }
 }

@@ -58,6 +58,9 @@ export function roomAdvice(v: RoomView, now: Date, ctx: AdviceContext = {}, rule
   if (flags.doorLeftOpen && v.door) {
     out.push({ tone: 'warn', title: `빈 방 문이 ${v.door.minutes}분째 열려 있어요`, todo: '지나가는 길에 닫아 주세요. 밤이나 주말이면 누가 들어갔는지 먼저 확인해 주세요.' })
   }
+  if (flags.lightLeftOn) {
+    out.push({ tone: 'warn', title: `빈 방에 불이 ${v.lightOnEmptyMinutes}분째 켜져 있어요`, todo: v.nextAt ? '다음 예약 전까지 비어 있으면 지나갈 때 꺼 주세요.' : '지나갈 때 불을 꺼 주세요. 밤이면 문이 잠겼는지도 같이 봐 주세요.' })
+  }
   if (flags.hot) {
     const before = v.nextAt && v.presence !== 'OCCUPIED' && new Date(v.nextAt).getTime() > now.getTime()
     // 덥게 느끼는지는 사람마다 달라서 경고가 아니라 참고. 켤지는 방을 쓰는 학생이 정한다

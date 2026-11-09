@@ -12,11 +12,12 @@ import { seoulClock } from '../lib/time'
  * 색은 4+2색 안에서: 선은 하늘, 주의는 노랑, 확인 필요(끊김·멈춤)는 흐린 점선
  */
 
-type Metric = 'co2' | 'temp' | 'hum'
+type Metric = 'co2' | 'temp' | 'hum' | 'light'
 const METRICS: { key: Metric; label: string; unit: string; digits: number }[] = [
   { key: 'co2', label: 'CO2', unit: 'ppm', digits: 0 },
   { key: 'temp', label: '온도', unit: '°C', digits: 1 },
   { key: 'hum', label: '습도', unit: '%', digits: 0 },
+  { key: 'light', label: '조도', unit: '%', digits: 0 },
 ]
 
 function useWidth() {
@@ -35,7 +36,7 @@ function useWidth() {
   return [ref, w] as const
 }
 
-const seriesOf = (v: RoomView, m: Metric) => (m === 'co2' ? v.history : m === 'temp' ? v.temps : v.hums)
+const seriesOf = (v: RoomView, m: Metric) => (m === 'co2' ? v.history : m === 'temp' ? v.temps : m === 'hum' ? v.hums : v.lights)
 const fmt = (v: number, d: number) => (d ? v.toFixed(d) : String(Math.round(v)))
 
 const PAD = { l: 44, r: 40, t: 14, b: 26 }
@@ -48,8 +49,9 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   const past = Math.max(0, ...views.map((v) => v.history.length))
   const ahead = metric === 'co2' ? ENV_RULES.forecastMinutes : 0
   const total = past + ahead
-  const limit = metric === 'co2' ? ENV_RULES.co2LimitPpm : metric === 'temp' ? ENV_RULES.hotC : ENV_RULES.dryPct
-  const trusted = isTrusted
+  const limit = metric === 'co2' ? ENV_RULES.co2LimitPpm : metric === 'temp' ? ENV_RULES.hotC : metric === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct
+  // CO2 멈춤(stuck)은 SCD40 하나가 고장 난 것이라 CO2·온도·습도만 믿지 않는다. 조도는 우노라 끊김만 본다
+  const trusted = (v: RoomView) => (metric === 'light' ? !v.flags.offline : isTrusted(v))
 
   // 축 범위는 믿을 수 있는 방 값으로만 정한다. 멈춘·끊긴 방의 튀는 값이 다른 방 선을 눌러 버리지 않게.
   // 믿을 수 없는 방 선은 그대로 그리되(점선) 범위 밖이면 위·아래 끝에 붙인다
@@ -58,7 +60,8 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   const all = sure.length ? sure : valuesOf(views)
   const [lo, hi] = metric === 'co2'
     ? [Math.min(400, ...all) - 20, Math.max(limit + 150, ...all) + 30]
-    : metric === 'temp' ? [Math.min(21, ...all) - 0.5, Math.max(limit + 1, ...all) + 0.5] : [Math.min(limit - 8, ...all) - 2, Math.max(62, ...all) + 2]
+    : metric === 'temp' ? [Math.min(21, ...all) - 0.5, Math.max(limit + 1, ...all) + 0.5]
+      : metric === 'hum' ? [Math.min(limit - 8, ...all) - 2, Math.max(62, ...all) + 2] : [0, 100]
 
   const iw = Math.max(1, w - PAD.l - PAD.r)
   const ih = h - PAD.t - PAD.b
@@ -66,7 +69,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   const y = (v: number) => PAD.t + ih - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * ih
   const nowI = past - 1
   const ticks = useMemo(() => {
-    const step = metric === 'co2' ? 200 : metric === 'temp' ? 2 : 10
+    const step = metric === 'co2' ? 200 : metric === 'temp' ? 2 : metric === 'hum' ? 10 : 25
     const out: number[] = []
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v)
     return out
@@ -92,8 +95,8 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   }).filter((e): e is { id: number; y: number } => e.y !== null).sort((a, b) => a.y - b.y)
   for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 18) ends[k].y = ends[k - 1].y + 18
 
-  // 주의 색은 CO2만. 온도·습도는 사람마다 느낌이 달라 참고로만 둔다
-  const hot = (v: RoomView) => metric === 'co2' && (v.flags.co2Over || v.flags.co2Soon)
+  // 주의 색은 CO2와 빈 방 불 켜짐만. 온도·습도는 사람마다 느낌이 달라 참고로만 둔다
+  const hot = (v: RoomView) => metric === 'co2' ? v.flags.co2Over || v.flags.co2Soon : metric === 'light' ? v.flags.lightLeftOn : false
 
   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -111,6 +114,8 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
   })()
   const limitY = y(limit)
   const above = metric !== 'hum'
+  // 조도 기준선은 "불 켜짐" 표시일 뿐 나쁨이 아니라 빗금 띠를 깔지 않는다
+  const zone = metric !== 'light'
 
   const label = `방 ${views.length}개 ${m.label} 지난 ${past}분${ahead ? `과 ${ahead}분 예측` : ''}. ` + views.map((v) => {
     const vals = seriesOf(v, metric).filter((q): q is number => q !== null)
@@ -122,14 +127,14 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
       {/* 첫 그림 전(폭을 재기 전)에도 높이를 잡아 두어 값을 바꿀 때 화면이 튀지 않게 */}
       {w === 0 && <div style={{ height: h }} aria-hidden="true" />}
       {w > 0 && (
-        <svg className={metric === 'co2' ? '' : 'ov-ref'} width={w} height={h} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+        <svg className={metric === 'temp' || metric === 'hum' ? 'ov-ref' : ''} width={w} height={h} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
           <defs>
             <pattern id="ov-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="2" height="6" className="ov-hatch" />
             </pattern>
           </defs>
           {/* 기준 넘는 쪽 띠 */}
-          <rect x={PAD.l} width={iw} y={above ? PAD.t : limitY} height={above ? Math.max(0, limitY - PAD.t) : Math.max(0, PAD.t + ih - limitY)} fill="url(#ov-hatch)" />
+          {zone && <rect x={PAD.l} width={iw} y={above ? PAD.t : limitY} height={above ? Math.max(0, limitY - PAD.t) : Math.max(0, PAD.t + ih - limitY)} fill="url(#ov-hatch)" />}
           {ticks.map((t) => (
             <g key={t}>
               <line x1={PAD.l} x2={PAD.l + iw} y1={y(t)} y2={y(t)} className="ov-grid" />
@@ -137,7 +142,7 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
             </g>
           ))}
           <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />
-          <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : `참고 ${limit}%`}</text>
+          <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : metric === 'hum' ? `참고 ${limit}%` : `불 켜짐 ${limit}%`}</text>
           {ahead > 0 && <rect x={x(nowI)} width={Math.max(0, x(total - 1) - x(nowI))} y={PAD.t} height={ih} className="ov-ahead" />}
           <line x1={x(nowI)} x2={x(nowI)} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
           <text x={x(nowI)} y={h - 8} className="ov-tick" textAnchor="middle">지금</text>
