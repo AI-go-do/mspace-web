@@ -205,7 +205,8 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   const uid = `rc-${view.roomId}-${metric}-${detail ? 'd' : 'c'}`
 
   return (
-    <div ref={box} className={`rc ${detail ? 'rc-detail' : ''}`} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+    <div ref={box} className={`rc ${detail ? 'rc-detail' : ''}`} onPointerDown={onMove} onPointerMove={onMove}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>
       {ready && (
         <svg width={w} height={h} role="img" aria-label={label}>
           <defs>

@@ -221,7 +221,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         </div>
       )}
       {opened && now && (
-        <RoomDetail view={opened} now={now} blocked={blockedOf(opened.roomId)} reports={todo.byRoom[opened.roomId] ?? 0} onClose={closeRoom}
+        <RoomDetail view={opened} now={now} blocked={blockedOf(opened.roomId)} reports={todo.byRoom[opened.roomId] ?? 0} sample={sample} onClose={closeRoom}
           onOpenReports={() => { closeRoom(); onOpenTodo() }}
           onForceCheckout={(id) => { closeRoom(); onForceCheckout(id) }}
           onBlockRoom={(id, insp) => { closeRoom(); onBlockRoom(id, insp) }} />
