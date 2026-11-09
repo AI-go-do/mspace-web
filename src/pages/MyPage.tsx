@@ -97,8 +97,15 @@ function MyPageFor({ member }: { member: number | null }) {
       if (!gotSchedule) getSchedule(member).then((s) => { if (alive) { setSchedule(s); gotSchedule = true } }).catch(() => {})
       if (!gotFriends) getFriends(undefined, member).then((f) => { if (alive) { setFriends(f); gotFriends = true } }).catch(() => {})
       // 머리글 이름·학번. 못 받아도(core 전·404) "내 정보" 제목으로 그대로 쓴다.
-      // ?demo=1 가짜 회원은 보여 주되 받은 걸로 치지 않아서, 연결이 돌아오면 진짜 값으로 바꿀 수 있다
-      if (!gotProfile) getMyProfile(member).then((p) => { if (alive) { setProfile(p); gotProfile = p !== DEMO_PROFILE } }).catch(() => {})
+      // ?demo=1 가짜 회원은 보여 주되 받은 걸로 치지 않아서, 연결이 돌아오면 진짜 값으로 바꿀 수 있다.
+      // 늦게 끝난 앞 요청의 가짜 회원이 이미 받은 진짜 값을 덮지 않게 한다
+      if (!gotProfile) getMyProfile(member).then((p) => {
+        if (!alive) return
+        const real = p !== DEMO_PROFILE
+        if (!real && gotProfile) return
+        setProfile(p)
+        if (real) gotProfile = true
+      }).catch(() => {})
     }
     load()
     window.addEventListener('online', load)
