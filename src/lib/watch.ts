@@ -64,6 +64,19 @@ export function reverted(rooms: number[], roomId: number, on: boolean): number[]
   return rooms.includes(roomId) ? rooms : toggled(rooms, roomId)
 }
 
+/**
+ * 같은 방 요청을 앞 요청이 끝난 뒤에(앞이 실패해도) 보낸다. 늦게 도착한 켜기가 뒤에 보낸 끄기를 덮어
+ * 학생이 끈 방 알림이 core에 남지 않게 한다. 다른 방 요청은 서로 기다리지 않는다
+ */
+export function queued<T>(queue: Map<number, Promise<unknown>>, roomId: number, run: () => Promise<T>): Promise<T> {
+  const prev = queue.get(roomId) ?? Promise.resolve()
+  const next = prev.then(run, run)
+  const settled = next.then(() => undefined, () => undefined)
+  queue.set(roomId, settled)
+  void settled.then(() => { if (queue.get(roomId) === settled) queue.delete(roomId) })
+  return next
+}
+
 /** 서버에 켜고 끄기를 못 했을 때 화면에 보일 말 */
 const WATCH_FAILED = '알림 켜기·끄기를 서버에 보내지 못했어요. 잠시 후 다시 눌러 주세요'
 
@@ -90,6 +103,8 @@ export function useWatched(member: number | null, now: Date): { watched: number[
   // 방마다 마지막으로 누른 차례. 앞 요청이 늦게 실패해도 그 뒤에 다시 누른 것을 되돌리지 않게, 서버 목록이 방금 누른 것을 덮지 않게 쓴다
   const turns = useRef(new Map<number, number>())
   const pending = useRef(new Set<number>())
+  // 방마다 core에 보낸 요청 줄. 같은 방 켜기·끄기를 누른 순서대로 보낸다
+  const queue = useRef(new Map<number, Promise<unknown>>())
 
   // 바꾸는 기준은 화면 상태다(저장소를 못 쓰면 다시 읽어도 비어 있으므로). 함수형 갱신이라 연달아 눌러도 앞 변경을 잃지 않는다
   const update = useCallback((change: (rooms: number[]) => number[]) => {
@@ -134,7 +149,7 @@ export function useWatched(member: number | null, now: Date): { watched: number[
     pending.current.add(roomId)
     setFailure(null)
     const done = () => { if (turns.current.get(roomId) === turn) pending.current.delete(roomId) }
-    ;(on ? watchRoom(member, roomId).then(() => undefined) : unwatchRoom(member, roomId))
+    queued(queue.current, roomId, () => (on ? watchRoom(member, roomId).then(() => undefined) : unwatchRoom(member, roomId)))
       .then(done, (e: unknown) => {
         done()
         // 켜려는데 이미 비어 있음: 비서 카드가 바로 "비었어요"라고 하므로 켠 채로 둔다
@@ -152,13 +167,13 @@ export function useWatched(member: number | null, now: Date): { watched: number[
     update((rooms) => toggled(rooms, roomId))
     send(roomId, on)
   }, [update, send])
-  // 비서 카드 [지금 바로 쓰기]: 이 폰 목록에서 빼고 core에도 끈다. 못 꺼도 되돌리지 않는다
+  // 비서 카드 [지금 바로 쓰기]: 이 폰 목록에서 빼고 core에도 끈다(아직 가는 중인 켜기가 있으면 그 뒤에). 못 꺼도 되돌리지 않는다
   // (방이 이미 비었으니 core는 많아야 한 번 알리고 끝난다. 카드를 다시 띄우면 학생이 방금 누른 것을 무른 셈이 된다)
   const unwatch = useCallback((roomId: number) => {
     update((rooms) => rooms.filter((r) => r !== roomId))
     if (member !== null && watchApiOn()) {
       turns.current.set(roomId, (turns.current.get(roomId) ?? 0) + 1)
-      unwatchRoom(member, roomId).catch(() => undefined)
+      queued(queue.current, roomId, () => unwatchRoom(member, roomId)).catch(() => undefined)
     }
   }, [update, member])
   return { watched, toggle, unwatch, error: failure?.scope === scope ? failure.message : null }

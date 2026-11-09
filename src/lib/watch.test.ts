@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { changedRooms, loadWatched, reverted, toggled, withServer } from './watch'
+import { changedRooms, loadWatched, queued, reverted, toggled, withServer } from './watch'
 
 function fakeStorage() {
   const m = new Map<string, string>()
@@ -72,5 +72,53 @@ describe('core 빈방 알림과 합치기 (core #109)', () => {
     expect(changedRooms(after, after)).toEqual([])
     // 방금 끈 3번은 옛 core 목록에 남아 있어도 다시 켜지지 않는다
     expect(withServer([], [3, 5], new Set(changedRooms(new Map(), new Map([[3, 1]]))))).toEqual([5])
+  })
+})
+
+describe('같은 방 요청은 누른 순서대로 (queued)', () => {
+  const deferred = () => {
+    let resolve!: () => void
+    let reject!: (e: unknown) => void
+    const promise = new Promise<void>((res, rej) => { resolve = res; reject = rej })
+    return { promise, resolve, reject }
+  }
+
+  it('켜기가 끝나기 전에 끈 방은 켜기가 끝난 뒤에 끄기를 보낸다', async () => {
+    // given: 켜기 요청이 아직 가는 중
+    const queue = new Map<number, Promise<unknown>>()
+    const order: string[] = []
+    const on = deferred()
+    const first = queued(queue, 3, () => { order.push('켜기 보냄'); return on.promise.then(() => { order.push('켜기 끝') }) })
+    // when: 그 사이 끄기를 누름
+    const second = queued(queue, 3, () => { order.push('끄기 보냄'); return Promise.resolve() })
+    await Promise.resolve()
+    expect(order).toEqual(['켜기 보냄'])
+    on.resolve()
+    await Promise.all([first, second])
+    // then
+    expect(order).toEqual(['켜기 보냄', '켜기 끝', '끄기 보냄'])
+  })
+
+  it('앞 요청이 실패해도 다음 요청은 보내고, 실패는 그 요청에만 돌아간다', async () => {
+    const queue = new Map<number, Promise<unknown>>()
+    const on = deferred()
+    const first = queued(queue, 3, () => on.promise)
+    const second = queued(queue, 3, () => Promise.resolve('끔'))
+    on.reject(new Error('네트워크'))
+    await expect(first).rejects.toThrow('네트워크')
+    await expect(second).resolves.toBe('끔')
+  })
+
+  it('다른 방 요청은 기다리지 않고, 다 끝나면 줄을 비운다', async () => {
+    const queue = new Map<number, Promise<unknown>>()
+    const slow = deferred()
+    const a = queued(queue, 1, () => slow.promise)
+    let otherRan = false
+    await queued(queue, 2, () => { otherRan = true; return Promise.resolve() })
+    expect(otherRan).toBe(true)
+    slow.resolve()
+    await a
+    await new Promise((r) => setTimeout(r, 0))
+    expect(queue.size).toBe(0)
   })
 })
