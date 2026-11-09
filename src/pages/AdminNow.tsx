@@ -16,9 +16,7 @@ import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { setClimateAuto, useAppliances } from '../api/appliances'
-import { seasonRules } from '../lib/climate'
-import { useOutdoorWeather } from '../api/weather'
-import { WeatherChip } from '../components/Climate'
+import { useClimateRules, WeatherChip } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
 import './AdminNow.css'
@@ -123,8 +121,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
 
   const now = useMemo(() => (data ? new Date(data.now) : null), [data])
   const { auto } = useAppliances()
-  const weather = useOutdoorWeather()
-  const climateRules = useMemo(() => seasonRules(weather), [weather])
+  // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
+  const { weather, rules: climateRules } = useClimateRules()
   useClimateAuto(views, now, auto, currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {

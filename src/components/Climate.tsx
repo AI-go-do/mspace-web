@@ -3,7 +3,9 @@ import { APPLIANCE_SOURCE, applianceState, isSending, sendApplianceCommand, useA
 import { ROOM_APPLIANCES, type ApplianceConfig } from '../config/appliances'
 import { useOutdoorWeather, weatherLabel, type OutdoorWeather } from '../api/weather'
 import { ENV_RULES } from '../config/adminRooms'
-import { climateTips, josa, seasonRules, stateLabel, type ClimateTip } from '../lib/climate'
+import { climateTips, josa, roomTargets, seasonRules, stateLabel, type ClimateTip, type TipRules } from '../lib/climate'
+import { recordManualOff, useClimateLearning } from '../api/climateLearnData'
+import { rateLabel } from '../lib/climateLearn'
 import type { RoomView } from '../lib/roomHealth'
 import './Climate.css'
 
@@ -27,6 +29,32 @@ export function WeatherChip({ w }: { w: OutdoorWeather }) {
   const tone = w.alert === 'COLD_WAVE' ? 'cold' : w.alert === 'HEAT_WAVE' ? 'hot' : ''
   const title = `오늘 최저 ${w.minC.toFixed(1)}°C · 최고 ${w.maxC.toFixed(1)}°C · 이 달 평년 ${w.normalC.toFixed(1)}°C${w.source === 'demo' ? ' (시연 날씨)' : w.source === 'mock' ? ' (평년값으로 만든 가짜 날씨)' : ''}`
   return <span className={`cl-weather ${tone}`} title={title}>{weatherLabel(w)}</span>
+}
+
+/** 오늘 기준(계절·한파·폭염) + 방마다 배운 값. 관리자 지금 화면·방 상세·학생 카드가 같이 쓴다 */
+export function useClimateRules(): { weather: OutdoorWeather; rules: TipRules } {
+  const weather = useOutdoorWeather()
+  const learned = useClimateLearning()
+  const rules = useMemo<TipRules>(() => ({ ...seasonRules(weather), learned }), [weather, learned])
+  return { weather, rules }
+}
+
+/** 방 상세 "AI가 배운 것": 데워지는·식는 속도와 고친 목표 온도. 배운 게 없으면 안 보인다 */
+function LearnedNote({ rules, roomId }: { rules: TipRules; roomId: number }) {
+  const l = rules.learned?.[roomId]
+  if (!l) return null
+  const t = roomTargets(rules, roomId)
+  const lines: string[] = []
+  if (l.HEAT.minutesPerC !== null) lines.push(`난방 ${rateLabel(l.HEAT.minutesPerC)} · 냉방 ${l.COOL.minutesPerC !== null ? rateLabel(l.COOL.minutesPerC) : '기록 모자람'} (지난 가동 ${l.HEAT.runs + l.COOL.runs}번)`)
+  if (l.HEAT.targetC !== null && l.HEAT.offMedianC !== null) lines.push(`학생들이 난방을 ${l.HEAT.offMedianC.toFixed(1)}°C쯤에서 ${l.HEAT.offs}번 꺼서 이 방은 ${t.heatTargetC}°C로 맞춰요`)
+  if (l.COOL.targetC !== null && l.COOL.offMedianC !== null) lines.push(`학생들이 냉방을 ${l.COOL.offMedianC.toFixed(1)}°C쯤에서 ${l.COOL.offs}번 꺼서 이 방은 ${t.coolTargetC}°C로 맞춰요`)
+  if (!lines.length) return null
+  return (
+    <div className="cl-learn">
+      <b><span className="cl-ai">AI</span>이 방에서 배운 것</b>
+      <ul>{lines.map((x) => <li key={x}>{x}</li>)}</ul>
+    </div>
+  )
 }
 
 /** 누른 뒤 잠깐 "켜졌어요"를 보여 준다 */
@@ -53,13 +81,19 @@ export function ClimatePanel({ view, now, by, member, compact }: {
   const [error, setError] = useState<string | null>(null)
   const appliances = ROOM_APPLIANCES[view.roomId] ?? []
   const get = (id: string) => applianceState(id, store)
-  const weather = useOutdoorWeather()
-  const rules = useMemo(() => seasonRules(weather), [weather])
+  const { weather, rules } = useClimateRules()
+  const targets = roomTargets(rules, view.roomId)
   const tips = climateTips(view, now, get, rules)
 
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
+    // 학생이 켜져 있던 에어컨을 끄면 그때 방 온도를 배운다(자주 일찍 끄는 방은 목표를 반 도씩 고친다). 끄기가 성공했을 때만
+    const prev = get(a.id)
+    const off = by === 'STUDENT' && a.kind === 'ac' && cmd.power === 'OFF' && prev.power === 'ON' && prev.mode && view.temperatureC !== null
+      ? { roomId: view.roomId, mode: prev.mode, roomC: view.temperatureC, at: new Date().toISOString() }
+      : null
     sendApplianceCommand(view.roomId, a.id, cmd, by, { member, now: new Date() })
+      .then(() => { if (off) recordManualOff(off) })
       .then(() => setFlash(cmd.power === 'OFF' ? `${a.name} 껐어요` : cmd.mode === 'HEAT' ? `${a.name} 난방으로 켰어요` : cmd.mode === 'COOL' ? `${a.name} 냉방으로 켰어요` : `${a.name} 켰어요`))
       .catch((e: Error) => setError(`${josa(a.name, '을', '를')} 바꾸지 못했어요. ${e.message}`))
   }
@@ -70,13 +104,14 @@ export function ClimatePanel({ view, now, by, member, compact }: {
     const t = view.temperatureC
     const winter = rules.season === 'winter'
     const cold = t === null ? winter : t < rules.coldC || (winter && t < (rules.hotC ?? ENV_RULES.hotC))
-    return cold ? { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC } : { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }
+    return cold ? { power: 'ON', mode: 'HEAT', targetC: targets.heatTargetC } : { power: 'ON', mode: 'COOL', targetC: targets.coolTargetC }
   }
 
   if (!appliances.length) return null
   return (
     <div className={`cl ${compact ? 'compact' : ''}`}>
       {!compact && <WeatherChip w={weather} />}
+      {!compact && <LearnedNote rules={rules} roomId={view.roomId} />}
       {tips.length > 0 && (
         <ul className="cl-tips">
           {tips.map((t: ClimateTip) => {
@@ -86,6 +121,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
                 <span className="cl-tip-text">
                   <b>{t.title}</b>
                   <span>{t.sub}</span>
+                  {t.ai && <span className="cl-tip-ai"><i className="cl-ai">AI</i>{t.ai}</span>}
                 </span>
                 {t.appliance && t.command && t.button && (
                   <button type="button" className="cl-go" disabled={busy} onClick={() => send(t.appliance!, t.command!)}>
@@ -119,9 +155,9 @@ export function ClimatePanel({ view, now, by, member, compact }: {
                   {(['COOL', 'HEAT'] as const).map((m) => (
                     <button key={m} type="button" className={s.mode === m ? 'on' : ''} aria-pressed={s.mode === m} disabled={busy || s.mode === m}
                       onClick={() => send(a, m === 'COOL'
-                        ? { power: 'ON', mode: 'COOL', targetC: rules.coolTargetC }
-                        : { power: 'ON', mode: 'HEAT', targetC: rules.heatTargetC })}>
-                      {m === 'COOL' ? `냉방 ${rules.coolTargetC}°C` : `난방 ${rules.heatTargetC}°C`}
+                        ? { power: 'ON', mode: 'COOL', targetC: targets.coolTargetC }
+                        : { power: 'ON', mode: 'HEAT', targetC: targets.heatTargetC })}>
+                      {m === 'COOL' ? `냉방 ${targets.coolTargetC}°C` : `난방 ${targets.heatTargetC}°C`}
                     </button>
                   ))}
                 </span>
