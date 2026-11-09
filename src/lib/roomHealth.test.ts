@@ -260,6 +260,20 @@ describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
     expect(off.lightNote).toBe('불 꺼짐')
   })
 
+  it('지금 값이 꺼짐이면 앞 분들이 켜져 있었어도 표시하지 않는다', () => {
+    const v = toRoomView({ ...lit(() => 620, () => false), light: 80 }, cfg, now)
+    expect(v.flags.lightLeftOn).toBe(false)
+    expect(v.lightNote).toBe('불 꺼짐')
+  })
+
+  it('조도 측정이 오래됐으면 잰 시각을 붙인다', () => {
+    const at = new Date(now.getTime() - 5 * 60_000).toISOString()
+    const v = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: at }), cfg, now)
+    expect(v.lightNote).toMatch(/^\d{2}:\d{2}에 잰 값 · 불 켜짐$/)
+    const fresh = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED', lightAt: now.toISOString() }), cfg, now)
+    expect(fresh.lightNote).toBe('불 켜짐')
+  })
+
   it('사람이 있으면 불이 켜져 있어도 괜찮다', () => {
     const v = toRoomView(lit(() => 620, () => true, { presence: 'OCCUPIED' }), cfg, now)
     expect(v.flags.lightLeftOn).toBe(false)
