@@ -18,6 +18,10 @@ export interface EnvPoint {
   humidityPct?: number | null
   /** 문 열림 센서(리드 스위치). 그 분에 한 번이라도 열려 있었으면 true. 장치가 없으면 빠진다 */
   doorOpen?: boolean | null
+  /** 조도 1분 평균 (우노 CDS 0~1023, 밝을수록 큼, lux 아님). core가 아직 안 주면 빠진다 */
+  light?: number | null
+  /** 그 분에 재실이었는지 (조도 그래프의 재실 띠). core가 아직 안 주면 빠진다 */
+  occupied?: boolean | null
 }
 
 export interface RoomEnvironment {
@@ -31,6 +35,8 @@ export interface RoomEnvironment {
   co2: { ppm: number; at: string } | null
   temperatureC: number | null
   humidityPct: number | null
+  /** 가장 최근 조도 (0~1023). core가 아직 안 주면 빠지거나 null */
+  light?: number | null
   /** 문 열림 지금 상태(since = 지금 상태가 된 시각). 문 장치가 없으면 빠지거나 null */
   door?: { open: boolean; since: string } | null
   /** 지난 N분 1분 값. 오래된 것이 앞 */
@@ -53,6 +59,8 @@ export interface RoomsEnvironment {
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
 const isNumOrNull = (v: unknown) => v === null || isNum(v)
+const isOptNum = (v: unknown) => v === undefined || isNumOrNull(v)
+const isOptBool = (v: unknown) => v === undefined || v === null || typeof v === 'boolean'
 const isDate = (v: unknown) => typeof v === 'string' && Number.isFinite(new Date(v).getTime())
 /** current·next는 없거나 null이어도 되고, 있으면 시각·인원이 맞아야 한다 */
 const isCurrent = (v: unknown) => {
@@ -71,7 +79,7 @@ const isNext = (v: unknown) => {
   return typeof v === 'object' && isDate(n.startAt) && isNum(n.people)
 }
 
-/** 화면이 읽는 칸이 다 있는지. current·next·forecast만 빠져도 된다 */
+/** 화면이 읽는 칸이 다 있는지. current·next·forecast·light만 빠져도 된다 */
 export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
   if (!v || typeof v !== 'object') return false
   const d = v as Partial<RoomsEnvironment>
@@ -81,8 +89,8 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && ['OCCUPIED', 'EMPTY', 'UNKNOWN'].includes(r.presence)
     && typeof r.offline === 'boolean'
     && (r.co2 === null || (!!r.co2 && isNum(r.co2.ppm)))
-    && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct)
-    && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm))
+    && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct) && isOptNum(r.light)
+    && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm) && isOptNum(p.light) && isOptBool(p.occupied))
     && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isDate(f.at) && isNum(f.ppm))))
     && isCurrent(r.current) && isNext(r.next) && isDoor(r.door))
 }

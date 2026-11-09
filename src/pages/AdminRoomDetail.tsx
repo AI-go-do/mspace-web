@@ -63,6 +63,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
     { key: 'co2', label: 'CO2', value: view.co2 === null ? null : String(view.co2), unit: 'ppm', hot: flags.co2Over || flags.co2Soon, has: view.sensors.has('co2') },
     { key: 'temp', label: '온도', value: view.temperatureC === null ? null : view.temperatureC.toFixed(1), unit: '°C', hot: flags.hot, has: view.sensors.has('temperature') },
     { key: 'hum', label: '습도', value: view.humidityPct === null ? null : String(view.humidityPct), unit: '%', hot: flags.dry, has: view.sensors.has('humidity') },
+    { key: 'light', label: '조도', value: view.light === null ? null : String(view.light), unit: '%', hot: flags.lightLeftOn, has: view.sensors.has('light') },
   ]
   const hasDoorNote = view.sensors.has('door') ? ' 아래 하늘색 띠는 문이 열려 있던 때예요.' : ''
   const canCheckout = !!view.current && view.presence === 'OCCUPIED'
@@ -71,6 +72,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
     co2: `점선은 ${ENV_RULES.forecastMinutes}분 예측(${view.forecastFrom === 'model' ? 'Jetson' : '최근 추세'}), 옅은 범위는 그만큼 틀릴 수 있다는 뜻이에요.`,
     temp: `${ENV_RULES.hotC}°C 넘으면 더움으로 표시해요.`,
     hum: `${ENV_RULES.dryPct}% 밑이면 건조로 표시해요.`,
+    light: `조도는 밝기 %(센서 값 0~1023을 0~100%로)예요. ${ENV_RULES.lightOnPct}% 넘으면 불 켜짐으로 보고, 빈 방에서 ${ENV_RULES.lightLeftOnMinutes}분 넘게 켜져 있으면 알려요(기준은 임시값).`,
   }
 
   return (

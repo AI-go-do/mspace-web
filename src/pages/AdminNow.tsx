@@ -12,6 +12,7 @@ import { seoulClock } from '../lib/time'
 import type { TodoCounts } from './AdminTodo'
 import { RoomTile } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
+import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { setClimateAuto, useAppliances } from '../api/appliances'
@@ -195,7 +196,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
           {small.map((v, i) => tile(v, i))}
           {wide && tile(wide, views.length - 1, true)}
-          <p className="ctl-hall" aria-hidden="true"><span>복도</span>입구 키패드 · QR 입실 · 방마다 CO2·온도·습도·재실·문 센서</p>
+          <p className="ctl-hall" aria-hidden="true"><span>복도</span>입구 키패드 · QR 입실 · 방마다 CO2·온도·습도·조도·재실·문 센서</p>
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
@@ -212,6 +213,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         </aside>
 
         {views.length > 0 && <AdminOverview views={views} />}
+        {views.length > 0 && <AdminSensorBoard views={views} onOpen={setOpenRoom} />}
       </div>
 
       {opened && now && (

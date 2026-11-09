@@ -15,7 +15,7 @@ import './AdminRoomChart.css'
  * 픽셀 크기를 재서 그리므로 가로로 늘어나도 글씨·선이 찌그러지지 않는다
  */
 
-export type MetricKey = 'co2' | 'temp' | 'hum'
+export type MetricKey = 'co2' | 'temp' | 'hum' | 'light'
 
 interface Metric {
   key: MetricKey
@@ -33,6 +33,10 @@ interface Metric {
   hi: number
   /** 예측 범위가 1분마다 넓어지는 정도 */
   spread: number
+  /** 기준 너머를 "나쁨" 띠로 칠할지. 조도는 기준선이 "불 켜짐" 표시일 뿐이라 칠하지 않는다 */
+  zone: boolean
+  /** 이 값을 재는 센서가 방에 있는지(없으면 "센서 없음", 있는데 값이 없으면 "아직 값이 없어요") */
+  installed: boolean
 }
 
 const finite = (xs: (number | null)[]) => xs.filter((v): v is number => v !== null)
@@ -44,6 +48,7 @@ export function metricOf(view: RoomView, key: MetricKey): Metric {
     return {
       key, label: '온도', unit: '°C', digits: 1, values: view.temps, forecast: [], limit, dir: 'above', caution: limit - 1.5,
       lo: Math.min(20, ...vs.map((v) => v - 0.8)), hi: Math.max(limit + 1.5, ...vs.map((v) => v + 0.8)), spread: 0,
+      zone: true, installed: view.sensors.has('temperature'),
     }
   }
   if (key === 'hum') {
@@ -52,6 +57,14 @@ export function metricOf(view: RoomView, key: MetricKey): Metric {
     return {
       key, label: '습도', unit: '%', digits: 0, values: view.hums, forecast: [], limit, dir: 'below', caution: limit + 5,
       lo: Math.min(limit - 10, ...vs.map((v) => v - 4)), hi: Math.max(65, ...vs.map((v) => v + 4)), spread: 0,
+      zone: true, installed: view.sensors.has('humidity'),
+    }
+  }
+  if (key === 'light') {
+    // 조도: 우노 CDS 원시값을 밝기 %로(roomHealth). 기준선 = 불 켜짐
+    return {
+      key, label: '조도', unit: '%', digits: 0, values: view.lights, forecast: [], limit: ENV_RULES.lightOnPct, dir: 'above', caution: null,
+      lo: 0, hi: 100, spread: 0, zone: false, installed: view.sensors.has('light'),
     }
   }
   const limit = ENV_RULES.co2LimitPpm
@@ -59,6 +72,7 @@ export function metricOf(view: RoomView, key: MetricKey): Metric {
   return {
     key, label: 'CO2', unit: 'ppm', digits: 0, values: view.history, forecast: view.forecast, limit, dir: 'above', caution: limit - 200,
     lo: 400, hi: Math.max(limit + 200, ...vs.map((v) => v + 60)), spread: 7,
+    zone: true, installed: view.sensors.has('co2'),
   }
 }
 
@@ -182,12 +196,14 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   const tip = hover === null ? null : (() => {
     if (hover <= lastIdx) {
       const at = view.times[hover] ? seoulClock(new Date(view.times[hover])) : ''
-      const co2 = view.history[hover], t = view.temps[hover], hu = view.hums[hover]
+      const co2 = view.history[hover], t = view.temps[hover], hu = view.hums[hover], li = view.lights[hover], oc = view.occupancy[hover]
       const v = m.values[hover]
       return { i: hover, v, title: at, rows: [
         co2 !== undefined && view.sensors.has('co2') ? `CO2 ${co2 === null ? '–' : co2}ppm` : null,
         t !== undefined && view.sensors.has('temperature') ? `온도 ${t === null ? '–' : t.toFixed(1)}°C` : null,
         hu !== undefined && view.sensors.has('humidity') ? `습도 ${hu === null ? '–' : hu}%` : null,
+        li !== undefined && view.sensors.has('light') ? `조도 ${li === null ? '–' : `${li}%`}` : null,
+        oc !== undefined && oc !== null ? (oc ? '사람 있음' : '빈 방') : null,
         hasDoor && view.doors[hover] !== null ? `문 ${view.doors[hover] ? '열림' : '닫힘'}` : null,
       ].filter(Boolean) as string[] }
     }
@@ -197,7 +213,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
   })()
 
   const label = empty
-    ? `${view.name} ${m.label} 센서 없음`
+    ? `${view.name} ${m.label} ${m.installed ? '아직 값 없음' : '센서 없음'}`
     : `${view.name} ${m.label} 지난 ${n}분${m.forecast.length ? `과 ${m.forecast.length}분 예측` : ''}. `
       + `${lastIdx < nowIdx ? `${nowIdx - lastIdx}분 전 마지막 값` : '지금'} ${fmt(last, m.digits)}${m.unit}`
       + (eta !== null ? `. ${view.etaMinutes}분 뒤 기준 ${m.limit} 넘을 것 같음` : '')
@@ -225,10 +241,10 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
           </defs>
 
           {/* 배경 띠 */}
-          {!empty && <rect x="0" y={badTop} width={plotW} height={Math.max(0, badH)} fill={`url(#${uid}-hatch)`} className="rc-zone" />}
+          {!empty && m.zone && <rect x="0" y={badTop} width={plotW} height={Math.max(0, badH)} fill={`url(#${uid}-hatch)`} className="rc-zone" />}
           {!empty && cautionH > 0 && <rect x="0" y={cautionTop} width={plotW} height={cautionH} className="rc-caution" />}
           <line x1="0" x2={plotW} y1={yLimit} y2={yLimit} className="rc-limit" />
-          <text x={plotW + 6} y={yLimit + 4} className="rc-limit-t">{fmt(m.limit, m.key === 'temp' ? 1 : 0)}</text>
+          <text x={plotW + 6} y={yLimit + 4} className="rc-limit-t">{fmt(m.limit, m.key === 'temp' ? 1 : 0)}{m.key === 'light' ? '%' : ''}</text>
 
           {/* 예약이 끝났는데 남아 있는 구간 */}
           {overFrom !== null && nowIdx > overFrom && (
@@ -241,9 +257,9 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
           <g className="rc-plot">
             {lines.map((r, k) => <path key={`a${k}`} d={area(r)} fill={`url(#${uid}-fill)`} className="rc-area" />)}
             {/* 기준을 넘은 구간은 선 밑에 노란 빛 */}
-            <g clipPath={`url(#${uid}-bad)`}>
+            {m.zone && <g clipPath={`url(#${uid}-bad)`}>
               {lines.map((r, k) => <path key={`g${k}`} d={d(r)} className="rc-glow" />)}
-            </g>
+            </g>}
             {lines.map((r, k) => <path key={`l${k}`} d={d(r)} className="rc-line" />)}
           </g>
 
@@ -317,7 +333,7 @@ export function RoomChart({ view, metric = 'co2', now, detail = false }: { view:
           {tip.rows.map((r) => <span key={r}>{r}</span>)}
         </div>
       )}
-      {empty && <span className="rc-empty">{m.label} 센서 없음</span>}
+      {empty && <span className="rc-empty">{m.installed ? `${m.label} 값이 아직 없어요` : `${m.label} 센서 없음`}</span>}
     </div>
   )
 }

@@ -89,6 +89,7 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
   const facts = [
     view.temperatureC === null ? null : `${view.temperatureC.toFixed(1)}°C`,
     view.humidityPct === null ? null : `${view.humidityPct}%`,
+    view.light === null ? null : `조도 ${view.light}%`,
     view.door?.open ? `문 열림 ${view.door.minutes}분` : null,
   ].filter(Boolean).join(' · ')
   return (
