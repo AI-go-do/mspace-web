@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { isDemoId } from '../api/apology'
+import { isApology, isDemoId } from '../api/apology'
 import { agoLabel, announceUnreadChanged, getMyNotifications, markAllNotificationsRead, markNotificationRead, notificationAction, withRead, type AppNotification } from '../api/notifications'
 import { stillHere } from '../api/reservations'
 import { ApiError, currentMemberId } from '../api/client'
@@ -184,7 +184,7 @@ export default function Alerts() {
           {shown.map((n) => {
             const act = notificationAction(n)
             return (
-              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${n.kind === 'ROOM_APOLOGY' ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' ? 'co2-alert' : ''}`}>
+              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${isApology(n) ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' ? 'co2-alert' : ''}`}>
                 <div className="alert-top">
                   {!n.read && <><i className="dot" aria-hidden="true" /><span className="sr-only">안 읽음</span></>}
                   <b className="alert-title">{n.title}</b>

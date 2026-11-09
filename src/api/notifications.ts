@@ -1,5 +1,5 @@
 import { demoOn } from '../lib/demo'
-import { demoApologies, isDemoId, mergeDemo, readDemo } from './apology'
+import { demoApologies, isApology, isDemoId, mergeDemo, readDemo } from './apology'
 import { api } from './client'
 import { CO2_ALERT_KIND, demoCo2Alerts, isCo2DemoId, readCo2Demo } from './co2Alert'
 
@@ -7,11 +7,11 @@ import { CO2_ALERT_KIND, demoCo2Alerts, isCo2DemoId, readCo2Demo } from './co2Al
  * 알림 종류. 서버가 새 종류를 보내도 화면이 깨지지 않게 string도 받는다
  * START_SOON 입실 10분 전 · END_SOON 종료 10분 전 · NO_SHOW_SOON 노쇼 직전 · AWAY_SOON 자리 비움 (FR-NTF-101·102·104, FR-DEV-103)
  * REPORT_RESULT 신고 판정 결과 · WARNING 경고 (FR-RPT-104, core #70) · FORCED_CHECKOUT 관리자 퇴실 처리 (core #73)
- * ROOM_APOLOGY 방의 사과: 장치 오류로 생긴 노쇼 경고를 물렀음 (Q-19 제안, core #94. api/apology.ts)
+ * DEVICE_APOLOGY 방의 사과: 문 장치 문제로 생긴 노쇼를 물렀음 (Q-19, core #99. api/apology.ts)
  * CO2_SOON 숨 막히기 N분 전: 창문을 열어 달라는 알림 (회의용 Q, core 초안. api/co2Alert.ts)
  */
 export type NotificationKind = 'START_SOON' | 'END_SOON' | 'NO_SHOW_SOON' | 'AWAY_SOON'
-  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'ROOM_APOLOGY' | 'CO2_SOON' | (string & {})
+  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | (string & {})
 
 /** GET /api/notifications/me 한 줄 (core NotificationController, 최근 50개) */
 export interface AppNotification {
@@ -76,7 +76,7 @@ export function withRead(list: AppNotification[], id: number | null): AppNotific
 /** 알림에서 바로 갈 곳. 예약과 상관없거나 갈 곳이 없으면 null */
 export function notificationAction(n: AppNotification): { to: string; label: string } | null {
   // 방의 사과는 예약이 없어도(예시) 경고 수가 돌아왔는지 보러 간다
-  if (n.kind === 'ROOM_APOLOGY') return { to: '/rules', label: '내 경고 보기' }
+  if (isApology(n)) return { to: '/rules', label: '내 경고 보기' }
   // 숨 막히기: 홈 맨 위 "내 방 공기" 카드(공기청정기·에어컨 버튼)로
   if (n.kind === CO2_ALERT_KIND) return { to: '/', label: '내 방 공기 보기' }
   if (n.reservationId == null) return null
