@@ -41,7 +41,8 @@ export function withLightTrail(data: RoomsEnvironment, trail: LightTrail, keepMi
         // 최신 값은 지금 분의 값으로 본다(장치가 10초마다 보내서, 값이 그대로면 시각만 늦게 바뀐다)
         const sample = { minute: nowMinute, light, occupied }
         const last = list[list.length - 1]
-        if (last && last.minute === sample.minute) list[list.length - 1] = sample
+        // 같은 분 안에서 앞 값은 새것이었는데 지금 값이 오래됐으면, 앞의 새 값을 지우지 않는다
+        if (last && last.minute === sample.minute) list[list.length - 1] = light === null && last.light !== null ? { ...last, occupied } : sample
         else if (!last || last.minute < sample.minute) list.push(sample)
       }
       trail.set(r.roomId, list)
