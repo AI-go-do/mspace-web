@@ -40,6 +40,7 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
     setDraft({ text: t, d: parseNotice(t, new Date()) })
   }
 
+  /** 막기안의 줄을 차례로 막는다. 일부만 되면 못 막은 줄만 남긴다 */
   async function blockAll(d: NoticeDraft) {
     if (sending) return
     setSending(true)

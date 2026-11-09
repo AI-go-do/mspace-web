@@ -68,21 +68,24 @@ export function RestProposals({ onOpenRooms }: { onOpenRooms: () => void }) {
   const now = new Date()
   const source = demoOn() ? [...reports, ...demoBrokenReportsCached(now)] : reports
   const reservations = previewReservations(now)
-  const doneKeys = new Set(rested.map((r) => r.p.key))
+  // 막기에 성공한 안만 목록에서 뺀다. 실패한 안은 남겨 다시 누를 수 있게
+  const doneKeys = new Set(rested.filter((r) => r.error === null).map((r) => r.p.key))
   const list = proposeRests(source, blocks, reservations, now).filter((p) => !isSkipped(p, skipped) && !doneKeys.has(p.key))
 
+  /** 이 신고 묶음으로는 다시 묻지 않는다 (이 탭에서만 기억) */
   function skip(p: RestProposal) {
     const next = [...skipped, p.key]
     setSkipped(next)
     try { sessionStorage.setItem(SKIP_KEY, JSON.stringify(next)) } catch { /* 이 화면에서만 기억 */ }
   }
 
+  /** 휴업안대로 기간 막기(점검). 결과는 안마다 한 줄만 남기고, 실패했으면 다시 누를 수 있다 */
   function rest(p: RestProposal) {
-    // 빠르게 두 번 눌러도 한 번만 막는다
-    if (busy.current.has(p.key) || rested.some((x) => x.p.key === p.key)) return
+    // 빠르게 두 번 눌러도 한 번만 막고, 이미 쉬게 한 안은 다시 막지 않는다
+    if (busy.current.has(p.key) || rested.some((x) => x.p.key === p.key && x.error === null)) return
     busy.current.add(p.key)
     void createBlock({ roomId: p.roomId, startAt: new Date(p.startAt), endAt: new Date(p.endAt), reason: 'INSPECTION', memo: REST_MEMO })
-      .then((r) => setRested((x) => [...x, { p, error: 'error' in r ? r.error : null }]))
+      .then((r) => setRested((x) => [...x.filter((e) => e.p.key !== p.key), { p, error: 'error' in r ? r.error : null }]))
       .finally(() => busy.current.delete(p.key))
   }
 

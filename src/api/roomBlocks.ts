@@ -51,6 +51,7 @@ export function mockReservations(now: Date, days = 7): BlockConflict[] {
   return out
 }
 
+/** 처음 가짜 기록: 내일 오전 5번 방 점검 하나 */
 function seed(now: Date): BlocksState {
   // 예시 하나: 내일 오전 5번 방 점검
   const tomorrow = new Date(`${seoulDate(new Date(now.getTime() + 86_400_000))}T09:00:00+09:00`)
@@ -62,6 +63,7 @@ function seed(now: Date): BlocksState {
   }
 }
 
+/** 저장된 값이 가짜 기록 모양인지 */
 function isState(s: unknown): s is BlocksState {
   const v = s as BlocksState | null
   return !!v && typeof v === 'object' && Array.isArray(v.blocks) && Array.isArray(v.canceled) && typeof v.seq === 'number'
@@ -72,6 +74,7 @@ function isState(s: unknown): s is BlocksState {
 let state: BlocksState | null = null
 const listeners = new Set<() => void>()
 
+/** 이 브라우저에 남긴 가짜 기록을 읽는다. 없거나 깨졌으면 예시 하나로 시작 */
 function load(): BlocksState {
   try {
     const raw = localStorage.getItem(KEY)
@@ -85,17 +88,20 @@ function load(): BlocksState {
   return seed(new Date())
 }
 
+/** 가짜 기록 (처음 부를 때 읽는다) */
 function get(): BlocksState {
   if (!state) state = load()
   return state
 }
 
+/** 가짜 기록을 바꾸고 저장한 뒤 화면에 알린다 */
 function set(next: BlocksState) {
   state = next
   try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* 저장 못 해도 화면은 그대로 */ }
   listeners.forEach((fn) => fn())
 }
 
+/** 기록이 바뀔 때 부를 함수를 건다. 돌려준 함수로 뗀다 */
 function subscribe(fn: () => void) {
   listeners.add(fn)
   return () => { listeners.delete(fn) }
@@ -106,6 +112,7 @@ function liveReservations(s: BlocksState, now: Date): BlockConflict[] {
   return mockReservations(now).filter((r) => !s.canceled.includes(r.reservationId))
 }
 
+/** 가짜 저장소에 막기. 틀리면 { error }, 되면 막은 기간과 겹친 가짜 예약 */
 function mockCreate(input: BlockInput, now: Date): { error: string } | { block: RoomBlock; conflicts: BlockConflict[] } {
   const s = get()
   const error = validateBlock(input, s.blocks, now)
@@ -118,11 +125,13 @@ function mockCreate(input: BlockInput, now: Date): { error: string } | { block: 
   return { block, conflicts: conflictsOf(block, liveReservations(get(), now)) }
 }
 
+/** 가짜 저장소에서 풀기 (기록은 남긴다) */
 function mockRelease(id: number, now: Date): void {
   const s = get()
   set({ ...s, blocks: s.blocks.map((b) => (b.id === id && b.releasedAt === null ? { ...b, releasedAt: now.toISOString() } : b)) })
 }
 
+/** 가짜 저장소에서 막은 기간과 겹친 가짜 예약 (아직 취소 안 한 것) */
 function mockConflicts(id: number, now: Date): BlockConflict[] {
   const s = get()
   const b = s.blocks.find((x) => x.id === id)
@@ -130,6 +139,7 @@ function mockConflicts(id: number, now: Date): BlockConflict[] {
   return conflictsOf(b, liveReservations(s, now))
 }
 
+/** 가짜 저장소에서 겹친 예약 취소 (학생에게 보내지 않음). 취소한 건수 */
 function mockCancel(id: number, now: Date): number {
   const list = mockConflicts(id, now)
   if (!list.length) return 0
@@ -158,6 +168,7 @@ let mockView: BlocksView | null = null
 let loadedAt = 0
 let inflight: Promise<void> | null = null
 
+/** api 상태를 바꾸고 화면에 알린다 */
 function setApi(next: Partial<BlocksView>) {
   apiView = { ...apiView, ...next }
   listeners.forEach((fn) => fn())
@@ -165,12 +176,14 @@ function setApi(next: Partial<BlocksView>) {
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : '잠시 후 다시 시도해 주세요')
 
+/** core Block 모양인지 (memo·releasedAt은 null일 수 있다) */
 function isBlock(v: unknown): v is RoomBlock {
   const b = v as RoomBlock | null
   return !!b && typeof b === 'object' && typeof b.id === 'number' && typeof b.roomId === 'number'
     && typeof b.startAt === 'string' && typeof b.endAt === 'string' && typeof b.reason === 'string'
 }
 
+/** core Conflict 모양인지 */
 function isConflict(v: unknown): v is BlockConflict {
   const c = v as BlockConflict | null
   return !!c && typeof c === 'object' && typeof c.reservationId === 'number' && typeof c.roomId === 'number'
@@ -179,16 +192,19 @@ function isConflict(v: unknown): v is BlockConflict {
 
 const badShape = () => new ApiError(0, 'INVALID_RESPONSE', '기간 막기 응답 모양이 달라요(core API 확인 필요).')
 
+/** 서버 값을 화면 모양으로. 모양이 다르면 INVALID_RESPONSE */
 function toBlock(v: unknown): RoomBlock {
   if (!isBlock(v)) throw badShape()
   return { ...v, memo: v.memo ?? null, releasedAt: v.releasedAt ?? null }
 }
 
+/** 서버 겹친 예약 목록을 검사해 그대로 돌려준다 */
 function toConflicts(v: unknown): BlockConflict[] {
   if (!Array.isArray(v) || !v.every(isConflict)) throw badShape()
   return v
 }
 
+/** 막기 하나와 겹친 끝나지 않은 예약 */
 async function fetchConflicts(id: number): Promise<BlockConflict[]> {
   return toConflicts(await api<unknown>(`/api/admin/room-blocks/${id}/conflicts`, { member: currentMemberId() }))
 }
@@ -294,6 +310,7 @@ export function resetBlocks(): void {
   set(seed(new Date()))
 }
 
+/** useSyncExternalStore용: 바뀌지 않았으면 같은 객체를 돌려준다 */
 function snapshot(): BlocksView {
   if (blocksSource() === 'api') return apiView
   const s = get()

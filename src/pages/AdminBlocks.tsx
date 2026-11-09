@@ -30,6 +30,7 @@ function nextSlot(now: Date): Date {
 /** 공지 막기안에서 [양식에서 고치기]로 채울 값 */
 interface Preset { roomId: number; startAt: string; endAt: string; reason: BlockReason; memo: string; note?: string }
 
+/** 기간 막기 양식 (방·사유·시작·끝·메모). preset이 있으면 그 값으로 채운다 */
 function BlockForm({ preset }: { preset?: Preset | null }) {
   const first = preset ? new Date(preset.startAt) : nextSlot(new Date())
   const until = preset ? new Date(preset.endAt) : new Date(first.getTime() + 2 * 3_600_000)
@@ -52,6 +53,7 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
     ref.current?.querySelector<HTMLSelectElement>('#blk-room')?.focus({ preventScroll: true })
   }, [preset])
 
+  /** 양식 값으로 막는다. 겹친 예약이 있으면 목록에서 확인하라고 알린다 */
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (sending) return // 두 번 눌러도 한 번만 막는다
@@ -121,6 +123,7 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
   )
 }
 
+/** 막힌 기간 한 줄: 기간·사유·겹친 예약·풀기 */
 function BlockItem({ b, now, sample }: { b: RoomBlock; now: Date; sample: boolean }) {
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -129,6 +132,7 @@ function BlockItem({ b, now, sample }: { b: RoomBlock; now: Date; sample: boolea
   const cancelable = conflicts.filter(isCancelable)
   const running = active && new Date(b.startAt).getTime() <= now.getTime()
 
+  /** 확인 창 뒤 시작 전 겹친 예약을 취소하고 대표자·참여자에게 알린다 */
   async function cancelAll() {
     if (busy) return
     if (!window.confirm(`시작 전 예약 ${cancelable.length}건을 취소할까요? 대표자와 참여자에게 "${reasonStatus(b.reason)}" 사유로 알림이 가요.`)) return
@@ -139,6 +143,7 @@ function BlockItem({ b, now, sample }: { b: RoomBlock; now: Date; sample: boolea
     setNote({ text: sample ? `예약 ${n}건을 취소했어요. (가짜 단계라 실제 알림은 보내지 않았어요)` : `예약 ${n}건을 취소하고 대표자·참여자에게 알렸어요.`, error: false })
   }
 
+  /** 막기를 푼다 (기록은 남는다) */
   async function release() {
     if (busy) return
     setBusy(true)
@@ -182,6 +187,7 @@ function BlockItem({ b, now, sample }: { b: RoomBlock; now: Date; sample: boolea
   )
 }
 
+/** "지금" 방 상세에서 넘어오면 그 방을 지금부터 2시간 막는 안 */
 function roomPreset({ roomId, inspection }: { roomId: number; inspection: boolean }): Preset {
   const start = nextSlot(new Date(Date.now() - 30 * 60_000))
   return {
