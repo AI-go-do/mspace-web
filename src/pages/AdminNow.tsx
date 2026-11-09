@@ -14,7 +14,7 @@ import { RoomTile } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
-import { setClimateAuto, useAppliances } from '../api/appliances'
+import { APPLIANCE_SOURCE, setClimateAuto, useAppliances } from '../api/appliances'
 import { useClimateRules, WeatherChip } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
@@ -181,7 +181,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
           <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
             onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
-          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}
+          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}{APPLIANCE_SOURCE === 'mock' && ' · 시연: 실제 기기에 신호를 보내지 않아요'}
         </span>
         <span className="ctl-legend" aria-hidden="true"><i className="lg-use" />사람 있음 <i className="lg-warn" />주의 <i className="lg-off" />확인 필요 <i className="lg-empty" />빈 방</span>
       </div>
@@ -199,8 +199,11 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
           <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />지금 확인할 것 <b>{now ? issues.length : '–'}</b></h2>
           {issues.length > 0 && <IssueFeed issues={issues} onOpen={setOpenRoom} />}
-          {data && issues.length === 0 && (
+          {data && views.length > 0 && issues.length === 0 && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 확인할 것이 없어요.</p>
+          )}
+          {data && views.length === 0 && (
+            <p className="ctl-allok" role="status">방 정보를 받지 못했어요. 잠시 뒤 다시 확인해요.</p>
           )}
           <button type="button" className="ctl-todo" onClick={onOpenTodo}>
             <b>{todo.reportsKnown ? todo.total : '?'}</b>
