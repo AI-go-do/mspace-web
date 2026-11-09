@@ -24,35 +24,46 @@ function ago(iso: string | null, now: Date): string {
  * 위 숫자 셋을 누르면 큰 그래프가 CO2·온도·습도로 바뀌고, 아래에 "지금 확인할 것"(왜 노랑·남색인지 + 할 일)과
  * 바로 할 수 있는 버튼(강제 퇴실·이 방 막기)을 둔다. 버튼은 방 관리 칸으로 값을 채워 넘기고, 실제 처리는 거기서 한 번 더 확인한다
  */
-export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlockRoom }: {
+export function RoomDetail({ view, now, blocked, reports = 0, sample = false, onClose, onForceCheckout, onBlockRoom, onOpenReports }: {
   view: RoomView
   now: Date
   blocked: string | null
+  reports?: number
+  /** 가짜 값이면 예약 번호도 가짜라 강제 퇴실로 넘기지 않는다(실제 서버의 같은 번호 예약이 걸리지 않게) */
+  sample?: boolean
   onClose: () => void
+  onOpenReports: () => void
   onForceCheckout: (reservationId: number) => void
   onBlockRoom: (roomId: number, inspection: boolean) => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const [metric, setMetric] = useState<MetricKey>('co2')
-  const advice = roomAdvice(view, now)
+  const advice = roomAdvice(view, now, { blocked, openReports: reports })
   const { log, auto } = useAppliances()
   const autoLog = log.filter((e) => e.roomId === view.roomId).slice(0, 4)
   const { flags } = view
 
+  // 닫히면 연 버튼으로 포커스를 돌려준다(부모가 창을 지우므로 close()를 거치지 않는다)
+  const opener = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const d = ref.current
     if (!d) return
-    if (typeof d.showModal === 'function' && !d.open) d.showModal()
+    if (!d.open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      if (typeof d.showModal === 'function') d.showModal()
+    }
     const onCancel = (e: Event) => { e.preventDefault(); onClose() }
     d.addEventListener('cancel', onCancel)
     return () => d.removeEventListener('cancel', onCancel)
   }, [onClose])
+  useEffect(() => () => { if (opener.current?.isConnected) opener.current.focus() }, [])
 
   const tiles: { key: MetricKey; label: string; value: string | null; unit: string; hot: boolean; has: boolean }[] = [
     { key: 'co2', label: 'CO2', value: view.co2 === null ? null : String(view.co2), unit: 'ppm', hot: flags.co2Over || flags.co2Soon, has: view.sensors.has('co2') },
     { key: 'temp', label: '온도', value: view.temperatureC === null ? null : view.temperatureC.toFixed(1), unit: '°C', hot: flags.hot, has: view.sensors.has('temperature') },
     { key: 'hum', label: '습도', value: view.humidityPct === null ? null : String(view.humidityPct), unit: '%', hot: flags.dry, has: view.sensors.has('humidity') },
   ]
+  const hasDoorNote = view.sensors.has('door') ? ' 아래 하늘색 띠는 문이 열려 있던 때예요.' : ''
   const canCheckout = !!view.current && view.presence === 'OCCUPIED'
   const inspection = flags.offline || flags.stuck
   const notes: Record<MetricKey, string> = {
@@ -75,9 +86,9 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
           <button type="button" className="rd-close" onClick={onClose} aria-label="닫기">✕</button>
         </header>
 
-        <div className="rd-tiles" role="tablist" aria-label="그래프 고르기">
+        <div className="rd-tiles" role="group" aria-label="그래프 고르기">
           {tiles.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={metric === t.key} disabled={!t.has}
+            <button key={t.key} type="button" aria-pressed={metric === t.key} disabled={!t.has}
               className={`rd-tile ${metric === t.key ? 'on' : ''} ${t.hot ? 'hot' : ''}`} onClick={() => setMetric(t.key)}>
               <small>{t.label}</small>
               {t.value === null ? <b className="none">–</b> : <b>{t.value}<i>{t.unit}</i></b>}
@@ -85,9 +96,9 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
           ))}
         </div>
 
-        <div className="rd-chart" role="tabpanel">
+        <div className="rd-chart">
           <RoomChart key={metric} view={view} metric={metric} now={now} detail />
-          <p className="rd-note">{notes[metric]} 그래프를 누르거나 마우스를 올리면 그 분의 값이 보여요.</p>
+          <p className="rd-note">{notes[metric]} 그래프를 누르거나 마우스를 올리면 그 분의 값이 보여요.{hasDoorNote}</p>
         </div>
 
         <div className="rd-grid">
@@ -126,11 +137,23 @@ export function RoomDetail({ view, now, blocked, onClose, onForceCheckout, onBlo
               <dd>{view.nextAt ? seoulClock(new Date(view.nextAt)) : '없음'}</dd>
               <dt>재실</dt>
               <dd>{PRESENCE[view.presence]}</dd>
+              {view.sensors.has('door') && (
+                <>
+                  <dt>문</dt>
+                  <dd>{view.door ? `${view.door.open ? '열림' : '닫힘'} (${seoulClock(new Date(view.door.since))}부터 ${view.door.minutes}분)` : '모름'}</dd>
+                </>
+              )}
               <dt>마지막 신호</dt>
               <dd>{ago(view.lastSignalAt, now)}</dd>
             </dl>
             <div className="rd-actions">
-              {canCheckout && (
+              {reports > 0 && (
+                <button type="button" className="adm-btn" onClick={onOpenReports}>신고 {reports}건 판정하러</button>
+              )}
+              {canCheckout && sample && (
+                <button type="button" className="adm-btn line" disabled title="가짜 값의 예약 번호라 실제 예약이 걸릴 수 있어요">강제 퇴실로 (가짜 값이라 꺼 둠)</button>
+              )}
+              {canCheckout && !sample && (
                 <button type="button" className={`adm-btn ${flags.overtime ? '' : 'line'}`} onClick={() => onForceCheckout(view.current!.reservationId)}>
                   강제 퇴실로
                 </button>

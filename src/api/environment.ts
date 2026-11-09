@@ -16,6 +16,8 @@ export interface EnvPoint {
   ppm: number | null
   temperatureC?: number | null
   humidityPct?: number | null
+  /** 문 열림 센서(리드 스위치). 그 분에 한 번이라도 열려 있었으면 true. 장치가 없으면 빠진다 */
+  doorOpen?: boolean | null
 }
 
 export interface RoomEnvironment {
@@ -29,6 +31,8 @@ export interface RoomEnvironment {
   co2: { ppm: number; at: string } | null
   temperatureC: number | null
   humidityPct: number | null
+  /** 문 열림 지금 상태(since = 지금 상태가 된 시각). 문 장치가 없으면 빠지거나 null */
+  door?: { open: boolean; since: string } | null
   /** 지난 N분 1분 값. 오래된 것이 앞 */
   series: EnvPoint[]
   /** 젯슨 CO2 예측(1분 간격). 없으면 화면이 최근 추세로 그린다 */
@@ -56,6 +60,11 @@ const isCurrent = (v: unknown) => {
   const c = v as Record<string, unknown>
   return typeof v === 'object' && isNum(c.reservationId) && isDate(c.startAt) && isDate(c.endAt) && isNum(c.people)
 }
+const isDoor = (v: unknown) => {
+  if (v === undefined || v === null) return true
+  const d = v as Record<string, unknown>
+  return typeof v === 'object' && typeof d.open === 'boolean' && isDate(d.since)
+}
 const isNext = (v: unknown) => {
   if (v === undefined || v === null) return true
   const n = v as Record<string, unknown>
@@ -75,7 +84,7 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct)
     && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm))
     && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isDate(f.at) && isNum(f.ppm))))
-    && isCurrent(r.current) && isNext(r.next))
+    && isCurrent(r.current) && isNext(r.next) && isDoor(r.door))
 }
 
 /** 'api'로 빌드했을 때만 core를 부른다. 그 밖에는 가짜 값 */

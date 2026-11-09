@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RoomEnvironment } from '../api/environment'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { roomAdvice } from './roomAdvice'
+import { majorAdvice, roomAdvice } from './roomAdvice'
 import { toRoomView } from './roomHealth'
 
 const now = new Date('2026-11-09T10:00:00+09:00')
@@ -51,5 +51,47 @@ describe('roomAdvice', () => {
     const a = roomAdvice(view(env), now)
     expect(a).toHaveLength(1)
     expect(a[0].todo).toContain('다음 예약(10:30) 전에')
+  })
+
+  it('빈 방 문이 기준보다 오래 열려 있으면 주의로 알린다(사람이 있으면 환기라 알리지 않는다)', () => {
+    const open = (presence: 'EMPTY' | 'OCCUPIED') => room((i) => 500 + (i % 2), { presence, door: { open: true, since: iso(14) } })
+    const empty = toRoomView(open('EMPTY'), ADMIN_ROOMS[0], now)
+    expect(empty.tone).toBe('warn')
+    expect(empty.status.text).toBe('문 열림')
+    expect(roomAdvice(empty, now).map((a) => a.title)).toContain('빈 방 문이 14분째 열려 있어요')
+    const busy = toRoomView(open('OCCUPIED'), ADMIN_ROOMS[0], now)
+    expect(busy.flags.doorLeftOpen).toBe(false)
+  })
+
+  it('건조는 참고라 맨 위 띠에는 올리지 않는다', () => {
+    const dry = view(room((i) => 500 + (i % 2), { humidityPct: 30 }))
+    expect(roomAdvice(dry, now)).toHaveLength(1)
+    expect(majorAdvice(roomAdvice(dry, now))).toEqual([])
+  })
+
+  it('예약이 시작됐는데 아무도 없으면 노쇼까지 남은 분을 알려 준다', () => {
+    const env = room((i) => 480 + (i % 2), { presence: 'EMPTY', current: { reservationId: 77, startAt: iso(7), endAt: iso(-113), people: 4 } })
+    const v = view(env)
+    expect(v.status.text).toBe('입실 안 함')
+    const a = roomAdvice(v, now)
+    expect(a[0].title).toBe('예약이 시작된 지 7분인데 아무도 없어요 (#77)')
+    expect(a[0].todo).toContain('8분 안에 입실하지 않으면 노쇼')
+  })
+
+  it('밤에 문이 열리면 사람이 있어도 바로 알린다', () => {
+    const night = new Date('2026-11-09T23:20:00+09:00')
+    const at = (m: number) => new Date(night.getTime() - m * 60_000).toISOString()
+    const series = Array.from({ length: 30 }, (_, i) => ({ at: at(29 - i), ppm: 600 + (i % 2), temperatureC: 24, humidityPct: 45, doorOpen: i >= 28 }))
+    const env = { ...room(() => 600), series, co2: { ppm: 601, at: at(0) }, door: { open: true, since: at(1) } }
+    const v = toRoomView(env, ADMIN_ROOMS[0], night)
+    expect(v.status.text).toBe('밤에 문 열림')
+    expect(roomAdvice(v, night)[0].title).toBe('밤에 문이 열렸어요 (23:19부터)')
+  })
+
+  it('막아 둔 방에 사람이 있거나 판정 안 한 신고가 있으면 알린다', () => {
+    const v = view(room((i) => 600 + (i % 2), { current: { reservationId: 9, startAt: iso(30), endAt: iso(-60), people: 4 } }))
+    const a = roomAdvice(v, now, { blocked: '점검 중', openReports: 2 })
+    expect(a.map((x) => x.title)).toEqual(['점검 중으로 막아 둔 방에 사람이 있어요', '판정 기다리는 신고 2건'])
+    expect(a[1].action).toBe('reports')
   })
 })
