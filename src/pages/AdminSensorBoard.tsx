@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { ENV_RULES, type SensorKind } from '../config/adminRooms'
+import { ENV_RULES, type ChartRange, type SensorKind } from '../config/adminRooms'
+import { rangeLabel } from '../lib/chartRange'
 import type { RoomView } from '../lib/roomHealth'
 import { seoulClock } from '../lib/time'
+import { ChartRangeSeg } from './ChartRangeSeg'
 
 /**
  * 관제실 "방별 센서": 방마다 CO2·온도·조도 그래프를 따로 한 칸씩(재웅 11/9).
@@ -161,7 +163,7 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
                 {occ.map(([a, b]) => <rect key={a} x={x(a)} y={PAD.t + plotH + 3} width={Math.max(2, x(b) - x(a))} height={bandH - 2} rx="2" className="sb-band-on" />)}
               </g>
             )}
-            <text x="0" y={H - 4} className="sb-tick">{n}분 전</text>
+            <text x="0" y={H - 4} className="sb-tick">{rangeLabel(n)} 전</text>
             <text x={plotW} y={H - 4} className="sb-tick now" textAnchor="end">지금</text>
             {hv !== null && hv !== undefined && (
               <g className="sb-cross">
@@ -183,15 +185,16 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
 }
 
 /** 방별 센서 판. 방 줄을 누르면(번호·이름) 방 상세 창 */
-export function AdminSensorBoard({ views, onOpen }: { views: RoomView[]; onOpen: (roomId: number) => void }) {
+export function AdminSensorBoard({ views, onOpen, range, onRange }: { views: RoomView[]; onOpen: (roomId: number) => void; range: ChartRange; onRange: (r: ChartRange) => void }) {
   const anyBand = views.some((v) => v.occupancy.some((o) => o !== null))
   return (
     <section className="ctl-ov sb" aria-labelledby="sb-h">
       <header className="sb-head">
-        <h2 id="sb-h">방별 센서 실시간 <small>방마다 CO2·온도·조도 · 지난 {ENV_RULES.historyMinutes}분</small></h2>
+        <h2 id="sb-h">방별 센서 실시간 <small>방마다 CO2·온도·조도 · 지난 {rangeLabel(range)}</small></h2>
         <span className="sb-key" aria-hidden="true">
           <i className="k-line" />측정 <i className="k-limit" />기준선 {anyBand && <><i className="k-band" />사람 있던 시간</>} <i className="k-none" />값 없음
         </span>
+        <ChartRangeSeg value={range} onChange={onRange} />
       </header>
       <p className="sb-sub">조도는 밝기 %예요(센서 값 0~1023을 0~100%로). 불 켜짐 기준 {ENV_RULES.lightOnPct}%는 임시값이라 실제 방에서 켜고 끈 값을 재서 맞출게요.</p>
       <div className="sb-rows">

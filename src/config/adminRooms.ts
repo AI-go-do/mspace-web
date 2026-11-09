@@ -58,11 +58,17 @@ export const ENV_RULES = {
   /** 이 시각(서울)부터 다음 날 nightTo 전까지 문이 열리면 바로 알린다 */
   nightFromHour: 22,
   nightToHour: 7,
-  /** 그래프에 그릴 지난 시간과 예측 시간 */
+  /** 그래프에 그릴 지난 시간(기본)과 예측 시간 */
   historyMinutes: 60,
+  /** core에서 받아 오는 지난 시간(core 최대 180분). 그래프 범위 단추와 자동 기준이 이 안에서 고른다 */
+  fetchMinutes: 180,
   forecastMinutes: 15,
   /** 새 값을 읽는 간격 (장치도 10초마다 보낸다) */
   pollMs: 10_000,
 }
 
 export type EnvRules = { readonly [K in keyof typeof ENV_RULES]: number }
+
+/** 관리자 그래프 범위 단추(분). 기본은 ENV_RULES.historyMinutes */
+export const CHART_RANGES = [10, 30, 60, 120] as const
+export type ChartRange = (typeof CHART_RANGES)[number]

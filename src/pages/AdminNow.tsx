@@ -4,7 +4,8 @@ import { adminErrorMessage } from '../api/admin'
 import { envSource, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
 import { trailFor, withLightTrail } from '../lib/lightTrail'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
-import { toRoomView, type RoomView } from '../lib/roomHealth'
+import { toRoomView, trimView, type RoomView } from '../lib/roomHealth'
+import { useChartRange } from '../lib/chartRange'
 import { majorAdvice, roomAdvice, type Advice, type AdviceContext } from '../lib/roomAdvice'
 import { useRoomBlocks } from '../api/roomBlocks'
 import { blockNow, reasonStatus } from '../lib/roomBlocks'
@@ -96,8 +97,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       const mine = new AbortController()
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), REQUEST_TIMEOUT_MS)
-      getRoomsEnvironment(mine.signal, memberId)
-        .then((r) => { if (stale) return; setData(r.sample ? r.data : withLightTrail(r.data, trail, ENV_RULES.historyMinutes)); setSample(r.sample); setError(null); setReadAt(new Date()) })
+      getRoomsEnvironment(mine.signal, memberId, ENV_RULES.fetchMinutes)
+        .then((r) => { if (stale) return; setData(r.sample ? r.data : withLightTrail(r.data, trail, ENV_RULES.fetchMinutes)); setSample(r.sample); setError(null); setReadAt(new Date()) })
         .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
         .finally(() => { clearTimeout(timer); if (ctrl === mine) ctrl = null })
     }
@@ -122,12 +123,15 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
   }, [data])
 
+  // 판단은 받은 3시간 전체로 하고, 그래프에는 고른 범위만 보여 준다
+  const [range, setRange] = useChartRange()
+  const shown = useMemo(() => views.map((v) => trimView(v, range)), [views, range])
   const now = useMemo(() => (data ? new Date(data.now) : null), [data])
   const { auto } = useAppliances()
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { weather, rules: climateRules } = useClimateRules()
   useClimateAuto(views, now, auto, currentMemberId(), climateRules)
-  const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
+  const opened = openRoom === null ? null : shown.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
     return b ? reasonStatus(b.reason) : null
@@ -156,8 +160,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     )
   }
   // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
-  const small = views.length === 1 ? views : views.slice(0, -1)
-  const wide = views.length > 1 ? views[views.length - 1] : null
+  const small = shown.length === 1 ? shown : shown.slice(0, -1)
+  const wide = shown.length > 1 ? shown[shown.length - 1] : null
   // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
   const known = data !== null && views.length > 0
   // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
@@ -224,8 +228,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           </button>
         </aside>
 
-        {views.length > 0 && <AdminOverview views={views} />}
-        {views.length > 0 && <AdminSensorBoard views={views} onOpen={setOpenRoom} />}
+        {views.length > 0 && <AdminOverview views={shown} range={range} onRange={setRange} />}
+        {views.length > 0 && <AdminSensorBoard views={shown} onOpen={setOpenRoom} range={range} onRange={setRange} />}
       </div>
 
       {opened && now && (

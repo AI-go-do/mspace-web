@@ -1,5 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { ENV_RULES } from '../config/adminRooms'
+import { rangeLabel } from '../lib/chartRange'
+import { ChartRangeSeg } from './ChartRangeSeg'
+import { ENV_RULES, type ChartRange } from '../config/adminRooms'
 import type { RoomView } from '../lib/roomHealth'
 import { isTrusted, overview, type Level } from '../lib/roomOverview'
 import { seoulClock } from '../lib/time'
@@ -220,7 +222,7 @@ function HeatRow({ row, i, focus }: { row: ReturnType<typeof overview>['rows'][n
   )
 }
 
-export function AdminOverview({ views }: { views: RoomView[] }) {
+export function AdminOverview({ views, range, onRange }: { views: RoomView[]; range: ChartRange; onRange: (r: ChartRange) => void }) {
   const [metric, setMetric] = useState<Metric>('co2')
   const [focus, setFocus] = useState<number | null>(null)
   const o = useMemo(() => overview(views), [views])
@@ -229,7 +231,8 @@ export function AdminOverview({ views }: { views: RoomView[] }) {
   return (
     <section className="ctl-ov" aria-labelledby="ov-h">
       <header className="ov-head">
-        <h2 id="ov-h">전체 실시간 분석 <small>방 1~5 한 그래프</small></h2>
+        <h2 id="ov-h">전체 실시간 분석 <small>방 1~5 한 그래프 · 지난 {rangeLabel(range)}</small></h2>
+        <ChartRangeSeg value={range} onChange={onRange} />
         <div className="ov-seg" role="group" aria-label="보는 값" style={{ '--i': METRICS.findIndex((x) => x.key === metric) } as CSSProperties}>
           <span className="ov-seg-glow" aria-hidden="true" />
           {METRICS.map((x) => <button key={x.key} type="button" aria-pressed={metric === x.key} onClick={() => setMetric(x.key)}>{x.label}</button>)}

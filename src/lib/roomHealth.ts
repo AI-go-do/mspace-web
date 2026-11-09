@@ -220,3 +220,13 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
     overtimeMinutes, noEntryMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote, lightNote,
   }
 }
+
+/**
+ * 그래프 범위 단추용: 지난 값 배열만 끝에서 minutes분으로 자른다.
+ * 판단(고장·빈 방 불 켜짐 등)은 자르기 전 전체 값으로 이미 끝났으니 그대로 둔다
+ */
+export function trimView(v: RoomView, minutes: number): RoomView {
+  if (v.times.length <= minutes) return v
+  const cut = <T,>(xs: T[]) => xs.slice(-minutes)
+  return { ...v, history: cut(v.history), temps: cut(v.temps), hums: cut(v.hums), lights: cut(v.lights), occupancy: cut(v.occupancy), doors: cut(v.doors), times: cut(v.times) }
+}

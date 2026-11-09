@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isRoomsEnvironment, type RoomEnvironment } from '../api/environment'
 import { mockEnvironment } from '../api/environmentMock'
 import { ADMIN_ROOMS, ENV_RULES, type AdminRoomConfig } from '../config/adminRooms'
-import { lightPct, toRoomView, trendSlope } from './roomHealth'
+import { lightPct, toRoomView, trendSlope, trimView } from './roomHealth'
 
 const now = new Date('2026-11-08T14:41:00+09:00')
 const iso = (minAgo: number) => new Date(now.getTime() - minAgo * 60_000).toISOString()
@@ -294,5 +294,22 @@ describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
       .map((t) => mockEnvironment(t, 60).rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), t)))
     expect(views.every((vs) => vs[1].co2 === null && vs[1].temperatureC === null && vs[1].light !== null)).toBe(true)
     expect(views.some((vs) => vs[2].flags.lightLeftOn)).toBe(true)
+  })
+})
+
+describe('trimView (그래프 범위)', () => {
+  it('지난 값 배열만 끝에서 고른 분만큼 자르고 판단은 그대로 둔다', () => {
+    // given: 180분 받은 방
+    const now = new Date('2026-11-09T04:00:00Z')
+    const env = mockEnvironment(now, 180).rooms[0]
+    const full = toRoomView(env, ADMIN_ROOMS[0], now)
+    // when
+    const short = trimView(full, 10)
+    // then
+    expect(full.times).toHaveLength(180)
+    expect(short.times).toHaveLength(10)
+    expect(short.history).toEqual(full.history.slice(-10))
+    expect(short.lights).toHaveLength(10)
+    expect(short.flags).toBe(full.flags)
   })
 })

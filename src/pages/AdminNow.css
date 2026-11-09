@@ -233,6 +233,8 @@
 .ov-seg-glow { position: absolute; left: 3px; top: 3px; bottom: 3px; width: 64px; border-radius: 9px; background: var(--white); transform: translateX(calc(var(--i, 0) * 64px)); transition: transform 0.38s var(--ease-spring); }
 .ov-seg button { position: relative; height: 34px; border: 0; background: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 800; color: var(--c-dim); transition: color 0.2s; }
 .ov-seg button[aria-pressed='true'] { color: var(--navy); }
+.ov-head .rg-seg + .ov-seg { margin-left: 0; }
+.sb-head .rg-seg { margin-left: auto; }
 .ov-seg button:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; border-radius: 9px; }
 
 .ov-facts { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
