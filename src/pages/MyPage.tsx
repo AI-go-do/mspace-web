@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { getFriends, type FriendList } from '../api/friends'
-import { getMyProfile, profileHead, type MyProfile } from '../api/members'
+import { DEMO_PROFILE, getMyProfile, profileHead, type MyProfile } from '../api/members'
 import { isActive, type MyReservation } from '../api/reservations'
 import { classesOn, getSchedule, seoulDay, type Schedule } from '../api/schedule'
 import Spacey from '../components/Spacey'
@@ -96,8 +96,9 @@ function MyPageFor({ member }: { member: number | null }) {
     const load = () => {
       if (!gotSchedule) getSchedule(member).then((s) => { if (alive) { setSchedule(s); gotSchedule = true } }).catch(() => {})
       if (!gotFriends) getFriends(undefined, member).then((f) => { if (alive) { setFriends(f); gotFriends = true } }).catch(() => {})
-      // 머리글 이름·학번. 못 받아도(core 전·404) "내 정보" 제목으로 그대로 쓴다
-      if (!gotProfile) getMyProfile(member).then((p) => { if (alive) { setProfile(p); gotProfile = true } }).catch(() => {})
+      // 머리글 이름·학번. 못 받아도(core 전·404) "내 정보" 제목으로 그대로 쓴다.
+      // ?demo=1 가짜 회원은 보여 주되 받은 걸로 치지 않아서, 연결이 돌아오면 진짜 값으로 바꿀 수 있다
+      if (!gotProfile) getMyProfile(member).then((p) => { if (alive) { setProfile(p); gotProfile = p !== DEMO_PROFILE } }).catch(() => {})
     }
     load()
     window.addEventListener('online', load)
