@@ -153,7 +153,7 @@
 .ct-co2 em.why.warn span { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 5px; border-radius: 50%; background: var(--yellow); color: var(--navy); font-size: 11px; font-weight: 900; vertical-align: 1px; }
 .ct-co2 em.why.off span { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 5px; border-radius: 50%; background: var(--white); color: var(--navy); font-size: 11px; font-weight: 900; vertical-align: 1px; }
 .ct-foot { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--c-dim); }
-.ct-foot > span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ct-foot > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ct-go { flex: none; font-weight: 800; color: var(--sky); opacity: 0; transform: translateX(-4px); transition: opacity 0.2s, transform 0.25s var(--ease-spring); }
 .ctl-tile:hover .ct-go, .ctl-tile:focus-visible .ct-go { opacity: 1; transform: none; }
 @media (hover: none) { .ct-go { opacity: 1; transform: none; } }

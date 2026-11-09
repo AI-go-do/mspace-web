@@ -134,7 +134,7 @@ function SensorChart({ v, s, off }: { v: RoomView; s: Spec; off: boolean }) {
       <div className="sb-cell-head">
         <small>{s.label}</small>
         {empty ? <b className="none">–</b> : <b>{fmt(now, s.digits)}<i>{s.unit}</i></b>}
-        <em>{empty ? (installed ? '아직 값이 없어요' : '센서 없음') : s.note}</em>
+        <em title={empty ? undefined : s.note}>{empty ? (installed ? '아직 값이 없어요' : '센서 없음') : s.note}</em>
       </div>
       <div ref={ref} className="sb-plot" style={{ height: H }} role="img" aria-label={label}
         onPointerDown={onMove} onPointerMove={onMove} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>

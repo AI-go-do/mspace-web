@@ -136,7 +136,7 @@ export async function getRoomsEnvironment(
   return { data: flattenLight(data), sample: false }
 }
 
-/** core의 light { raw, at }를 화면이 쓰는 숫자 + lightAt으로 편다. 숫자면 그대로 */
+/** core의 light { raw, at }를 화면이 쓰는 숫자 + lightAt으로 편다. 숫자면 그대로. isRoomsEnvironment(isLight)로 검사한 값만 넣는다 */
 export function flattenLight(d: RoomsEnvironment): RoomsEnvironment {
   return {
     ...d,
