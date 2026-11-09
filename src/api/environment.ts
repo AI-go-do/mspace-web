@@ -1,6 +1,7 @@
 import { api, ApiError } from './client'
 import { mockEnvironment } from './environmentMock'
 import { ENV_RULES } from '../config/adminRooms'
+import { demoOn } from '../lib/demo'
 
 /**
  * 관리자 "지금" 탭 데이터 창구. 화면은 getRoomsEnvironment 하나만 부른다.
@@ -87,15 +88,23 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && isCurrent(r.current) && isNext(r.next) && isDoor(r.door))
 }
 
-/** 'api'로 빌드했을 때만 core를 부른다. 그 밖에는 가짜 값 */
-export const ENV_SOURCE: 'api' | 'mock' = import.meta.env.VITE_ADMIN_ENV_SOURCE === 'api' ? 'api' : 'mock'
+/** 빌드할 때 정한 값. develop 이미지(개발 서버)만 'api'로 빌드한다(deploy.yml) */
+const BUILD_SOURCE: 'api' | 'mock' = import.meta.env.VITE_ADMIN_ENV_SOURCE === 'api' ? 'api' : 'mock'
+
+/**
+ * 지금 화면이 쓸 값. 'api'로 빌드했어도 시연 모드(?demo=1)를 켜면 가짜 값으로 돌아간다.
+ * 실제 장치가 1번 방에만 있어서, 발표 때는 다섯 방이 다 움직이는 가짜 값이 필요하다
+ */
+export function envSource(): 'api' | 'mock' {
+  return BUILD_SOURCE === 'api' && !demoOn() ? 'api' : 'mock'
+}
 
 export async function getRoomsEnvironment(
   signal?: AbortSignal,
   member?: number | null,
   minutes: number = ENV_RULES.historyMinutes,
 ): Promise<{ data: RoomsEnvironment; sample: boolean }> {
-  if (ENV_SOURCE === 'mock') return { data: mockEnvironment(new Date(), minutes), sample: true }
+  if (envSource() === 'mock') return { data: mockEnvironment(new Date(), minutes), sample: true }
   const data = await api<unknown>(`/api/admin/rooms/environment?minutes=${minutes}`, { signal, member })
   // API 모양이 아직 초안이라, 칸이 빠진 응답은 화면을 깨뜨리지 않고 오류 문구로 보여 준다
   if (!isRoomsEnvironment(data)) throw new ApiError(0, 'INVALID_RESPONSE', '방 센서 응답 모양이 달라요(core API 확인 필요).')
