@@ -122,10 +122,11 @@ export default function Home() {
     try { navigator.vibrate?.([60, 80, 60]) } catch { /* 진동 없는 기기 */ }
   }, [butler])
 
-  // 내 방 공기(예시 화면 ?demo=1만): 지금 쓰는 방, 없으면 창작실 1의 가짜 센서 값. 학생용 센서 API가 생기면 바꾼다
-  const inRoom = mine.find((m) => m.status === 'IN_USE')?.room.id ?? 1
+  // 내 방 공기(예시 화면 ?demo=1만): 입실한(IN_USE) 내 예약 방에만 나온다. 예약만 하고 입실 전이거나 끝난 방은 켜고 끌 수 없어서 안 보인다.
+  // 센서 값은 아직 가짜(학생용 센서 API가 생기면 바꾼다)
+  const inRoom = mine.find((m) => m.status === 'IN_USE')?.room.id ?? null
   const climate = useMemo(() => {
-    if (!demoOn()) return null
+    if (!demoOn() || inRoom === null) return null
     const env = mockEnvironment(now, ENV_RULES.historyMinutes).rooms.find((r) => r.roomId === inRoom)
     return env ? toRoomView(env, ADMIN_ROOMS.find((c) => c.roomId === inRoom), now) : null
   }, [now, inRoom])
