@@ -1,116 +1,92 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { adminErrorMessage } from '../api/admin'
-import { ENV_SOURCE, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { envSource, getRoomsEnvironment, type RoomsEnvironment } from '../api/environment'
+import { trailFor, withLightTrail } from '../lib/lightTrail'
 import { ADMIN_ROOMS, ENV_RULES } from '../config/adminRooms'
 import { toRoomView, type RoomView } from '../lib/roomHealth'
+import { majorAdvice, roomAdvice, type Advice, type AdviceContext } from '../lib/roomAdvice'
 import { useRoomBlocks } from '../api/roomBlocks'
 import { blockNow, reasonStatus } from '../lib/roomBlocks'
-import { ApprenticeInbox } from './AdminApprentice'
+import { useCountUp } from '../lib/useCountUp'
 import { seoulClock } from '../lib/time'
+import type { TodoCounts } from './AdminTodo'
+import { RoomTile } from './AdminFloor'
+import { AdminOverview } from './AdminOverview'
+import { AdminSensorBoard } from './AdminSensorBoard'
+import { overview } from '../lib/roomOverview'
+import { RoomDetail } from './AdminRoomDetail'
+import { APPLIANCE_SOURCE, setClimateAuto, useAppliances } from '../api/appliances'
+import { useClimateRules, WeatherChip } from '../components/Climate'
+import { useClimateAuto } from '../lib/useClimateAuto'
+import '../components/Climate.css'
 import './AdminNow.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
 
-/** CO2 지난 45분 선 + 15분 예측 점선 + 기준선. 가로로 늘어나도 선 굵기는 그대로 */
-export function Co2Chart({ view, limit = ENV_RULES.co2LimitPpm }: { view: RoomView; limit?: number }) {
-  const W = 300
-  const H = 86
-  const n = view.history.length
-  const f = ENV_RULES.forecastMinutes
-  const values = [...view.history, ...view.forecast].filter((v): v is number => v !== null)
-  const lo = 400
-  const hi = Math.max(limit + 200, ...values.map((v) => v + 50))
-  const total = Math.max(2, n + f)
-  const x = (i: number) => (i / (total - 1)) * (W - 4) + 2
-  const y = (v: number) => H - 4 - ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (H - 10)
+/** 카드 테두리 색: 방 값 표시 + 막힌 방에 사람·신고 같은 바깥 일도 노랑으로 */
+export function cardTone(view: RoomView, advice: Advice[]): RoomView['tone'] {
+  return view.tone !== 'ok' ? view.tone : advice.length ? 'warn' : 'ok'
+}
 
-  // 센서 값이 빈 분에서 선을 끊는다
-  const runs: [number, number][][] = []
-  view.history.forEach((v, i) => {
-    if (v === null) { runs.push([]); return }
-    if (!runs.length) runs.push([])
-    runs[runs.length - 1].push([x(i), y(v)])
-  })
-  const lines = runs.filter((r) => r.length > 1)
-  const lastIdx = view.history.map((v, i) => (v === null ? -1 : i)).reduce((a, b) => Math.max(a, b), -1)
-  const last = lastIdx >= 0 ? (view.history[lastIdx] as number) : null
-  const pred = last !== null && view.forecast.length
-    ? [[x(lastIdx), y(last)], ...view.forecast.map((v, i) => [x(lastIdx + i + 1), y(v)])]
-    : []
-  const pts = (p: number[][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(' ')
-  const label = view.co2 === null
-    ? `${view.name} CO2 센서 없음`
-    : `${view.name} CO2 지난 ${n}분${view.forecast.length ? `과 ${view.forecast.length}분 예측` : ''}. 지금 ${view.co2}ppm`
-
+/** 오른쪽 "지금 확인할 것". 방 하나에 한 장, 누르면 그 방 상세 창 */
+function IssueFeed({ issues, onOpen }: { issues: { v: RoomView; list: Advice[] }[]; onOpen: (roomId: number) => void }) {
   return (
-    <div className="co2-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
-        <line x1="0" x2={W} y1={y(limit)} y2={y(limit)} className="c-limit" vectorEffect="non-scaling-stroke" />
-        {lines.map((r, i) => (
-          <g key={i}>
-            <polygon points={`${r[0][0]},${H} ${pts(r)} ${r[r.length - 1][0]},${H}`} className="c-fill" />
-            <polyline points={pts(r)} className="c-line" vectorEffect="non-scaling-stroke" />
-          </g>
-        ))}
-        {pred.length > 1 && <polyline points={pts(pred)} className="c-pred" vectorEffect="non-scaling-stroke" />}
-        {last !== null && <line x1={x(lastIdx)} x2={x(lastIdx)} y1="4" y2={H} className="c-now" vectorEffect="non-scaling-stroke" />}
-      </svg>
-      <span className="c-limit-label" style={{ top: `${(y(limit) / H) * 100}%` }}>{limit}</span>
-      {last !== null && <span className="c-dot" style={{ left: `${(x(lastIdx) / W) * 100}%`, top: `${(y(last) / H) * 100}%` }} />}
-      {view.co2 === null && <span className="c-empty">CO2 센서 없음</span>}
-    </div>
+    <ul className="ctl-feed">
+      {issues.map(({ v, list }, i) => (
+        <li key={v.roomId} style={{ '--k': i } as CSSProperties}>
+          <button type="button" className={`cf-item i-${list[0].tone}`} onClick={() => onOpen(v.roomId)}>
+            <span className="cf-no">{v.roomId}</span>
+            <span className="cf-text">
+              <small>{v.name} · {list[0].tone === 'off' ? '장치 확인' : '주의'}</small>
+              <b>{list[0].title}</b>
+              <span>{list[0].todo}</span>
+              {list.length > 1 && <em>외 {list.length - 1}건 더</em>}
+            </span>
+            <span className="cf-go" aria-hidden="true">›</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 
-function Value({ label, value, unit, note, hot, big }: { label: string; value: string | null; unit: string; note: string; hot?: boolean; big?: boolean }) {
+/** 위 큰 숫자 하나. 값이 바뀌면 세어 올라간다 */
+function Big({ label, value, of, unit, tone, hint }: { label: string; value: number | null; of?: number; unit?: string; tone?: string; hint?: string }) {
+  const shown = useCountUp(value ?? 0)
   return (
-    <div className={`nv ${big ? 'big' : ''} ${hot ? 'hot' : ''}`}>
-      <small>{label}</small>
-      {value === null ? <b className="none">–</b> : <b>{value}<i>{unit}</i></b>}
-      <em>{note}</em>
+    <div className={`ctl-big ${tone ?? ''}`}>
+      <span className="cb-label">{label}</span>
+      <b className="cb-num" aria-hidden="true">{value === null ? '–' : shown}{of !== undefined && <small> / {of}</small>}{unit && value !== null && <small> {unit}</small>}</b>
+      <span className="sr-only">{value === null ? '모름' : `${value}${of !== undefined ? ` / ${of}` : ''}${unit ?? ''}`}</span>
+      {hint && <span className="cb-hint">{hint}</span>}
     </div>
-  )
-}
-
-export function RoomCard({ view, blocked }: { view: RoomView; blocked?: string | null }) {
-  const { flags } = view
-  return (
-    <article className={`card now-room t-${view.tone}`} aria-label={`${view.name} ${view.status.text}`}>
-      <header className="nr-head">
-        <span className="nr-no">{view.roomId}</span>
-        <div className="nr-title">
-          <b>{view.name}</b>
-          <span className="muted">{view.slot}</span>
-        </div>
-        {blocked && <span className="nr-st s-warn" title="관리자가 막은 기간">{blocked}</span>}
-        <span className={`nr-st s-${view.status.tone}`}>{view.status.text}</span>
-      </header>
-      <div className="nr-vals">
-        <Value big label="CO2" value={view.co2 === null ? null : String(view.co2)} unit="ppm" note={view.co2Note}
-          hot={flags.co2Soon || flags.co2Over} />
-        <Value label="온도" value={view.temperatureC === null ? null : view.temperatureC.toFixed(1)} unit="°C" note={view.tempNote} hot={flags.hot} />
-        <Value label="습도" value={view.humidityPct === null ? null : String(view.humidityPct)} unit="%" note={view.humNote} />
-      </div>
-      <Co2Chart view={view} />
-    </article>
   )
 }
 
 /**
- * 관리자 "지금" 탭: 방마다 CO2·온도·습도·재실을 크게, 10초마다 새로 읽는다.
- * 지켜보는 화면보다 "어디를 봐야 하나"가 먼저 보이게 이상한 방은 테두리 색으로 표시한다(노랑 주의, 빨강 확인 필요).
- * 데이터는 api/environment 창구 하나에서만 받는다(지금은 가짜 값)
+ * 관리자 "지금" = 관제실. 어두운 판 위에 방 1~5 평면도 + 오른쪽 "지금 확인할 것" + 아래 "전체 실시간 분석".
+ * 맨 위 큰 숫자(쓰는 방·주의·확인 필요·평균 CO2·할 일)로 먼저 상황을 잡고, 이상한 방은 칸 모양(노란 고리·줄무늬)으로 먼저 보이게 한다.
+ * 10초마다 새로 읽는다. 데이터는 api/environment 창구 하나에서만 받는다(지금은 가짜 값)
  */
-export function AdminNow() {
+export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
+  todo: TodoCounts
+  onOpenTodo: () => void
+  onForceCheckout: (reservationId: number) => void
+  onBlockRoom: (roomId: number, inspection: boolean) => void
+}) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
-  const [sample, setSample] = useState(ENV_SOURCE === 'mock')
+  const [sample, setSample] = useState(envSource() === 'mock')
   const [error, setError] = useState<string | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
+  const [openRoom, setOpenRoom] = useState<number | null>(null)
+  const closeRoom = useCallback(() => setOpenRoom(null), [])
 
   useEffect(() => {
     const memberId = currentMemberId()
     if (memberId === null) return
+    // core가 조도를 최신 값 하나만 줄 때, 받은 값을 모아 그래프를 그린다(lib/lightTrail). 탭을 옮겨도 남는다
+    const trail = trailFor(memberId)
     let stale = false
     let ctrl: AbortController | null = null
     let poll: ReturnType<typeof setInterval> | undefined
@@ -121,7 +97,7 @@ export function AdminNow() {
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), REQUEST_TIMEOUT_MS)
       getRoomsEnvironment(mine.signal, memberId)
-        .then((r) => { if (stale) return; setData(r.data); setSample(r.sample); setError(null); setReadAt(new Date()) })
+        .then((r) => { if (stale) return; setData(r.sample ? r.data : withLightTrail(r.data, trail, ENV_RULES.historyMinutes)); setSample(r.sample); setError(null); setReadAt(new Date()) })
         .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
         .finally(() => { clearTimeout(timer); if (ctrl === mine) ctrl = null })
     }
@@ -146,41 +122,118 @@ export function AdminNow() {
     return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
   }, [data])
 
+  const now = useMemo(() => (data ? new Date(data.now) : null), [data])
+  const { auto } = useAppliances()
+  // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
+  const { weather, rules: climateRules } = useClimateRules()
+  useClimateAuto(views, now, auto, currentMemberId(), climateRules)
+  const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
+  const blockedOf = (roomId: number) => {
+    const b = now ? blockNow(roomId, blocks, now) : null
+    return b ? reasonStatus(b.reason) : null
+  }
+
   const used = views.filter((v) => v.status.tone === 'use' || v.flags.overtime || v.flags.unbooked).length
-  const warn = views.filter((v) => v.tone === 'warn').length
+  const ctxOf = (roomId: number): AdviceContext => ({ blocked: blockedOf(roomId), openReports: todo.byRoom[roomId] ?? 0 })
+  const adviceOf = (v: RoomView) => (now ? majorAdvice(roomAdvice(v, now, ctxOf(v.roomId))) : [])
+  const warn = views.filter((v) => cardTone(v, adviceOf(v)) === 'warn').length
   const off = views.filter((v) => v.tone === 'off').length
   const trendOnly = views.some((v) => v.forecastFrom === 'trend')
+  // 맨 위 "지금 확인할 것": 방마다 가장 급한 한 줄. 남색(장치 문제)이 먼저
+  const issues = now
+    ? views.map((v) => ({ v, list: adviceOf(v) })).filter((x) => x.list.length > 0)
+      .sort((a, b) => Number(b.list[0].tone === 'off') - Number(a.list[0].tone === 'off'))
+    : []
+
+  // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
+  const avg = useMemo(() => overview(views).avg, [views])
+
+  const tile = (v: RoomView, i: number, big = false) => {
+    const list = adviceOf(v)
+    return (
+      <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
+        blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)} />
+    )
+  }
+  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
+  const small = views.length === 1 ? views : views.slice(0, -1)
+  const wide = views.length > 1 ? views[views.length - 1] : null
+  // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
+  const known = data !== null && views.length > 0
+  // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
+  const missingRooms = ADMIN_ROOMS.filter((r) => !views.some((v) => v.roomId === r.roomId)).length
+  const unknownRooms = views.filter((v) => v.presence === 'UNKNOWN').length + missingRooms
 
   return (
-    <section className="admin-now" aria-label="지금 방 상태">
-      <div className="now-bar">
-        <span className="now-clock" role="status"><span className="now-dot" aria-hidden="true" />
-          {readAt ? <>지금 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다 새 값</span>
-        {sample && <span className="now-sample">가짜 값 · 시연용</span>}
+    <section className="admin-now ctl" aria-label="관제실 지금 방 상태">
+      <div className="ctl-top">
+        <Big label="지금 쓰는 방" value={known ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
+        <Big label="주의" value={known ? warn : null} tone={warn ? 'warn' : ''} hint="환기·시간 넘김·입실 안 함·문" />
+        <Big label="확인 필요" value={known ? off : null} tone={off ? 'off' : ''} hint="센서 멈춤·끊김" />
+        <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
+        <button type="button" className={`ctl-big as-btn ${todo.total ? 'todo' : ''}`} onClick={onOpenTodo}>
+          <span className="cb-label">할 일</span>
+          <b className="cb-num" aria-hidden="true">{todo.reportsKnown ? todo.total : '–'}</b>
+          <span className="sr-only">{todo.reportsKnown ? `${todo.total}건` : '모름'}</span>
+          <span className="cb-hint">{!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
+            : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'}</span>
+          <span className="cb-go" aria-hidden="true">→</span>
+        </button>
       </div>
-      {error && <p role="alert" className="admin-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
-      <div className="now-grid">
-      <ApprenticeInbox />
-      {views.length > 0 && (
-        <div className="now-rooms">
-          {views.map((v) => {
-            const b = data ? blockNow(v.roomId, blocks, new Date(data.now)) : null
-            return <RoomCard key={v.roomId} view={v} blocked={b ? reasonStatus(b.reason) : null} />
-          })}
-          <article className="card now-sum">
-            <b>방 {views.length}개 한눈에</b>
-            <p>사용 중 <b className="big">{used}</b> / {views.length}</p>
-            <p>
-              <span className="sum-chip t-warn">주의 {warn}</span>
-              <span className="sum-chip t-off">확인 필요 {off}</span>
-            </p>
-            <p className="muted">
-              선: 측정값 · 점선: {ENV_RULES.forecastMinutes}분 예측{trendOnly ? '(젯슨 예측 전이라 최근 10분 추세)' : ''} · 노란 점선: 환기 기준 {ENV_RULES.co2LimitPpm}ppm
-            </p>
-          </article>
-        </div>
+
+      <div className="ctl-bar">
+        <span className="ctl-live"><i aria-hidden="true" />
+          {readAt ? <>실시간 · 마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다</span>
+        {sample && <span className="ctl-sample">가짜 값 · 시연용</span>}
+        {trendOnly && <span className="ctl-note">예측은 최근 추세로 그렸어요</span>}
+        <WeatherChip w={weather} />
+        <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
+          <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
+            onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
+          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}{APPLIANCE_SOURCE === 'mock' && ' · 시연: 실제 기기에 신호를 보내지 않아요'}
+        </span>
+        <span className="ctl-legend" aria-hidden="true"><i className="lg-use" />사람 있음 <i className="lg-warn" />주의 <i className="lg-off" />확인 필요 <i className="lg-empty" />빈 방</span>
+      </div>
+      {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
+
+      <div className="ctl-grid">
+        <section className="ctl-floor" aria-label="방 평면도 (누르면 자세히)">
+          <span className="ctl-scan" aria-hidden="true" />
+          {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
+          {small.map((v, i) => tile(v, i))}
+          {wide && tile(wide, views.length - 1, true)}
+          <p className="ctl-hall" aria-hidden="true"><span>복도</span>입구 키패드 · QR 입실 · 방마다 CO2·온도·습도·조도·재실·문 센서</p>
+        </section>
+
+        <aside className="ctl-side" aria-labelledby="ctl-issues-h">
+          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />지금 확인할 것 <b>{now ? issues.length : '–'}</b></h2>
+          {issues.length > 0 && <IssueFeed issues={issues} onOpen={setOpenRoom} />}
+          {known && issues.length === 0 && unknownRooms === 0 && (
+            <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 확인할 것이 없어요.</p>
+          )}
+          {known && issues.length === 0 && unknownRooms > 0 && (
+            <p className="ctl-allok" role="status">확인할 것은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요{missingRooms > 0 ? ` (${missingRooms}개 방은 값이 오지 않았어요)` : ''}.</p>
+          )}
+          {data && views.length === 0 && (
+            <p className="ctl-allok" role="status">방 정보를 받지 못했어요. 잠시 뒤 다시 확인해요.</p>
+          )}
+          <button type="button" className="ctl-todo" onClick={onOpenTodo}>
+            <b>{todo.reportsKnown ? todo.total : '?'}</b>
+            <span>사람이 정할 일<small>{todo.reportsKnown ? `신고 판정 ${todo.reports} · AI 제안 ${todo.ai}` : '신고 수를 확인하지 못했어요'}</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </aside>
+
+        {views.length > 0 && <AdminOverview views={views} />}
+        {views.length > 0 && <AdminSensorBoard views={views} onOpen={setOpenRoom} />}
+      </div>
+
+      {opened && now && (
+        <RoomDetail view={opened} now={now} blocked={blockedOf(opened.roomId)} reports={todo.byRoom[opened.roomId] ?? 0} sample={sample} onClose={closeRoom}
+          onOpenReports={() => { closeRoom(); onOpenTodo() }}
+          onForceCheckout={(id) => { closeRoom(); onForceCheckout(id) }}
+          onBlockRoom={(id, insp) => { closeRoom(); onBlockRoom(id, insp) }} />
       )}
-      </div>
     </section>
   )
 }

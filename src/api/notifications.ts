@@ -1,15 +1,17 @@
 import { demoOn } from '../lib/demo'
 import { demoApologies, isDemoId, mergeDemo, readDemo } from './apology'
 import { api } from './client'
+import { CO2_ALERT_KIND, demoCo2Alerts, isCo2DemoId, readCo2Demo } from './co2Alert'
 
 /**
  * 알림 종류. 서버가 새 종류를 보내도 화면이 깨지지 않게 string도 받는다
  * START_SOON 입실 10분 전 · END_SOON 종료 10분 전 · NO_SHOW_SOON 노쇼 직전 · AWAY_SOON 자리 비움 (FR-NTF-101·102·104, FR-DEV-103)
  * REPORT_RESULT 신고 판정 결과 · WARNING 경고 (FR-RPT-104, core #70) · FORCED_CHECKOUT 관리자 퇴실 처리 (core #73)
  * ROOM_APOLOGY 방의 사과: 장치 오류로 생긴 노쇼 경고를 물렀음 (Q-19 제안, core #94. api/apology.ts)
+ * CO2_SOON 숨 막히기 N분 전: 창문을 열어 달라는 알림 (회의용 Q, core 초안. api/co2Alert.ts)
  */
 export type NotificationKind = 'START_SOON' | 'END_SOON' | 'NO_SHOW_SOON' | 'AWAY_SOON'
-  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'ROOM_APOLOGY' | (string & {})
+  | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'ROOM_APOLOGY' | 'CO2_SOON' | (string & {})
 
 /** GET /api/notifications/me 한 줄 (core NotificationController, 최근 50개) */
 export interface AppNotification {
@@ -30,14 +32,14 @@ export function getMyNotifications(signal?: AbortSignal, member?: number | null)
   // 예시 화면(?demo=1): core가 없거나 실패해도 예시는 보인다. 끊은 요청(화면 떠남)은 그대로 끊는다
   return real
     .catch((e) => { if (signal?.aborted) throw e; return [] as AppNotification[] })
-    .then((list) => mergeDemo(list, demoApologies()))
+    .then((list) => mergeDemo(list, [...demoApologies(), ...demoCo2Alerts()]))
 }
 
 /** 안 읽은 알림 개수 (홈 종 버튼 점, core #69). 예: {"count":3} */
 export function getUnreadCount(signal?: AbortSignal, member?: number | null): Promise<{ count: number }> {
   const real = api<{ count: number }>('/api/notifications/me/unread-count', { signal, member })
   if (!demoOn()) return real
-  const extra = demoApologies().filter((n) => !n.read).length
+  const extra = [...demoApologies(), ...demoCo2Alerts()].filter((n) => !n.read).length
   return real
     .catch((e) => { if (signal?.aborted) throw e; return { count: 0 } })
     .then((r) => ({ count: r.count + extra }))
@@ -46,7 +48,7 @@ export function getUnreadCount(signal?: AbortSignal, member?: number | null): Pr
 /** 알림 하나 읽음 (core #69). 이미 읽었어도 204. 없거나 남의 알림이면 404 NOTIFICATION_NOT_FOUND */
 export function markNotificationRead(id: number, member?: number | null): Promise<void> {
   // 예시 알림(음수 번호)은 서버에 없어서 이 탭에서만 읽음으로 둔다
-  if (isDemoId(id)) return Promise.resolve(readDemo())
+  if (isDemoId(id)) return Promise.resolve(isCo2DemoId(id) ? readCo2Demo(id) : readDemo())
   return api(`/api/notifications/${id}/read`, { method: 'POST', member })
 }
 
@@ -55,7 +57,7 @@ export function markAllNotificationsRead(member?: number | null): Promise<{ coun
   const real = api<{ count: number }>('/api/notifications/read-all', { method: 'POST', member })
   if (!demoOn()) return real
   // 서버가 읽음으로 바꿨을 때만 예시도 읽음으로(실패하면 화면이 "못 바꿨어요"를 보이고 아무것도 바뀌지 않게)
-  return real.then((r) => { readDemo(); return r })
+  return real.then((r) => { readDemo(); readCo2Demo(null); return r })
 }
 
 /** 읽음 상태가 바뀌었다고 홈 종 버튼에 알리는 브라우저 이벤트 이름 */
@@ -75,6 +77,8 @@ export function withRead(list: AppNotification[], id: number | null): AppNotific
 export function notificationAction(n: AppNotification): { to: string; label: string } | null {
   // 방의 사과는 예약이 없어도(예시) 경고 수가 돌아왔는지 보러 간다
   if (n.kind === 'ROOM_APOLOGY') return { to: '/rules', label: '내 경고 보기' }
+  // 숨 막히기: 홈 맨 위 "내 방 공기" 카드(공기청정기·에어컨 버튼)로
+  if (n.kind === CO2_ALERT_KIND) return { to: '/', label: '내 방 공기 보기' }
   if (n.reservationId == null) return null
   switch (n.kind) {
     case 'START_SOON':

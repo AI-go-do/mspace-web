@@ -1,11 +1,13 @@
 import type { RoomEnvironment } from '../api/environment'
 import { ENV_RULES, type AdminRoomConfig, type EnvRules, type SensorKind } from '../config/adminRooms'
 import { timeRange } from './format'
+import { LIGHT_STALE_MINUTES } from './lightTrail'
 import { seoulClock } from './time'
 
 /**
  * 관리자 "지금" 탭 방 카드 한 장에 필요한 것. API·가짜 값 어느 쪽이 와도 같은 규칙으로 이상을 가린다.
- * 노랑(warn): 15분 안에 CO2 기준을 넘을 것 같음·이미 넘음·더움·시간 넘김·예약 없는데 CO2 오름(무단 사용 의심)
+ * 노랑(warn): 15분 안에 CO2 기준을 넘을 것 같음·이미 넘음·시간 넘김·예약 없는데 CO2 오름(무단 사용 의심)
+ * 온도·습도는 덥고 건조한 느낌이 사람마다 달라서 노랑으로 올리지 않는다(방 상세 창에 참고로만)
  * 빨강(off): 신호 끊김·CO2가 20분 넘게 같은 값(센서 고장 의심)
  */
 export type Tone = 'ok' | 'warn' | 'off'
@@ -19,6 +21,29 @@ export interface RoomView {
   humidityPct: number | null
   /** 그래프용 지난 CO2 (센서 없는 분은 null) */
   history: (number | null)[]
+  /** 그래프용 지난 온도·습도 (history와 같은 분) */
+  temps: (number | null)[]
+  hums: (number | null)[]
+  /** 지금 밝기 % (조도 원시값 0~1023 → 0~100). 조도 센서가 없거나 값이 없으면 null */
+  light: number | null
+  /** PIR 움직임 최신 값(core가 줄 때만). 보여 주기만 하고 재실 판단에는 안 쓴다 */
+  pir: boolean | null
+  /** 그래프용 지난 밝기 % (history와 같은 분) */
+  lights: (number | null)[]
+  /** 그래프용 지난 재실 (그 분 사람 있음). core가 분마다 안 주면 null */
+  occupancy: (boolean | null)[]
+  /** 끝에서부터 불이 켜진(밝기 ≥ lightOnPct) 채 이어진 분. 사람이 없던 분만 센다 */
+  lightOnEmptyMinutes: number
+  /** 그래프용 지난 문 열림 (장치가 없으면 null) */
+  doors: (boolean | null)[]
+  /** 문 지금 상태와 그 상태로 지난 분. 문 장치가 없으면 null */
+  door: { open: boolean; since: string; minutes: number } | null
+  /** history 각 분의 시각 */
+  times: string[]
+  /** 지금 걸린 예약 (방 상세 창의 강제 퇴실·예약 끝 표시용) */
+  current: { reservationId: number; startAt: string; endAt: string; people: number } | null
+  presence: RoomEnvironment['presence']
+  lastSignalAt: string | null
   /** 그래프용 앞으로 CO2 (1분 간격). 그릴 수 없으면 빈 배열 */
   forecast: number[]
   forecastFrom: 'model' | 'trend' | null
@@ -26,9 +51,11 @@ export interface RoomView {
   etaMinutes: number | null
   /** 끝에서부터 CO2가 같은 값으로 이어진 분 */
   sameForMinutes: number
+  /** 예약이 시작됐는데 아무도 없는 분 (아니면 0) */
+  noEntryMinutes: number
   /** 예약이 끝났는데 사람이 남은 분 (아니면 0) */
   overtimeMinutes: number
-  flags: { co2Soon: boolean; co2Over: boolean; hot: boolean; dry: boolean; overtime: boolean; unbooked: boolean; offline: boolean; stuck: boolean }
+  flags: { co2Soon: boolean; co2Over: boolean; hot: boolean; dry: boolean; overtime: boolean; unbooked: boolean; offline: boolean; stuck: boolean; doorLeftOpen: boolean; noEntry: boolean; nightDoor: boolean; lightLeftOn: boolean }
   tone: Tone
   status: { text: string; tone: 'use' | 'empty' | 'warn' | 'off' }
   /** "14:00–16:00 · 예약 5명" / "다음 16:00 (예약 4명)" / "다음 예약 없음" */
@@ -39,7 +66,12 @@ export interface RoomView {
   co2Note: string
   tempNote: string
   humNote: string
+  lightNote: string
 }
+
+/** 조도 원시값(우노 CDS 0~1023) → 밝기 % */
+export const lightPct = (raw: number | null | undefined): number | null =>
+  raw === null || raw === undefined ? null : Math.round((Math.max(0, Math.min(1023, raw)) / 1023) * 100)
 
 /** 끝에서부터 같은 값이 이어진 개수 - 1 (= 분) */
 function sameTail(values: (number | null)[]): number {
@@ -65,6 +97,16 @@ export function trendSlope(values: (number | null)[], span = 10): number | null 
 export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefined, now: Date, rules: EnvRules = ENV_RULES): RoomView {
   const sensors = new Set<SensorKind>(cfg?.sensors ?? ['co2', 'temperature', 'humidity', 'presence'])
   const history = env.series.map((p) => (sensors.has('co2') ? p.ppm : null))
+  const temps = env.series.map((p) => (sensors.has('temperature') ? p.temperatureC ?? null : null))
+  const hums = env.series.map((p) => (sensors.has('humidity') ? p.humidityPct ?? null : null))
+  const times = env.series.map((p) => p.at)
+  const doors = env.series.map((p) => (sensors.has('door') ? p.doorOpen ?? null : null))
+  const lights = env.series.map((p) => (sensors.has('light') ? lightPct(p.light) : null))
+  const occupancy = env.series.map((p) => p.occupied ?? null)
+  const light = sensors.has('light') ? lightPct(env.light) : null
+  const door = sensors.has('door') && env.door
+    ? { ...env.door, minutes: Math.max(0, Math.floor((now.getTime() - new Date(env.door.since).getTime()) / 60_000)) }
+    : null
   const co2 = sensors.has('co2') ? env.co2?.ppm ?? null : null
   const temperatureC = sensors.has('temperature') ? env.temperatureC : null
   const humidityPct = sensors.has('humidity') ? env.humidityPct : null
@@ -104,14 +146,48 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const slope = co2 !== null && !stuck && !offline ? trendSlope(history) : null
   const unbooked = env.current === null && slope !== null && slope >= rules.unbookedRisePpmPerMin
 
-  const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck }
-  const tone: Tone = offline || stuck ? 'off' : co2Soon || co2Over || hot || overtime || unbooked ? 'warn' : 'ok'
+  // 빈 방 문이 오래 열려 있음(사람이 있으면 환기라 괜찮다)
+  const doorLeftOpen = !offline && door !== null && door.open && env.presence === 'EMPTY' && door.minutes >= rules.doorOpenEmptyMinutes
+
+  // 입실 안 함: 예약이 시작됐는데 아무도 없음(노쇼 전에 미리 보여 준다)
+  const startMs = env.current ? new Date(env.current.startAt).getTime() : null
+  const noEntryMinutes = env.presence === 'EMPTY' && startMs !== null && endMs !== null && now.getTime() >= startMs && now.getTime() < endMs
+    ? Math.floor((now.getTime() - startMs) / 60_000) : 0
+  const noEntry = noEntryMinutes >= rules.noEntryWarnMinutes
+  // 밤(운영 밖)에 문 열림: 사람이 있든 없든 바로
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(now)) % 24
+  const night = rules.nightFromHour > rules.nightToHour
+    ? hour >= rules.nightFromHour || hour < rules.nightToHour
+    : hour >= rules.nightFromHour && hour < rules.nightToHour
+  const nightDoor = !offline && door !== null && door.open && night
+
+  // 빈 방 불 켜짐: 끝에서부터 불이 켜져 있고 사람이 없던 분을 센다.
+  // 분마다 재실이 없으면(core가 아직 안 줌) 지금 재실로 대신한다(지금 비어 있으면 그동안도 비었다고 본다)
+  // 조도 측정이 오래됐으면 지금 상태를 모르는 것으로 보고 경고하지 않는다(그래프는 그대로, 글에는 잰 시각을 붙인다)
+  const lightStale = light !== null && !!env.lightAt && now.getTime() - Date.parse(env.lightAt) > LIGHT_STALE_MINUTES * 60_000
+  let lightOnEmptyMinutes = 0
+  if (light !== null && !lightStale && light >= rules.lightOnPct && env.presence === 'EMPTY') {
+    for (let i = lights.length - 1; i >= 0; i--) {
+      const l = lights[i]
+      if (l === null || l < rules.lightOnPct || occupancy[i] === true) break
+      lightOnEmptyMinutes++
+    }
+  }
+  const lightLeftOn = !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes
+
+  const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor, lightLeftOn }
+  const tone: Tone = offline || stuck ? 'off'
+    : co2Soon || co2Over || overtime || unbooked || doorLeftOpen || noEntry || nightDoor || lightLeftOn ? 'warn' : 'ok'
 
   let status: RoomView['status']
   if (offline) status = { text: '신호 끊김', tone: 'off' }
   else if (stuck) status = { text: '센서 확인', tone: 'off' }
+  else if (nightDoor) status = { text: '밤에 문 열림', tone: 'warn' }
   else if (overtime) status = { text: '시간 넘김', tone: 'warn' }
   else if (unbooked) status = { text: '예약 없이 사용?', tone: 'warn' }
+  else if (doorLeftOpen) status = { text: '문 열림', tone: 'warn' }
+  else if (noEntry) status = { text: '입실 안 함', tone: 'warn' }
+  else if (lightLeftOn) status = { text: '빈 방 불 켜짐', tone: 'warn' }
   else if (env.presence === 'OCCUPIED') status = { text: '사용 중', tone: 'use' }
   else if (env.presence === 'EMPTY') status = { text: '비어 있음', tone: 'empty' }
   else status = { text: '재실 모름', tone: 'empty' }
@@ -134,13 +210,17 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   else if (forecast.length) co2Note = `${rules.forecastMinutes}분 뒤 약 ${forecast[forecast.length - 1]}`
   else co2Note = '예측 없음'
 
-  const tempNote = temperatureC === null ? '센서 없음' : hot ? (env.next && !occupied ? '다음 예약 전 더움' : '더움') : '적당'
-  const humNote = humidityPct === null ? '센서 없음' : dry ? '건조' : '적당'
+  const tempNote = temperatureC === null ? '센서 없음' : hot ? '참고: 높은 편' : ''
+  const humNote = humidityPct === null ? '센서 없음' : dry ? '참고: 낮은 편' : ''
+  const lightState = light === null ? '센서 없음' : lightLeftOn ? `빈 방 ${lightOnEmptyMinutes}분째 불 켜짐`
+    : light >= rules.lightOnPct ? '불 켜짐' : '불 꺼짐'
+  const lightNote = lightStale ? `${seoulClock(new Date(env.lightAt as string))}에 잰 값 · ${lightState}` : lightState
 
   return {
     roomId: env.roomId,
     name: cfg?.name ?? env.roomName,
-    sensors, co2, temperatureC, humidityPct, history, forecast, forecastFrom, etaMinutes, sameForMinutes,
-    overtimeMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote,
+    sensors, co2, temperatureC, humidityPct, history, temps, hums, light, pir: env.pir?.detected ?? null, lights, occupancy, lightOnEmptyMinutes, doors, door, times, current: env.current ?? null,
+    presence: env.presence, lastSignalAt: env.lastSignalAt, forecast, forecastFrom, etaMinutes, sameForMinutes,
+    overtimeMinutes, noEntryMinutes, flags, tone, status, slot, nextAt: env.next?.startAt ?? null, co2Note, tempNote, humNote, lightNote,
   }
 }
