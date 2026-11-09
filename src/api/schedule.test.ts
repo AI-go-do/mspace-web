@@ -124,3 +124,15 @@ describe('서버 모양 맞추기 (assistant TS-15: MONDAY·10:30:00)', () => {
     expect(checkSchedule(d.classes)?.message).toBe('요일을 골라 주세요.')
   })
 })
+
+describe('normalizeClass', () => {
+  it('온전한 이름·시각만 맞추고 이상한 값(MONARCH, 09:00oops)은 그대로 두어 검사가 막는다', async () => {
+    const { normalizeClass } = await import('./schedule')
+    const bad = normalizeClass({ dayOfWeek: 'MONARCH', startTime: '09:00oops', endTime: '10:30', name: 'x' })
+    expect(bad.dayOfWeek).toBe('MONARCH')
+    expect(bad.startTime).toBe('09:00oops')
+    expect(checkSchedule([bad])).not.toBeNull()
+    expect(normalizeClass({ dayOfWeek: 'wednesday', startTime: '9:05:00', endTime: '10:30', name: 'x' }))
+      .toEqual(c('WED', '09:05', '10:30', 'x'))
+  })
+})

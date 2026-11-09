@@ -34,15 +34,19 @@ export interface ScheduleDraft {
 export const MAX_CLASSES = 40
 export const MAX_NAME = 30
 
+const FULL_DAY: Record<Day, string> = { MON: 'MONDAY', TUE: 'TUESDAY', WED: 'WEDNESDAY', THU: 'THURSDAY', FRI: 'FRIDAY', SAT: 'SATURDAY', SUN: 'SUNDAY' }
+
 /**
  * 서버가 준 수업 칸을 화면 모양(요일 MON, 시각 HH:mm)으로 맞춘다.
  * 예전 비서 서버는 저장한 시간표를 MONDAY·10:30:00으로 돌려줘서(assistant TS-15) 요일 칸이 모두 "수업 없음"으로 보이고,
  * [고치기] 뒤 [저장]이 "요일을 골라 주세요"로 막혔다. 서버를 고친 뒤에도 섞여 와도 깨지지 않게 화면에서 한 번 더 맞춘다
  */
 export function normalizeClass(c: { dayOfWeek: string; startTime: string; endTime: string; name: string }): ScheduleClass {
-  const day = String(c.dayOfWeek ?? '').trim().toUpperCase().slice(0, 3)
+  const raw = String(c.dayOfWeek ?? '').trim().toUpperCase()
+  // MON 또는 MONDAY처럼 온전한 이름만 받는다(MONARCH를 MON으로 자르지 않게)
+  const day = DAYS.find((d) => raw === d || raw === FULL_DAY[d]) ?? raw
   const hhmm = (t: string) => {
-    const m = /^(\d{1,2}):(\d{2})/.exec(String(t ?? '').trim())
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(t ?? '').trim())
     return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(t ?? '')
   }
   return {
