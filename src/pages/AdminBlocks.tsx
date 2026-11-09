@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { blockConflicts, cancelConflicts, createBlock, releaseBlock, resetBlocks, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { timeRange } from '../lib/format'
-import { BLOCK_REASONS, BLOCK_RULES, isActive, reasonLabel, reasonStatus, type BlockReason, type RoomBlock } from '../lib/roomBlocks'
+import { BLOCK_REASONS, BLOCK_RULES, isActive, isCancelable, reasonLabel, reasonStatus, type BlockReason, type RoomBlock } from '../lib/roomBlocks'
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
 import { NoticeDraftCard } from './AdminNoticeDraft'
@@ -30,6 +30,7 @@ function nextSlot(now: Date): Date {
 /** 공지 막기안에서 [양식에서 고치기]로 채울 값 */
 interface Preset { roomId: number; startAt: string; endAt: string; reason: BlockReason; memo: string; note?: string }
 
+/** 기간 막기 양식 (방·사유·시작·끝·메모). preset이 있으면 그 값으로 채운다 */
 function BlockForm({ preset }: { preset?: Preset | null }) {
   const first = preset ? new Date(preset.startAt) : nextSlot(new Date())
   const until = preset ? new Date(preset.endAt) : new Date(first.getTime() + 2 * 3_600_000)
@@ -42,6 +43,7 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
   const [memo, setMemo] = useState(preset?.memo ?? '')
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(
     preset ? { text: preset.note ?? '공지 막기안으로 채웠어요. 고친 뒤 [기간 막기]를 눌러 주세요.', error: false } : null)
+  const [sending, setSending] = useState(false)
   const ref = useRef<HTMLFormElement>(null)
   // 막기안에서 넘어오면 양식이 보이게 내리고 첫 칸에 손이 가게
   useEffect(() => {
@@ -51,9 +53,13 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
     ref.current?.querySelector<HTMLSelectElement>('#blk-room')?.focus({ preventScroll: true })
   }, [preset])
 
-  function submit(e: FormEvent) {
+  /** 양식 값으로 막는다. 겹친 예약이 있으면 목록에서 확인하라고 알린다 */
+  async function submit(e: FormEvent) {
     e.preventDefault()
-    const r = createBlock({ roomId, startAt: at(startDate, startTime), endAt: at(endDate, endTime), reason, memo })
+    if (sending) return // 두 번 눌러도 한 번만 막는다
+    setSending(true)
+    const r = await createBlock({ roomId, startAt: at(startDate, startTime), endAt: at(endDate, endTime), reason, memo })
+    setSending(false)
     if ('error' in r) { setMsg({ text: r.error, error: true }); return }
     setMemo('')
     setMsg({
@@ -111,22 +117,39 @@ function BlockForm({ preset }: { preset?: Preset | null }) {
       <label htmlFor="blk-memo" className="adm-label">메모 <small>선택</small></label>
       <input id="blk-memo" className="adm-input" value={memo} maxLength={BLOCK_RULES.memoMax + 20}
         onChange={(e) => setMemo(e.target.value)} placeholder="예: 에어컨 점검. 학생 화면에 같이 보여요" />
-      <button className="adm-btn">기간 막기</button>
+      <button className="adm-btn" disabled={sending}>{sending ? '막는 중…' : '기간 막기'}</button>
       {msg && <p role={msg.error ? 'alert' : 'status'} className={`adm-msg ${msg.error ? 'err' : ''}`}>{msg.text}</p>}
     </form>
   )
 }
 
-function BlockItem({ b, now }: { b: RoomBlock; now: Date }) {
-  const [note, setNote] = useState<string | null>(null)
+/** 막힌 기간 한 줄: 기간·사유·겹친 예약·풀기 */
+function BlockItem({ b, now, sample }: { b: RoomBlock; now: Date; sample: boolean }) {
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
+  const [busy, setBusy] = useState(false)
   const active = isActive(b, now)
   const conflicts = active ? blockConflicts(b.id, now) : []
+  const cancelable = conflicts.filter(isCancelable)
   const running = active && new Date(b.startAt).getTime() <= now.getTime()
 
-  function cancelAll() {
-    if (!window.confirm(`겹친 예약 ${conflicts.length}건을 취소할까요? 대표자와 참여자에게 "${reasonStatus(b.reason)}" 사유로 알림이 가요.`)) return
-    const n = cancelConflicts(b.id, new Date()) // 확인 창이 떠 있는 동안 끝난 예약은 빼려고 누른 시각으로
-    setNote(`예약 ${n}건을 취소했어요. (가짜 단계라 실제 알림은 보내지 않았어요)`)
+  /** 확인 창 뒤 시작 전 겹친 예약을 취소하고 대표자·참여자에게 알린다 */
+  async function cancelAll() {
+    if (busy) return
+    if (!window.confirm(`시작 전 예약 ${cancelable.length}건을 취소할까요? 대표자와 참여자에게 "${reasonStatus(b.reason)}" 사유로 알림이 가요.`)) return
+    setBusy(true)
+    const n = await cancelConflicts(b.id, new Date()) // 확인 창이 떠 있는 동안 끝난 예약은 빼려고 누른 시각으로
+    setBusy(false)
+    if (typeof n !== 'number') { setNote({ text: `취소하지 못했어요. ${n.error}`, error: true }); return }
+    setNote({ text: sample ? `예약 ${n}건을 취소했어요. (가짜 단계라 실제 알림은 보내지 않았어요)` : `예약 ${n}건을 취소하고 대표자·참여자에게 알렸어요.`, error: false })
+  }
+
+  /** 막기를 푼다 (기록은 남는다) */
+  async function release() {
+    if (busy) return
+    setBusy(true)
+    const err = await releaseBlock(b.id)
+    setBusy(false)
+    if (err) setNote({ text: `풀지 못했어요. ${err}`, error: true })
   }
 
   return (
@@ -147,18 +170,24 @@ function BlockItem({ b, now }: { b: RoomBlock; now: Date }) {
           <p><b>이 기간에 이미 잡힌 예약 {conflicts.length}건</b> · 바로 지우지 않았어요</p>
           <ul>
             {conflicts.map((c) => (
-              <li key={c.reservationId}>#{c.reservationId} · {dayLabel(seoulDate(new Date(c.startAt)))} {timeRange(c.startAt, c.endAt)} · 예약 {c.people}명</li>
+              <li key={c.reservationId}>
+                #{c.reservationId} · {dayLabel(seoulDate(new Date(c.startAt)))} {timeRange(c.startAt, c.endAt)} · 예약 {c.people}명
+                {!isCancelable(c) && <> · <b>사용 중</b>(강제 퇴실로 따로)</>}
+              </li>
             ))}
           </ul>
-          <button type="button" className="adm-btn" onClick={cancelAll}>확인하고 취소·알림 보내기</button>
+          {cancelable.length > 0 && (
+            <button type="button" className="adm-btn" onClick={() => void cancelAll()} disabled={busy}>확인하고 취소·알림 보내기</button>
+          )}
         </div>
       )}
-      {note && <p className="adm-msg" role="status">{note}</p>}
-      {active && <button type="button" className="adm-btn line blk-release" onClick={() => releaseBlock(b.id)}>막기 풀기</button>}
+      {note && <p className={`adm-msg ${note.error ? 'err' : ''}`} role={note.error ? 'alert' : 'status'}>{note.text}</p>}
+      {active && <button type="button" className="adm-btn line blk-release" onClick={() => void release()} disabled={busy}>막기 풀기</button>}
     </li>
   )
 }
 
+/** "지금" 방 상세에서 넘어오면 그 방을 지금부터 2시간 막는 안 */
 function roomPreset({ roomId, inspection }: { roomId: number; inspection: boolean }): Preset {
   const start = nextSlot(new Date(Date.now() - 30 * 60_000))
   return {
@@ -170,7 +199,8 @@ function roomPreset({ roomId, inspection }: { roomId: number; inspection: boolea
 
 /** 관리자 "기간 막기" 탭: 막기 + 목록(겹친 예약 확인·취소, 풀기) */
 export function AdminBlocks({ fromRoom = null }: { fromRoom?: { roomId: number; inspection: boolean } | null }) {
-  const { blocks } = useRoomBlocks()
+  const { blocks, source, loaded, error } = useRoomBlocks()
+  const sample = source === 'mock'
   // 공지 막기안 → 양식 채우기. 누를 때마다 양식을 새로 그려 값이 들어가게(seq를 key로)
   // "지금" 방 상세 창에서 왔으면 그 방을 지금부터 2시간 막는 안으로 채운다
   const [preset, setPreset] = useState<{ seq: number; p: Preset } | null>(() => fromRoom ? { seq: 1, p: roomPreset(fromRoom) } : null)
@@ -184,25 +214,31 @@ export function AdminBlocks({ fromRoom = null }: { fromRoom?: { roomId: number; 
         <BlockForm key={preset?.seq ?? 0} preset={preset?.p} />
       </div>
       <div className="blk-side">
-      <h2 className="blk-h">막힌 기간 <span className="adm-chip-n">{active.length}</span></h2>
-      {active.length === 0 && (
+      <h2 className="blk-h">막힌 기간 <span className="adm-chip-n">{loaded ? active.length : '…'}</span></h2>
+      {error && <p className="adm-msg err" role="alert">{error}</p>}
+      {!loaded && <p className="adm-msg" role="status">막힌 기간을 읽는 중이에요…</p>}
+      {loaded && !error && active.length === 0 && (
         <div className="adm-empty">
           <span className="adm-empty-mark" aria-hidden="true">✓</span>
           <b>지금 막힌 기간이 없어요</b>
           <span>왼쪽에서 방과 기간을 고르면 여기에 쌓여요.</span>
         </div>
       )}
-      <ul className="blk-list">{active.map((b) => <BlockItem key={b.id} b={b} now={now} />)}</ul>
+      <ul className="blk-list">{active.map((b) => <BlockItem key={b.id} b={b} now={now} sample={sample} />)}</ul>
       {past.length > 0 && (
         <details className="blk-past">
           <summary>지난·푼 기간 {past.length}건</summary>
-          <ul className="blk-list">{past.map((b) => <BlockItem key={b.id} b={b} now={now} />)}</ul>
+          <ul className="blk-list">{past.map((b) => <BlockItem key={b.id} b={b} now={now} sample={sample} />)}</ul>
         </details>
       )}
-      <p className="adm-foot">
-        가짜 값 단계예요(core #95 전). 기록은 이 브라우저에만 남고 학생에게 아무것도 보내지 않아요.{' '}
-        <button type="button" className="adm-link" onClick={resetBlocks}>가짜 기록 처음으로</button>
-      </p>
+      {sample ? (
+        <p className="adm-foot">
+          가짜 값 단계예요. 기록은 이 브라우저에만 남고 학생에게 아무것도 보내지 않아요.{' '}
+          <button type="button" className="adm-link" onClick={resetBlocks}>가짜 기록 처음으로</button>
+        </p>
+      ) : (
+        <p className="adm-foot">막은 기간은 바로 학생 예약 화면에 사유와 같이 보여요. 이미 잡힌 예약은 확인한 뒤에만 취소돼요.</p>
+      )}
       </div>
     </section>
   )
