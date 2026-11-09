@@ -9,9 +9,18 @@ Object.assign(globalThis, {
   },
 })
 
+// 이 탭에 망가진 기록이 남아 있던 상태로 시작한다 (모양이 맞는 것만 학습에 들어가야 한다)
+store.set('mspace:demo:climate-offs', JSON.stringify([
+  { roomId: 1, mode: 'HEAT', roomC: null, at: 'x' },
+  { roomId: 1, mode: 'FAN', roomC: 19, at: 'x' },
+  { roomId: 1, mode: 'HEAT', roomC: 19.1, at: 'x' },
+]))
 const { climateLearning, recordManualOff, resetClimateLearning } = await import('./climateLearnData')
 
 describe('AI 학습 기록 (가짜 단계)', () => {
+  it('망가진 기록(온도 없음·모르는 모드)은 버리고 맞는 것만 센다', () => {
+    expect(climateLearning()[1].HEAT.offs).toBe(1)
+  })
   afterEach(() => resetClimateLearning())
 
   it('만든 기록으로 방마다 속도를 배운다. 5번 방이 가장 느리다', () => {

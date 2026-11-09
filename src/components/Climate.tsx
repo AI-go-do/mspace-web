@@ -87,12 +87,13 @@ export function ClimatePanel({ view, now, by, member, compact }: {
 
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
-    // 학생이 켜져 있던 에어컨을 끄면 그때 방 온도를 배운다(자주 일찍 끄는 방은 목표를 반 도씩 고친다)
+    // 학생이 켜져 있던 에어컨을 끄면 그때 방 온도를 배운다(자주 일찍 끄는 방은 목표를 반 도씩 고친다). 끄기가 성공했을 때만
     const prev = get(a.id)
-    if (by === 'STUDENT' && a.kind === 'ac' && cmd.power === 'OFF' && prev.power === 'ON' && prev.mode && view.temperatureC !== null) {
-      recordManualOff({ roomId: view.roomId, mode: prev.mode, roomC: view.temperatureC, at: new Date().toISOString() })
-    }
+    const off = by === 'STUDENT' && a.kind === 'ac' && cmd.power === 'OFF' && prev.power === 'ON' && prev.mode && view.temperatureC !== null
+      ? { roomId: view.roomId, mode: prev.mode, roomC: view.temperatureC, at: new Date().toISOString() }
+      : null
     sendApplianceCommand(view.roomId, a.id, cmd, by, { member, now: new Date() })
+      .then(() => { if (off) recordManualOff(off) })
       .then(() => setFlash(cmd.power === 'OFF' ? `${a.name} 껐어요` : cmd.mode === 'HEAT' ? `${a.name} 난방으로 켰어요` : cmd.mode === 'COOL' ? `${a.name} 냉방으로 켰어요` : `${a.name} 켰어요`))
       .catch((e: Error) => setError(`${josa(a.name, '을', '를')} 바꾸지 못했어요. ${e.message}`))
   }

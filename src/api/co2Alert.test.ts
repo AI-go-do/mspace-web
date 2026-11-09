@@ -81,6 +81,20 @@ describe('숨 막히기 알림 (예약당 최대 2번)', () => {
     const n = noteCo2Demo(7, view('soon'), new Date())!
     expect(notificationAction(n)).toEqual({ to: '/', label: '내 방 공기 보기' })
   })
+  it('저장된 값이 망가져 있으면 모양이 맞는 알림만 남기고, 새 번호는 겹치지 않는 안전한 정수', () => {
+    const good = { id: -101, reservationId: 7, kind: 'CO2_SOON', title: 't', body: 'b', createdAt: '2026-11-09T14:00:00+09:00', read: false }
+    store.set('mspace:demo:co2', JSON.stringify({ tracks: {}, list: [
+      good,
+      { ...good, id: -102, body: {} },
+      { ...good, id: -103, createdAt: '어제' },
+      { ...good, id: '-1e400' },
+      { ...good, id: -5 },
+    ] }))
+    expect(demoCo2Alerts().map((n) => n.id)).toEqual([-101])
+    const made = noteCo2Demo(9, view('soon'), new Date())!
+    expect(made.id).toBe(-102)
+    expect(Number.isSafeInteger(made.id)).toBe(true)
+  })
   it('방의 사과 예시 번호(-1)는 CO2 알림 번호가 아니다', () => {
     expect(isCo2DemoId(-1)).toBe(false)
   })

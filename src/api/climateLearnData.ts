@@ -37,7 +37,10 @@ function readOffs(): ManualOff[] {
   try {
     const raw = sessionStorage.getItem(KEY)
     const list = raw ? (JSON.parse(raw) as unknown) : []
-    return Array.isArray(list) ? (list as ManualOff[]) : []
+    // 손으로 고친 값이 섞여도 잘못된 온도가 학습에 들어가지 않게 모양이 맞는 것만
+    return Array.isArray(list)
+      ? (list as ManualOff[]).filter((o) => !!o && Number.isFinite(o.roomId) && Number.isFinite(o.roomC) && (o.mode === 'HEAT' || o.mode === 'COOL'))
+      : []
   } catch { return [] }
 }
 
