@@ -46,7 +46,7 @@ export default function ButlerCard({ s, now, onGo }: { s: Suggestion; now: Date;
       tone = 'urgent'
       title = `창작실 ${s.roomId}이 비었어요`
       sub = '지켜보던 방이에요 · 지금 바로 쓸 수 있어요'
-      action = '지금 바로 쓰기'
+      action = '빈 방 바로 쓰기'
       break
     }
     case 'afterClass': {

@@ -169,8 +169,8 @@ export default function Home() {
           <div className="chips">
             {/* 지금 비어 있는 방이 있을 때만 바로 쓰기를 연다 (FR-WEB-102) */}
             {day && freeCount > 0
-              ? <Link to="/now" className="chip chip-solid">지금 바로 쓰기</Link>
-              : <span className="chip chip-off" aria-disabled="true">{day ? '지금 빈 방 없음' : '지금 바로 쓰기'}</span>}
+              ? <Link to="/now" className="chip chip-solid">빈 방 바로 쓰기</Link>
+              : <span className="chip chip-off" aria-disabled="true">{day ? '지금 빈 방 없음' : '빈 방 바로 쓰기'}</span>}
             <Link to="/rules" className="chip chip-line">이용 규칙</Link>
           </div>
         </div>

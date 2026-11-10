@@ -132,7 +132,7 @@ export default function MapPage() {
           </div>
           {/* 지금 비어 있으면 지금 바로 쓰기가 기본(11/6 스크럼), 아니면 시간 고르기 */}
           {roomLink(room, now).startsWith('/now')
-            ? <button type="button" className="btn-primary" onClick={() => navigate(roomLink(room, now))}>이 방 지금 바로 쓰기</button>
+            ? <button type="button" className="btn-primary" onClick={() => navigate(roomLink(room, now))}>이 방 바로 쓰기</button>
             : <button type="button" className="btn-primary" onClick={() => navigate(`/rooms/${room.roomId}`)}>이 방으로 시간 정하기</button>}
         </div>
       )}
