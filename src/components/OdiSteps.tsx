@@ -33,7 +33,6 @@ export function Judge({ steps, sample }: { steps: string[]; sample: boolean }) {
   return (
     <div className="cf-steps">
       <Steps steps={shown} sample={sample} at={shown.length - 1} ms={STEP_MS} label="오디가 판단하는 과정" live={!sample} />
-      {sample && <small className="ca-note">시연: 경고까지 기다리는 시간은 팀 규칙 전 임시 값이에요.</small>}
     </div>
   )
 }

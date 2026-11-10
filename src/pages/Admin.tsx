@@ -20,23 +20,23 @@ import './AdminPlain.css'
  */
 const SECTIONS = [
   {
-    id: 'now', label: '지금', title: '지금 방 상태', sub: '방 5개의 공기와 예약을 한눈에. 이상한 방이 먼저 눈에 띄어요.',
+    id: 'now', label: '지금', title: '지금 방 상태', sub: '이상한 방이 먼저 보여요',
     icon: <><circle cx="12" cy="12" r="3" /><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8M8.5 8.5a4.9 4.9 0 0 0 0 7M15.5 8.5a4.9 4.9 0 0 1 0 7" /></>,
   },
   {
-    id: 'todo', label: '오디 판단', title: '오디 판단 기록', sub: '오디가 신고·경고·철회를 판정한 기록이에요. 확신도와 근거를 같이 남겨요. 관리자는 보기만 해요.',
+    id: 'todo', label: '오디 판단', title: '오디 판단 기록', sub: '오디가 판정한 기록',
     icon: <><path d="M4 12.5 9 17.5 20 6.5" /></>,
   },
   {
-    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: '일 종류마다 따로 채점해요. 믿을 만해진 일만 AI가 먼저 처리해요.',
+    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: '믿을 만해진 일만 AI가 먼저 처리',
     icon: <><rect x="4" y="7" width="16" height="12" rx="4" /><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5" /></>,
   },
   {
-    id: 'rooms', label: '방 관리', title: '방 관리', sub: '공사·점검·대관 기간을 막고, 사용 중인 예약을 끝낼 수 있어요.',
+    id: 'rooms', label: '방 관리', title: '방 관리', sub: '기간 막기 · 강제 퇴실',
     icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3M12 21v-5h9" /></>,
   },
   {
-    id: 'records', label: '기록', title: '기록', sub: '이용 통계, 경고·정지, 퇴실 뒤 카메라 정리 확인 기록이에요.',
+    id: 'records', label: '기록', title: '기록', sub: '통계 · 경고 · 정리 확인',
     icon: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   },
 ] as const

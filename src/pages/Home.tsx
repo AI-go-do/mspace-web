@@ -233,7 +233,6 @@ export default function Home() {
             <span><i className="lg lg-mine" />내 예약</span>
           </span>
         </div>
-        <span className="guide">실제 배치 순서예요. 빈 방을 누르면 지금 바로 쓰고, 사용 중인 방은 시간을 골라 예약해요.</span>
 
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {watchError && <p role="alert" className="muted">{watchError}</p>}

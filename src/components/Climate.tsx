@@ -169,7 +169,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
       <p className="cl-foot" role="status">
         {error ? <span className="cl-err">{error}</span>
           : flash ? <span className="cl-ok">✓ {flash}</span>
-            : APPLIANCE_SOURCE === 'mock' ? '시연: 화면에서만 켜져요. 실제 기기에는 아무 신호도 가지 않아요.' : '에어컨은 적외선 리모컨, 공기청정기는 스마트 플러그로 켜요.'}
+            : APPLIANCE_SOURCE === 'mock' ? '시연 화면이에요' : '에어컨은 적외선 리모컨, 공기청정기는 스마트 플러그로 켜요.'}
       </p>
     </div>
   )

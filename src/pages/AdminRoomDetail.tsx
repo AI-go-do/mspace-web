@@ -117,7 +117,6 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
                     <li key={a.title} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
                       <b>{a.title}</b>
                       {a.auto ? <span className="rd-auto">오디: {a.auto}</span> : <span>참고만 해요. 따로 처리할 일은 없어요.</span>}
-                      {a.hands && <span>고치는 건 사람이에요. 오디는 값이 다시 움직이는지 계속 확인해요.</span>}
                       {a.steps && <Judge steps={a.steps} sample={sample} />}
                     </li>
                   ))}

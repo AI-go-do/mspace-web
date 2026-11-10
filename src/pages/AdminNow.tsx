@@ -47,7 +47,6 @@ function ActionFeed({ issues, onOpen, sample }: { issues: { v: RoomView; list: A
                 <small>{v.name} · {top.hands ? '장치 점검' : top.auto ? '오디가 처리' : '장치 확인'}</small>
                 <b>{top.title}</b>
                 {top.auto && <span className="cf-auto">오디: {top.auto}</span>}
-                {top.hands && <span>고치는 건 사람이에요. 오디는 계속 다시 확인해요.</span>}
                 {list.length > 1 && <em>외 {list.length - 1}건 더</em>}
               </span>
               <span className="cf-go" aria-hidden="true">›</span>
@@ -65,12 +64,11 @@ function ActionFeed({ issues, onOpen, sample }: { issues: { v: RoomView; list: A
  * 다시 보기는 이 화면의 조회 주기(pollMs)와 같다. 값이 다시 움직이면 이 줄은 저절로 사라진다
  */
 function Watch({ sample, checks, did }: { sample: boolean; checks: number; did?: string }) {
-  const steps = ['멈춘 것을 찾았어요', did ?? '장치 담당에게 알렸어요',
-    `${ENV_RULES.pollMs / 1000}초마다 다시 확인하는 중${checks > 0 ? ` · ${checks}번째` : ''}`]
+  const steps = ['찾았어요', did ?? '담당에게 알림',
+    `다시 확인 중${checks > 0 ? ` · ${checks}번째` : ''}`]
   return (
     <>
       <Steps steps={steps} sample={sample} at={2} ms={STEP_MS} label="오디가 지켜보는 과정" live />
-      <small className="ca-note">고치는 건 사람이에요. 값이 다시 움직이면 오디가 경고를 풀어요.</small>
     </>
   )
 }
@@ -190,7 +188,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const handled = issues.filter((x) => !!x.list[0].auto && !x.list[0].hands).length
   // 사람이 장치를 직접 봐야 하는 방(센서 끊김·멈춤). 맨 위 빨간 경고 줄로 띄운다
   const alerts = issues.filter((x) => x.list[0].tone === 'off')
-  const needHands = issues.length - handled
 
   // 새로 생긴 일만 기록에 올린다(바로 앞 조회에 없던 것). 분 숫자가 바뀌는 건 같은 일로 본다
   const keyOf = (roomId: number, title: string) => `${roomId}:${title.replace(/\d+/g, '#')}`
@@ -232,7 +229,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <Big label="지금 쓰는 방" value={known ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
         <Big label="주의" value={known ? warn + off : null} tone={warn ? 'warn' : off ? 'off' : ''} hint={off ? `장치 확인 ${off} 포함` : '환기·시간 넘김·입실 안 함·문'} />
         <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
-        <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" hint={needHands ? `관리자가 할 일 0건 · 장치 고장 ${needHands}곳은 담당에게 넘겼어요` : '관리자가 할 일 0건'} />
+        <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" hint="관리자 할 일 0" />
       </div>
 
       <div className="ctl-bar">
@@ -279,7 +276,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
           {small.map((v, i) => tile(v, i))}
           {wide && tile(wide, views.length - 1, true)}
-          <p className="ctl-hall" aria-hidden="true"><span>복도</span>문 앞 카메라 QR 입실 · 방마다 CO2·온도·습도·조도·재실·문 센서</p>
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
@@ -304,7 +300,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
               </ol>
             </section>
           )}
-          <p className="ctl-hands">신고 판정·경고·철회 재검토도 오디가 해요. 판정은 "오디 판단" 칸에 확신도와 근거로 남아요.</p>
         </aside>
 
         {views.length > 0 && <AdminOverview views={views} compact />}
