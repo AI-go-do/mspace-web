@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
-import { AdminPenalties, AdminStats } from './AdminInsights'
+import { AdminPenalties, AdminStats, AdminTidyChecks } from './AdminInsights'
 import { AdminNow } from './AdminNow'
 import { AdminApprentice } from './AdminApprentice'
 import { AdminBlocks } from './AdminBlocks'
@@ -15,7 +15,7 @@ import './Admin.css'
 
 /**
  * 관리자 화면 (FR-WEB-101, FR-RPT-103·104) 다섯 칸. 주소 ?tab=으로 남겨 새로고침해도 같은 칸.
- * 지금(방 상태) · 할 일(신고 판정 + AI 제안을 한 줄로) · AI 수습사원(레벨·아침 보고) · 방 관리(기간 막기·강제 퇴실) · 기록(통계·경고·정지)
+ * 지금(방 상태) · 할 일(신고 판정 + AI 제안을 한 줄로) · AI 수습사원(레벨·아침 보고) · 방 관리(기간 막기·강제 퇴실) · 기록(통계·경고·정지·카메라 정리 확인)
  */
 const SECTIONS = [
   {
@@ -35,7 +35,7 @@ const SECTIONS = [
     icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3M12 21v-5h9" /></>,
   },
   {
-    id: 'records', label: '기록', title: '기록', sub: '이용 통계와 경고·정지 기록이에요.',
+    id: 'records', label: '기록', title: '기록', sub: '이용 통계, 경고·정지, 퇴실 뒤 카메라 정리 확인 기록이에요.',
     icon: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   },
 ] as const
@@ -50,7 +50,7 @@ function blockRoomParam(params: URLSearchParams): { roomId: number; inspection: 
 /** 예전 탭 주소(?tab=reports 등)로 들어와도 맞는 칸을 연다 */
 const LEGACY: Record<string, { tab: Section; sub?: string }> = {
   reports: { tab: 'todo' }, checkout: { tab: 'rooms', sub: 'checkout' }, blocks: { tab: 'rooms' },
-  penalties: { tab: 'records', sub: 'penalties' }, stats: { tab: 'records', sub: 'stats' },
+  penalties: { tab: 'records', sub: 'penalties' }, stats: { tab: 'records', sub: 'stats' }, tidy: { tab: 'records', sub: 'tidy' },
 }
 
 function Icon({ children }: { children: ReactNode }) {
@@ -166,7 +166,7 @@ export default function Admin() {
               <ForceCheckoutForm initialId={params.get('reservation') ?? ''} focus={sub === 'checkout'} />
             </div>
           )}
-          {tab === 'records' && <Records sub={sub === 'penalties' ? 'penalties' : 'stats'} onSub={(s) => go('records', { sub: s })} />}
+          {tab === 'records' && <Records sub={sub === 'penalties' || sub === 'tidy' ? sub : 'stats'} onSub={(s) => go('records', { sub: s })} />}
         </div>
       </main>
 
@@ -184,16 +184,21 @@ export default function Admin() {
   )
 }
 
-/** 기록: 통계 · 경고·정지 두 쪽 */
-function Records({ sub, onSub }: { sub: 'stats' | 'penalties'; onSub: (s: 'stats' | 'penalties') => void }) {
+/** 기록: 통계 · 경고·정지 · 카메라 정리 확인 세 쪽 */
+type RecordSub = 'stats' | 'penalties' | 'tidy'
+const RECORD_SUBS: { id: RecordSub; label: string }[] = [
+  { id: 'stats', label: '이용 통계' }, { id: 'penalties', label: '경고·정지' }, { id: 'tidy', label: '정리 확인' },
+]
+function Records({ sub, onSub }: { sub: RecordSub; onSub: (s: RecordSub) => void }) {
   return (
     <div className="adm-records">
-      <div className="adm-seg" role="group" aria-label="기록 종류" style={{ '--i': sub === 'stats' ? 0 : 1 } as CSSProperties}>
+      <div className="adm-seg three" role="group" aria-label="기록 종류" style={{ '--i': RECORD_SUBS.findIndex((r) => r.id === sub) } as CSSProperties}>
         <span className="adm-seg-glow" aria-hidden="true" />
-        <button type="button" aria-pressed={sub === 'stats'} onClick={() => onSub('stats')}>이용 통계</button>
-        <button type="button" aria-pressed={sub === 'penalties'} onClick={() => onSub('penalties')}>경고·정지</button>
+        {RECORD_SUBS.map((r) => (
+          <button key={r.id} type="button" aria-pressed={sub === r.id} onClick={() => onSub(r.id)}>{r.label}</button>
+        ))}
       </div>
-      {sub === 'stats' ? <AdminStats /> : <AdminPenalties />}
+      {sub === 'stats' ? <AdminStats /> : sub === 'penalties' ? <AdminPenalties /> : <AdminTidyChecks />}
     </div>
   )
 }

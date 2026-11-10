@@ -37,11 +37,38 @@ export interface EvidencePhoto {
   uploadedAt: string | null
 }
 
+/** 방 카메라(젯슨) 정리 확인 결과 (FR-DEV-105, core #110). 사진은 남기지 않고 결과·물건 이름만 */
+export interface TidyResult {
+  /** CLEAN 깨끗함 · NEEDS_CLEANING 치워야 함(core가 어질러짐 신고를 자동으로 만든다) */
+  result: 'CLEAN' | 'NEEDS_CLEANING' | (string & {})
+  /** 본 물건 이름 전부(모델 이름 그대로) */
+  items: string[]
+  /** 두고 간 귀중품: BAG·PHONE·EARBUDS·LAPTOP */
+  leftItems: string[]
+  observedAt: string
+}
+
+export const TIDY_LABEL: Record<string, string> = { CLEAN: '깨끗함', NEEDS_CLEANING: '치워야 함' }
+export const LEFT_ITEM_LABEL: Record<string, string> = { BAG: '가방', PHONE: '휴대폰', EARBUDS: '이어폰', LAPTOP: '노트북' }
+
+/** "깨끗함" / "치워야 함 · 두고 간 것: 가방·노트북" */
+export function tidySummary(t: Pick<TidyResult, 'result' | 'leftItems'>): string {
+  const head = TIDY_LABEL[t.result] ?? t.result
+  const left = t.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x)
+  return left.length ? `${head} · 두고 간 것: ${left.join('·')}` : head
+}
+
 /** GET /api/reports/{id}/evidence (core #76): 직전 이용 예약의 퇴실 사진과 신고자 예약의 입실 사진 */
 export interface Evidence {
   reportId: number
-  /** 그 방을 바로 전에 쓴 예약. 못 찾으면 null */
-  previous: { reservationId: number; checkedInAt: string | null; checkedOutAt: string | null; photo: EvidencePhoto } | null
+  /**
+   * 그 방을 바로 전에 쓴 예약. 못 찾으면 null.
+   * tidyCheck는 그 예약 뒤 카메라 정리 확인 결과(core #110, 없으면 null. 옛 core는 필드 자체가 없다)
+   */
+  previous: {
+    reservationId: number; checkedInAt: string | null; checkedOutAt: string | null; photo: EvidencePhoto
+    tidyCheck?: TidyResult | null
+  } | null
   /** 방 카메라 자동 신고(FR-DEV-105)면 신고자가 없어 null */
   reporter: { reservationId: number; photo: EvidencePhoto } | null
   /** 사진이 없는 이유 등 */
@@ -135,6 +162,32 @@ export interface Penalties {
   days: number
   warnings: Warning[]
   suspensions: Suspension[]
+}
+
+// ---- 카메라 정리 확인 목록 (core #110) ----
+
+/** GET /api/tidy-checks 한 줄. 퇴실한 예약 하나에 하나 */
+export interface TidyCheckRow extends TidyResult {
+  reservationId: number
+  roomId: number
+  roomName: string
+  endedAt: string | null
+  /** 치워야 함이면 core가 만든 어질러짐 신고 번호 */
+  reportId: number | null
+}
+
+/** 최근 days일(1–92) 정리 확인 결과, 최근 순. 관리자만(학생 403 ADMIN_ONLY) */
+export function getTidyChecks(days: number, signal?: AbortSignal, member?: number | null): Promise<TidyCheckRow[]> {
+  return api<{ items: TidyCheckRow[] }>(`/api/tidy-checks?days=${Math.min(92, Math.max(1, days))}`, { signal, member }).then((r) => r.items)
+}
+
+/** 정리 확인 숫자: 치워야 함 · 깨끗함 · 귀중품을 두고 간 퇴실 */
+export function tidyCounts(rows: Pick<TidyCheckRow, 'result' | 'leftItems'>[]): { dirty: number; clean: number; left: number } {
+  return {
+    dirty: rows.filter((r) => r.result === 'NEEDS_CLEANING').length,
+    clean: rows.filter((r) => r.result === 'CLEAN').length,
+    left: rows.filter((r) => r.leftItems.length > 0).length,
+  }
 }
 
 /** 최근 days일(1–365, 기본 30) 경고와 그 사이 끝났거나 진행 중인 정지. 관리자 화면이라 학번·이름이 그대로 온다 */

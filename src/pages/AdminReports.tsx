@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Form
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeConfirm, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
-  stillInRoom, type AdminReport, type Evidence, type EvidencePhoto,
+  stillInRoom, tidySummary, type AdminReport, type Evidence, type EvidencePhoto,
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
 import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
@@ -206,6 +206,10 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
           <figcaption>
             <b>앞 사람 퇴실</b>
             <span className="muted">{ev.previous ? `예약 #${ev.previous.reservationId}${ev.previous.checkedOutAt ? ` · ${seoulClock(new Date(ev.previous.checkedOutAt))} 퇴실` : ' · 아직 사용 중'}` : '—'}</span>
+            {/* 퇴실 뒤 방 카메라가 본 결과(core #110). 신고를 믿을 근거·앞 사람 탓의 근거, 판정은 그대로 관리자 */}
+            {ev.previous?.tidyCheck && (
+              <span className="muted">카메라 {seoulClock(new Date(ev.previous.tidyCheck.observedAt))}: {tidySummary(ev.previous.tidyCheck)}</span>
+            )}
           </figcaption>
         </figure>
         {ev.reporter ? (
