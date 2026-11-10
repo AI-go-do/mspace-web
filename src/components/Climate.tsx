@@ -118,7 +118,8 @@ export function ClimatePanel({ view, now, by, member, compact, locked = false }:
       {tips.length > 0 && (
         <ul className="cl-tips">
           {tips.map((t: ClimateTip) => {
-            const busy = locked || (t.appliance ? isSending(t.appliance.id) : false)
+            const sending = t.appliance ? isSending(t.appliance.id) : false
+            const busy = locked || sending
             return (
               <li key={t.key} className={`cl-tip w-${t.why} ${t.urgent && !(by === 'ADMIN' && (t.why === 'cool' || t.why === 'heat')) ? 'urgent' : ''}`}>
                 <span className="cl-tip-text">
@@ -128,7 +129,7 @@ export function ClimatePanel({ view, now, by, member, compact, locked = false }:
                 </span>
                 {t.appliance && t.command && t.button && (
                   <button type="button" className="cl-go" disabled={busy} onClick={() => send(t.appliance!, t.command!)}>
-                    {busy ? <><i className="cl-spin" aria-hidden="true" />보내는 중</> : t.button}
+                    {sending ? <><i className="cl-spin" aria-hidden="true" />보내는 중</> : t.button}
                   </button>
                 )}
               </li>
@@ -140,13 +141,14 @@ export function ClimatePanel({ view, now, by, member, compact, locked = false }:
         {appliances.map((a) => {
           const s = get(a.id)
           const on = s.power === 'ON'
-          const busy = locked || isSending(a.id)
+          const sending = isSending(a.id)
+          const busy = locked || sending
           return (
-            <li key={a.id} className={`cl-dev ${on ? 'on' : ''} ${busy ? 'busy' : ''}`}>
+            <li key={a.id} className={`cl-dev ${on ? 'on' : ''} ${sending ? 'busy' : ''}`}>
               <span className="cl-dev-ico"><Icon kind={a.kind} on={on} /></span>
               <span className="cl-dev-text">
                 <b>{a.name}</b>
-                <small>{busy ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
+                <small>{locked ? '시연 값 · 조작 막힘' : sending ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
               </span>
               <button type="button" className={`cl-sw ${on ? 'on' : ''}`} role="switch" aria-checked={on} disabled={busy}
                 aria-label={`${a.name} ${on ? '끄기' : '켜기'}`} onClick={() => send(a, on ? { power: 'OFF' } : manualOn(a))}>
