@@ -18,9 +18,10 @@ export interface RetrievePass {
 }
 
 /** POST /api/reservations/{id}/retrieve-pass. 거절: 404 RESERVATION_NOT_FOUND, 409 RESERVATION_NOT_ENDED·RETRIEVE_NOT_NEEDED·RETRIEVE_TOO_LATE */
-export function getRetrievePass(reservationId: number): Promise<RetrievePass> {
+export function getRetrievePass(reservationId: number, member?: number | null): Promise<RetrievePass> {
   if (reservationId === DEMO_RESERVATION) return Promise.resolve(demoPass())
-  return api<RetrievePass>(`/api/reservations/${reservationId}/retrieve-pass`, { method: 'POST' })
+  // member를 주면 다른 탭에서 다른 회원으로 바뀐 토큰으로는 보내지 않는다
+  return api<RetrievePass>(`/api/reservations/${reservationId}/retrieve-pass`, { method: 'POST', member })
 }
 
 /** 남은 분 (올림, 0 아래로 안 감) */

@@ -290,4 +290,6 @@
 .adm .ap-step div span,
 .adm .ap-rec > .adm-small,
 .adm .ap-log-text .adm-small { display: none; }
+/* 같은 일을 다른 방에서 했을 때 어느 줄을 되돌릴지 알 수 있게 방 이름만 남긴다 */
+.adm .ap-log-room { font-size: 12.5px; color: var(--navy-70); }
 .adm .ap-steps { margin-bottom: 8px; }

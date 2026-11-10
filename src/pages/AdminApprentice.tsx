@@ -137,6 +137,7 @@ export function AdminApprentice() {
                       <span className="ap-time">{hm(d.doneAt)}</span>
                       <div className="ap-log-text">
                         <b>{d.plan}</b>
+                        <span className="ap-log-room">{roomName(d.roomId)}</span>
                         <span className="adm-small">{roomName(d.roomId)} · {t.name} · 레벨 {d.level}에서 처리</span>
                       </div>
                       {d.undone ? <span className="ap-tag">되돌림</span>
@@ -151,7 +152,7 @@ export function AdminApprentice() {
       </div>
       <p className="adm-foot">
         시연 기록{' '}
-        <button type="button" className="adm-link" onClick={resetApprentice}>처음으로</button>
+        <button type="button" className="adm-link" onClick={resetApprentice}>초기화</button>
       </p>
     </section>
   )

@@ -120,10 +120,14 @@ export default function Home() {
   // 오늘 브리핑(11/10 재웅): 예약이 없을 때 홈 아래에 오늘 수업과 수업 끝난 뒤 빈 방 하나
   const clockNow = seoulClock(now)
   const todayDow = DAYS[(new Date(now.getTime() + 9 * 3600e3).getUTCDay() + 6) % 7]
-  const briefing = !card && schedule
+  const todayClasses = !card && schedule
     ? schedule.classes.filter((c) => c.dayOfWeek === todayDow).sort((a, b) => a.startTime.localeCompare(b.startTime))
       .map((c) => ({ ...c, state: c.endTime <= clockNow ? 'done' : c.startTime <= clockNow ? 'now' : 'next' }))
     : null
+  // 오늘 수업이 없으면 브리핑 카드를 아예 안 띄운다(빈 카드 방지)
+  const briefing = todayClasses && todayClasses.length > 0 ? todayClasses : null
+  // 수업 끝 제안은 브리핑 안에 보여 주므로 "먼저 챙긴 것" 칸에서는 빼고 센다
+  const butlerInBrief = briefing !== null && butler?.kind === 'afterClass'
   // 지켜보던 방이 처음 비는 순간 한 번 진동(앱을 열어 둔 채 기다리는 사람에게). 같은 방은 다시 울리지 않는다
   const buzzed = useRef<Set<number>>(new Set())
   useEffect(() => {
@@ -145,7 +149,7 @@ export default function Home() {
   }, [now, inRoom])
   const climateUrgent = !!climate && (climate.flags.co2Soon || climate.flags.co2Over)
   // 오디가 먼저 챙긴 것(위에서부터 릴레이 · 비서 제안 · 방의 사과 · 급한 공기) 수. 오디 얼굴 배지에 더한다
-  const firstCount = (offer ? 1 : 0) + (butler ? 1 : 0) + (apology ? 1 : 0) + (climate && climateUrgent ? 1 : 0)
+  const firstCount = (offer ? 1 : 0) + (butler && !butlerInBrief ? 1 : 0) + (apology ? 1 : 0) + (climate && climateUrgent ? 1 : 0)
   // "숨 막히기 N분 전"이 처음 뜨면 알림함에 한 번 넣는다(예약당 최대 2번, api/co2Alert.ts). 창문은 자동으로 못 열어서 알림으로 알린다
   useEffect(() => {
     if (!climate || inUseId === null || !demoOn()) return
@@ -203,7 +207,7 @@ export default function Home() {
 
       {firstCount > 0 && <h2 className="home-section">오디가 먼저 챙긴 것</h2>}
       {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
-      {butler && !(briefing && butler.kind === 'afterClass') && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
+      {butler && !butlerInBrief && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
       {apology && <ApologyCard key={apology.id} n={apology} now={now} onClose={closeApology} />}
       {/* 숨 막히기 직전·넘음이면 방 현황보다 먼저 */}
       {climate && climateUrgent && <ClimateCard view={climate} now={now} top />}
@@ -232,7 +236,7 @@ export default function Home() {
                 </li>
               ))}
             </ol>
-            {butler?.kind === 'afterClass' && (
+            {butlerInBrief && butler?.kind === 'afterClass' && (
               <Link to={`/rooms/${butler.roomId}`} state={{ suggest: { date: butler.date, start: butler.start, len: butler.len } }} className="brief-pick">
                 <span className="brief-pick-text">
                   <small>수업 끝나고 빈 방</small>

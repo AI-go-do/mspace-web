@@ -195,7 +195,7 @@ export default function Alerts() {
                 {n.kind === 'AWAY_SOON' && n.reservationId != null
                   ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} onUse={() => readOne(n.id)} />
                   : n.kind === LEFT_ITEM_KIND && n.reservationId != null
-                    ? <RetrieveAction reservationId={n.reservationId} now={now} onUse={() => readOne(n.id)} />
+                    ? <RetrieveAction reservationId={n.reservationId} member={ownerRef.current} now={now} onUse={() => readOne(n.id)} />
                     : act && <Link to={act.to} className="alert-link" onClick={() => readOne(n.id)}>{act.label}</Link>}
               </li>
             )
@@ -266,7 +266,7 @@ const retrievePasses = new Map<number, RetrievePass>()
  * 누르면 10분짜리 QR을 받아 바로 보여 준다. 시간이 지나면 다시 눌러 새 QR을 받는다.
  * 서버가 거절하면(3시간 지남·이미 치움 등) 그 문구를 보여 준다
  */
-function RetrieveAction({ reservationId, now, onUse }: { reservationId: number; now: Date; onUse: () => void }) {
+function RetrieveAction({ reservationId, member, now, onUse }: { reservationId: number; member: number | null; now: Date; onUse: () => void }) {
   const [pass, setPass] = useState<RetrievePass | null>(() => retrievePasses.get(reservationId) ?? null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -281,7 +281,7 @@ function RetrieveAction({ reservationId, now, onUse }: { reservationId: number; 
     setSending(true)
     setError(null)
     try {
-      const p = await getRetrievePass(reservationId)
+      const p = await getRetrievePass(reservationId, member)
       retrievePasses.set(reservationId, p)
       setPass(p)
     } catch (e) {
