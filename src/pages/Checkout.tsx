@@ -13,7 +13,7 @@ const CHECKS = ['쓰레기를 버렸어요', '책상·의자를 정리했어요'
 
 /**
  * 퇴실 (FR-RSV-008, 시안 Checkout): 정리 체크 → 퇴실하기 → (끝나기 전이면) "조기 퇴실할까요?" 확인 → 완료.
- * 퇴실은 번호를 끄는 것이고 문은 도어락이 잠근다(요구사항 3.2).
+ * 퇴실은 QR을 끄는 것이고 문은 도어락이 잠근다(요구사항 3.2).
  * 퇴실 사진(FR-RPT-102)은 선택: 정리한 방을 찍어 두는 증거. 안 올려도 퇴실된다.
  */
 export default function Checkout() {
@@ -148,7 +148,7 @@ export default function Checkout() {
           <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="early-title">
             <h2 id="early-title">조기 퇴실할까요?</h2>
             <p className="muted">
-              끝나는 시각({seoulClock(new Date(r.endAt))}) 전이에요. 퇴실하면 번호가 바로 꺼지고 방이 다른 사람에게 열려요.
+              끝나는 시각({seoulClock(new Date(r.endAt))}) 전이에요. 퇴실하면 QR이 바로 꺼지고 방이 다른 사람에게 열려요.
             </p>
             <p className="tidy">자리 정리하셨나요?</p>
             <div className="sheet-actions">

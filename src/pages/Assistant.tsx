@@ -478,7 +478,7 @@ function Message({ m, owner, last, busy, ask, speaking, onRead }: {
       {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} ask={last ? ask : undefined} busy={busy} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
-          입실 번호 보기 →
+          입실 QR 보기 →
         </Link>
       ))}
       {last && m.hints?.includes(HINT_OPEN_SCHEDULE) && (
@@ -683,7 +683,7 @@ function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: bool
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 QR 보기 →</Link>
             : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
         </div>
         {/* 새로고침 뒤에도 마지막 결과 카드의 다음 말 버튼은 남긴다(글만 저장, 토큰·입실 번호 없음) */}
@@ -886,7 +886,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
+            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 QR 보기 →</Link>
             : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
           {members.length > 0 && <TeamSave owner={owner} members={members} />}
         </div>

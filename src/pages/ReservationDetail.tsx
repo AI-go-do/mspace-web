@@ -106,7 +106,7 @@ export default function ReservationDetail() {
       {r.status === 'IN_USE' && !r.owner && <PhotoUpload key={`${r.id}-${currentMemberId()}-out`} reservationId={r.id} kind="CHECK_OUT" />}
 
       {r.owner && active && (
-        <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 번호 보기</Link>
+        <Link to={`/reservations/${r.id}`} className="btn-primary detail-key">입실 QR 보기</Link>
       )}
       {r.owner && r.status === 'IN_USE' && (
         photoBusy
@@ -123,7 +123,7 @@ export default function ReservationDetail() {
       )}
       {/* 취소 마감이 지난 BOOKED는 취소 버튼이 없다. 왜 없는지와 노쇼 마감을 알린다 */}
       {r.owner && r.status === 'BOOKED' && !canCancel && (
-        <p className="muted small detail-note">취소할 수 있는 시간이 지났어요. {seoulClock(deadlineOf(r))}까지 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요.</p>
+        <p className="muted small detail-note">취소할 수 있는 시간이 지났어요. {seoulClock(deadlineOf(r))}까지 QR로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요.</p>
       )}
       {!r.owner && active && <p className="muted small detail-note">참여자는 보기만 할 수 있어요. 취소·퇴실은 대표자가 해요.</p>}
 
