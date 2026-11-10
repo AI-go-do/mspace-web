@@ -220,7 +220,8 @@ function HeatRow({ row, i, focus }: { row: ReturnType<typeof overview>['rows'][n
   )
 }
 
-export function AdminOverview({ views }: { views: RoomView[] }) {
+/** compact: 관리자 첫 화면(지금)에서는 그래프만. 숫자 칸·열지도는 빼서 한눈에 덜 복잡하게(11/10 재웅) */
+export function AdminOverview({ views, compact = false }: { views: RoomView[]; compact?: boolean }) {
   const [metric, setMetric] = useState<Metric>('co2')
   const [focus, setFocus] = useState<number | null>(null)
   const o = useMemo(() => overview(views), [views])
@@ -229,14 +230,14 @@ export function AdminOverview({ views }: { views: RoomView[] }) {
   return (
     <section className="ctl-ov" aria-labelledby="ov-h">
       <header className="ov-head">
-        <h2 id="ov-h">전체 실시간 분석 <small>방 1~5 한 그래프</small></h2>
+        <h2 id="ov-h">{compact ? '방 1~5 한 그래프' : <>전체 실시간 분석 <small>방 1~5 한 그래프</small></>}</h2>
         <div className="ov-seg" role="group" aria-label="보는 값" style={{ '--i': METRICS.findIndex((x) => x.key === metric) } as CSSProperties}>
           <span className="ov-seg-glow" aria-hidden="true" />
           {METRICS.map((x) => <button key={x.key} type="button" aria-pressed={metric === x.key} onClick={() => setMetric(x.key)}>{x.label}</button>)}
         </div>
       </header>
 
-      <ul className="ov-facts">
+      {!compact && <ul className="ov-facts">
         <li><small>평균 CO2</small><b>{o.avg ?? '–'}<i>ppm</i></b><em>값 있는 방 {o.measured}곳</em></li>
         <li><small>가장 높은 방</small><b>{o.top ? <>{o.top.roomId}<i>번</i> {o.top.co2}</> : '–'}</b><em>{top?.co2Note ?? ''}</em></li>
         <li className={o.soon ? 'hot' : ''}><small>넘었거나 {ENV_RULES.warnWithinMinutes}분 안에 넘을 방</small><b>{o.soon}<i>곳</i></b><em>{o.soon ? '환기 순서를 보세요' : '없어요'}</em></li>
@@ -246,11 +247,11 @@ export function AdminOverview({ views }: { views: RoomView[] }) {
             ? <ol>{o.order.map((x) => <li key={x.roomId}><i>{x.roomId}</i>{x.why}</li>)}</ol>
             : <p>지금은 서둘러 환기할 방이 없어요.</p>}
         </li>
-      </ul>
+      </ul>}
 
       <MultiChart key={metric} views={views} metric={metric} focus={focus} onFocus={setFocus} />
 
-      <div className="ov-heat">
+      {!compact && <div className="ov-heat">
         <div className="hr hr-head" aria-hidden="true">
           <span />
           <span className="hr-axis"><span>{views[0]?.history.length ?? ENV_RULES.historyMinutes}분 전</span><span>지금</span><span>+{ENV_RULES.forecastMinutes}분</span></span>
@@ -261,7 +262,7 @@ export function AdminOverview({ views }: { views: RoomView[] }) {
         <p className="ov-heat-key" aria-hidden="true">
           CO2 <i className="lv0" />낮음 <i className="lv1" /><i className="lv2" /><i className="lv3" />기준 가까움 <i className="lv4" />넘음 <i className="lvx" />값 없음 · 오른쪽 옅은 칸은 예측
         </p>
-      </div>
+      </div>}
     </section>
   )
 }

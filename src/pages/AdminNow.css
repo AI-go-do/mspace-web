@@ -9,7 +9,7 @@
 
 /* ---------- 큰 숫자 ---------- */
 .ctl-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 720px) { .ctl-top { grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)) 1.2fr; gap: 12px; } }
+@media (min-width: 720px) { .ctl-top { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; } }
 .ctl-big {
   position: relative; min-width: 0; padding: 14px 18px; border-radius: 20px; display: flex; flex-direction: column; gap: 2px;
   background: var(--c-glass); box-shadow: inset 0 0 0 1px var(--c-line); text-align: left; font: inherit; color: inherit;
@@ -430,3 +430,12 @@
 /* 오디가 한 일(10차): 오디가 처리한 줄은 하늘색, 사람 손이 필요한 장치 줄만 원래 문구 */
 .ctl-feed .cf-auto { color: var(--sky); font-weight: 700; }
 .ctl-hands { margin: 4px 2px 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.62); }
+.ctl-more { grid-column: 1 / -1; }
+.ctl-more > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+  padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.ctl-more > summary::-webkit-details-marker { display: none; }
+.ctl-more > summary::after { content: '▾'; font-size: 12px; }
+.ctl-more[open] > summary { margin-bottom: 12px; }

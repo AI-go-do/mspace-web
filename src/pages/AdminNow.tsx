@@ -16,8 +16,8 @@ import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
-import { APPLIANCE_SOURCE, setClimateAuto, useAppliances } from '../api/appliances'
-import { useClimateRules, WeatherChip } from '../components/Climate'
+import { useAppliances } from '../api/appliances'
+import { useClimateRules } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
 import './AdminNow.css'
@@ -131,7 +131,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const now = useMemo(() => (data ? new Date(data.now) : null), [data])
   const { auto } = useAppliances()
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
-  const { weather, rules: climateRules } = useClimateRules()
+  const { rules: climateRules } = useClimateRules()
   useClimateAuto(views, now, auto, currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
@@ -144,7 +144,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const adviceOf = (v: RoomView) => (now ? majorAdvice(roomAdvice(v, now, ctxOf(v.roomId))) : [])
   const warn = views.filter((v) => cardTone(v, adviceOf(v)) === 'warn').length
   const off = views.filter((v) => v.tone === 'off').length
-  const trendOnly = views.some((v) => v.forecastFrom === 'trend')
   // 맨 위 "지금 확인할 것": 방마다 가장 급한 한 줄. 남색(장치 문제)이 먼저
   const issues = now
     ? views.map((v) => ({ v, list: adviceOf(v) })).filter((x) => x.list.length > 0)
@@ -178,8 +177,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     <section className="admin-now ctl" aria-label="관제실 지금 방 상태">
       <div className="ctl-top">
         <Big label="지금 쓰는 방" value={known ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
-        <Big label="주의" value={known ? warn : null} tone={warn ? 'warn' : ''} hint="환기·시간 넘김·입실 안 함·문" />
-        <Big label="확인 필요" value={known ? off : null} tone={off ? 'off' : ''} hint="센서 멈춤·끊김" />
+        <Big label="주의" value={known ? warn + off : null} tone={warn ? 'warn' : off ? 'off' : ''} hint={off ? `장치 확인 ${off} 포함` : '환기·시간 넘김·입실 안 함·문'} />
         <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
         <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" hint={needHands ? `장치 확인 ${needHands}건만 사람 손이 필요해요` : '관리자가 할 일은 없어요'} />
       </div>
@@ -188,14 +186,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <>실시간 · 마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다</span>
         {sample && <span className="ctl-sample">가짜 값 · 시연용</span>}
-        {trendOnly && <span className="ctl-note">예측은 최근 추세로 그렸어요</span>}
-        <WeatherChip w={weather} />
-        <span className="cl-auto" title="권유 중 기기 켜기·끄기만 대신 해요. 경고·정지는 하지 않아요">
-          <button type="button" className={`cl-sw ${auto ? 'on' : ''}`} role="switch" aria-checked={auto} aria-label="에어컨·공기청정기 자동 제어"
-            onClick={() => setClimateAuto(!auto)}><i aria-hidden="true" /></button>
-          에어컨·공기청정기 자동 {auto ? '켜짐' : '꺼짐'}{APPLIANCE_SOURCE === 'mock' && ' · 시연: 실제 기기에 신호를 보내지 않아요'}
-        </span>
-        <span className="ctl-legend" aria-hidden="true"><i className="lg-use" />사람 있음 <i className="lg-warn" />주의 <i className="lg-off" />확인 필요 <i className="lg-empty" />빈 방</span>
       </div>
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
 
@@ -223,8 +213,14 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           <p className="ctl-hands">신고 판정·경고·철회 재검토도 AI가 해요. 결과는 기록 칸에 남아요.</p>
         </aside>
 
-        {views.length > 0 && <AdminOverview views={views} />}
-        {views.length > 0 && <AdminSensorBoard views={views} onOpen={setOpenRoom} />}
+        {views.length > 0 && <AdminOverview views={views} compact />}
+        {/* 방별 센서 그래프·열지도는 접어 둔다. 첫 화면은 대시보드만(11/10 재웅 "정신 사납다") */}
+        {views.length > 0 && (
+          <details className="ctl-more">
+            <summary>방별 센서 자세히</summary>
+            <AdminSensorBoard views={views} onOpen={setOpenRoom} />
+          </details>
+        )}
       </div>
 
       {opened && now && (
