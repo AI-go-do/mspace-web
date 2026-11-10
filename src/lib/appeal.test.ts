@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { appealProblem, appealStep, canAppeal, daysLeft, draftAppeal, forEvidence, statusLabel, type WarningRecord } from './appeal'
+import { appealButtonLabel, appealProblem, appealStep, canAppeal, confidenceLabel, daysLeft, demoDecision, draftAppeal, forEvidence, leftLabel, statusLabel, type WarningRecord } from './appeal'
 
 const now = new Date('2026-11-08T22:00:00+09:00')
 const w = (over: Partial<WarningRecord> = {}): WarningRecord => ({
-  id: 1, kind: 'NO_SHOW', roomId: 2,
+  id: 1, kind: 'NO_SHOW', roomId: 2, reservationId: 51,
   startAt: '2026-11-06T14:00:00+09:00', endAt: '2026-11-06T16:00:00+09:00', issuedAt: '2026-11-06T14:15:00+09:00',
   why: '14:15까지 입실 기록이 없었어요',
   evidence: [
@@ -15,8 +15,8 @@ const w = (over: Partial<WarningRecord> = {}): WarningRecord => ({
   ...over,
 })
 
-describe('벌점 해명 카드', () => {
-  it('받은 지 7일 안이고 아직 안 보냈으면 해명할 수 있다', () => {
+describe('경고 철회 요청 (FR-RPT-105)', () => {
+  it('받은 지 7일 안이고 아직 안 보냈으면 철회를 요청할 수 있다', () => {
     expect(canAppeal(w(), now)).toBe(true)
     expect(canAppeal(w({ issuedAt: '2026-10-31T21:00:00+09:00' }), now)).toBe(false)
     expect(canAppeal(w({ appeal: { status: 'SENT', text: 'x', sentAt: now.toISOString(), evidence: [], answer: null } }), now)).toBe(false)
@@ -61,14 +61,53 @@ describe('벌점 해명 카드', () => {
   })
 
   it('상태 글과 진행 칸', () => {
-    expect(statusLabel(w(), now)).toEqual({ text: '4일 안 해명', tone: 'open' })
-    expect(statusLabel(w({ issuedAt: '2026-11-01T23:00:00+09:00' }), now).text).toBe('오늘까지 해명')
-    expect(statusLabel(w({ issuedAt: '2026-10-01T00:00:00+09:00' }), now).tone).toBe('closed')
+    expect(statusLabel(w(), now)).toEqual({ text: '철회 요청 5일 남음', tone: 'open' })
+    expect(statusLabel(w({ issuedAt: '2026-11-01T23:00:00+09:00' }), now).text).toBe('철회 요청 1시간 남음')
+    expect(statusLabel(w({ issuedAt: '2026-10-01T00:00:00+09:00' }), now)).toEqual({ text: '요청 기간 끝남', tone: 'closed' })
     const sent = { status: 'SENT' as const, text: 'x', sentAt: now.toISOString(), evidence: [], answer: null }
-    expect(statusLabel(w({ appeal: sent }), now).text).toBe('검토 중')
-    expect(statusLabel(w({ appeal: { ...sent, status: 'ACCEPTED' } }), now).text).toBe('무름')
+    expect(statusLabel(w({ appeal: sent }), now).text).toBe('AI가 다시 보는 중')
+    expect(statusLabel(w({ appeal: { ...sent, status: 'ACCEPTED' } }), now).text).toBe('철회됨')
+    expect(statusLabel(w({ appeal: { ...sent, status: 'REJECTED' } }), now).text).toBe('경고 유지')
     expect(appealStep(null)).toBe(0)
     expect(appealStep(sent)).toBe(1)
     expect(appealStep({ ...sent, status: 'REJECTED' })).toBe(3)
+  })
+
+  it('남은 시간은 배달 앱 리뷰처럼: 받자마자 7일, 하루 안이면 시간, 1시간 안이면 곧 마감', () => {
+    const at = (iso: string) => w({ issuedAt: iso })
+    expect(leftLabel(at('2026-11-08T22:00:00+09:00'), now)).toBe('7일 남음')
+    expect(leftLabel(at('2026-11-02T03:00:00+09:00'), now)).toBe('5시간 남음')
+    expect(leftLabel(at('2026-11-01T22:30:00+09:00'), now)).toBe('곧 마감')
+    expect(leftLabel(at('2026-11-01T22:00:00+09:00'), now)).toBeNull()
+  })
+
+  it('버튼 글은 "경고 철회 요청 (N일 남음)", 보냈거나 기간이 지나면 없다', () => {
+    expect(appealButtonLabel(w({ issuedAt: '2026-11-08T21:00:00+09:00' }), now)).toBe('경고 철회 요청 (7일 남음)')
+    expect(appealButtonLabel(w(), now)).toBe('경고 철회 요청 (5일 남음)')
+    expect(appealButtonLabel(w({ issuedAt: '2026-10-01T00:00:00+09:00' }), now)).toBeNull()
+    const sent = { status: 'SENT' as const, text: 'x', sentAt: now.toISOString(), evidence: [], answer: null }
+    expect(appealButtonLabel(w({ appeal: sent }), now)).toBeNull()
+  })
+
+  it('예시 AI 판단: 유리한 기록을 같이 보내면 철회, 아니면 유지. 이유는 고른 기록으로만 쓴다', () => {
+    const yes = demoDecision(w(), [0, 2])
+    expect(yes.status).toBe('ACCEPTED')
+    expect(yes.answer).toContain('14:03 문 장치 기록(문 앞 QR을 3번 찍었지만 열리지 않았어요)')
+    expect(yes.answer).not.toContain('14:15')
+    expect(yes.confidence).toBeGreaterThan(0.8)
+    const no = demoDecision(w(), [2])
+    expect(no.status).toBe('REJECTED')
+    expect(no.answer).toContain('그대로')
+  })
+
+  it('확신도는 백분율로, 모르면 쓰지 않는다', () => {
+    expect(confidenceLabel(0.934)).toBe('확신 93%')
+    expect(confidenceLabel(1.4)).toBe('확신 100%')
+    expect(confidenceLabel(null)).toBeNull()
+    expect(confidenceLabel(undefined)).toBeNull()
+  })
+
+  it('전화번호·학번을 막는 글은 AI 기준으로 안내한다', () => {
+    expect(appealProblem('문이 안 열렸어요. 010-1234-5678로 연락 주세요')).toContain('AI는 예약 기록으로')
   })
 })

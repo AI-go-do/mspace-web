@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { continueReservation, getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
+import { AppealSheet } from '../components/PenaltyHistory'
+import { LooseWarningCard, matchWarnings, openAppealCount, useMyWarnings, WarningRow } from '../components/PastWarnings'
 import { BackIcon, newKey } from '../components/ReserveSteps'
+import type { WarningRecord } from '../lib/appeal'
 import { canContinueAt, minutesLabel, remainLabel, timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
@@ -86,13 +89,20 @@ export function useMyReservations() {
  * FR-WEB-002 내 예약 목록 (시안 Mine, 마이 탭 > 내 예약): 사용 중인 예약은 맨 위 카드(남은 시간 + 진행 막대 + 퇴실),
  * 다가오는 예약은 눌러서 상세(취소), 지난 예약은 따로.
  * 사용 중 카드의 "방에 문제가 있나요?"는 신고 화면(FR-RPT-101)으로 간다.
- * 이용 규칙·시간표·친구·관리자·로그아웃은 마이 탭(MyPage)으로 옮겼다(11/6 재웅)
+ * 이용 규칙·시간표·친구·관리자·로그아웃은 마이 탭(MyPage)으로 옮겼다(11/6 재웅).
+ * 경고 받은 지난 예약에는 배달 앱 리뷰처럼 "경고 철회 요청 (N일 남음)" 버튼을 붙인다(FR-RPT-105, PastWarnings).
+ * `?tab=past`로 열면 지난 탭부터(경고 알림에서 바로 오게)
  */
 export default function MyReservations() {
   const { list, error, stale, reload } = useMyReservations()
   const navigate = useNavigate()
   const now = useNow()
-  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<'upcoming' | 'past'>(() => (params.get('tab') === 'past' ? 'past' : 'upcoming'))
+  const warnings = useMyWarnings()
+  const [writing, setWriting] = useState<WarningRecord | null>(null)
+  const [justSent, setJustSent] = useState<number | null>(null)
+  const openAppeals = openAppealCount(warnings, now)
   // 연장하면 새 예약(새 id)으로 카드가 바뀌므로, 알림은 카드 밖에 두고 새 예약 id에 붙인다
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
 
@@ -100,6 +110,9 @@ export default function MyReservations() {
   const past = (list ?? []).filter((r) => !isActive(r.status))
   const inUse = active.find((r) => r.status === 'IN_USE')
   const upcoming = active.filter((r) => r !== inUse)
+  const { byReservation, loose } = matchWarnings(warnings, past.map((r) => r.id))
+  // 시트를 연 뒤 상태가 바뀌어도(보냄 → AI 판단) 최신 경고를 넘긴다
+  const writingNow = writing ? warnings.find((w) => w.id === writing.id) ?? writing : null
 
   return (
     <main className="mine">
@@ -110,7 +123,10 @@ export default function MyReservations() {
         </div>
         <div className="seg-tabs" role="group" aria-label="보기">
           <button type="button" aria-pressed={tab === 'upcoming'} onClick={() => setTab('upcoming')}>다가오는</button>
-          <button type="button" aria-pressed={tab === 'past'} onClick={() => setTab('past')}>지난</button>
+          <button type="button" aria-pressed={tab === 'past'} onClick={() => setTab('past')}
+            aria-label={openAppeals > 0 ? `지난, 철회 요청할 수 있는 경고 ${openAppeals}건` : undefined}>
+            지난{openAppeals > 0 && <i className="pw-dot" aria-hidden="true" />}
+          </button>
         </div>
       </header>
 
@@ -120,6 +136,12 @@ export default function MyReservations() {
 
       {list && tab === 'upcoming' && (
         <>
+          {openAppeals > 0 && (
+            <button type="button" className="pw-banner" onClick={() => setTab('past')}>
+              <b>철회를 요청할 수 있는 경고가 {openAppeals}건 있어요</b>
+              <span className="muted">지난 예약 보기</span>
+            </button>
+          )}
           {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
             notice={extended && extended.id === inUse.id ? extended.text : null}
             onExtended={(id, text) => setExtended({ id, text })} />}
@@ -145,18 +167,36 @@ export default function MyReservations() {
 
       {list && tab === 'past' && (
         <>
-          {past.map((r) => (
-            <Link key={r.id} to={`/me/${r.id}`} className="card mine-item past">
-              <span className="mine-item-text">
-                <span className="muted">{STATUS_LABEL[r.status]} · {r.owner ? '대표자' : '참여자'}</span>
-                <b>{whenLabel(r.startAt, now)} · 창작실 {r.room.id}</b>
-                <span className="muted">{timeRange(r.startAt, r.endAt)}</span>
-              </span>
-              <Chevron />
-            </Link>
+          {loose.map((w) => (
+            <LooseWarningCard key={`w${w.id}`} w={w} now={now} fresh={justSent === w.id} onWrite={() => setWriting(w)} />
           ))}
-          {past.length === 0 && <p className="card mine-msg muted">지난 예약이 없어요.</p>}
+          {past.map((r) => {
+            const item = (
+              <Link key={r.id} to={`/me/${r.id}`} className="card mine-item past">
+                <span className="mine-item-text">
+                  <span className="muted">{STATUS_LABEL[r.status]} · {r.owner ? '대표자' : '참여자'}</span>
+                  <b>{whenLabel(r.startAt, now)} · 창작실 {r.room.id}</b>
+                  <span className="muted">{timeRange(r.startAt, r.endAt)}</span>
+                </span>
+                <Chevron />
+              </Link>
+            )
+            const w = byReservation.get(r.id)
+            if (!w) return item
+            // 버튼은 링크 밖에 둔다(링크 안 버튼은 누를 때 상세로 넘어가 버림)
+            return (
+              <div key={r.id} className="pw-wrap">
+                {item}
+                <WarningRow w={w} now={now} fresh={justSent === w.id} onWrite={() => setWriting(w)} />
+              </div>
+            )
+          })}
+          {past.length === 0 && loose.length === 0 && <p className="card mine-msg muted">지난 예약이 없어요.</p>}
         </>
+      )}
+
+      {writingNow && (
+        <AppealSheet w={writingNow} onClose={() => setWriting(null)} onSent={() => setJustSent(writingNow.id)} />
       )}
 
     </main>
