@@ -70,6 +70,8 @@ export const BOOKING = {
   instantNoShowMinutes: 10,
   smallRoom: '3–5',
   bigRoom: '5–8',
+  /** 그림의 사람 점 수(smallRoom·bigRoom과 같은 값) */
+  smallMin: 3, smallMax: 5, bigMin: 5, bigMax: 8,
   instantNote: '지금 바로 쓰기는 누른 때부터, 입실은 10분 안이에요.',
 } as const
 

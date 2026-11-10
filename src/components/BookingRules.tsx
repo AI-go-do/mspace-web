@@ -38,7 +38,7 @@ export function BookingRules({ now = new Date() }: { now?: Date }) {
           <div className="bk-num"><b>{BOOKING.maxMinutes / 60}시간</b><span>{BOOKING.slotMinutes}분씩</span></div>
           <div className="bk-art bk-time" aria-hidden="true">
             <div className="bk-slots">{Array.from({ length: slots }, (_, i) => <i key={i} style={{ '--k': i } as React.CSSProperties} />)}</div>
-            <div className="bk-ticks"><span>14:00</span><span>16:00</span></div>
+            <div className="bk-ticks"><span>시작</span><span>+{BOOKING.maxMinutes / 60}시간</span></div>
           </div>
           <p className="sr-only">{BOOKING.slotMinutes}분 단위로, 한 번에 최대 {BOOKING.maxMinutes / 60}시간까지 잡을 수 있어요.</p>
         </li>
@@ -58,8 +58,8 @@ export function BookingRules({ now = new Date() }: { now?: Date }) {
         <li className="bk-row" style={{ '--i': 3 } as React.CSSProperties}>
           <div className="bk-num"><b>{BOOKING.smallRoom}명</b><span>함께</span></div>
           <div className="bk-art bk-rooms" aria-hidden="true">
-            <span className="bk-room"><em>1–4</em><People n={5} min={3} /></span>
-            <span className="bk-room"><em>5</em><People n={8} min={5} /></span>
+            <span className="bk-room"><em>1–4</em><People n={BOOKING.smallMax} min={BOOKING.smallMin} /></span>
+            <span className="bk-room"><em>5</em><People n={BOOKING.bigMax} min={BOOKING.bigMin} /></span>
           </div>
           <p className="sr-only">창작실 1–4번은 {BOOKING.smallRoom}명, 5번은 {BOOKING.bigRoom}명이 함께 써요.</p>
         </li>
