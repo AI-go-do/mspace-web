@@ -1,0 +1,43 @@
+/* 내 예약 > 지난 예약의 경고 철회 요청 (FR-RPT-105). 배달 앱 리뷰 버튼처럼. 색은 tokens.css 4+2색만 */
+.pw-wrap { margin: 12px 16px 0; border-radius: 20px; background: var(--white); box-shadow: var(--shadow-1); border: 1px solid var(--line); overflow: hidden; }
+.pw-wrap > .mine-item { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+.pw-wrap > .pw-row { padding: 0 16px 16px 20px; }
+
+.pw-card { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 2px; animation: rise-in 0.4s var(--ease-out) backwards; }
+.pw-card > b { font-size: 17px; letter-spacing: -0.02em; }
+.pw-card > .muted { font-size: 14px; }
+.pw-card .pw-row { margin-top: 10px; }
+.pw-card-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+.pw-row { display: flex; flex-direction: column; gap: 10px; }
+.pw-why { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; font-size: 13px; line-height: 1.5; color: var(--navy-70); }
+.pw-why .struck { text-decoration: line-through; }
+.pw-kind { padding: 2px 8px; border-radius: 7px; font-size: 12px; font-weight: 800; background: var(--navy); color: var(--white); }
+
+/* 요청할 수 있는 경고: 노란 테두리 버튼. 누르기 전 살짝 숨 쉬듯 */
+.pw-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--touch); padding: 0 16px;
+  border: 0; border-radius: 14px; font: inherit; font-size: 14px; font-weight: 800; color: var(--navy); cursor: pointer;
+  background: color-mix(in srgb, var(--yellow) 30%, var(--white)); box-shadow: inset 0 0 0 1.5px var(--yellow);
+  font-variant-numeric: tabular-nums; animation: pw-breathe 2.8s ease-in-out 0.6s 2;
+  transition: transform 0.15s var(--ease-out), background-color 0.2s;
+}
+.pw-btn:active { transform: scale(0.97); }
+.pw-btn:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+@keyframes pw-breathe { 50% { box-shadow: inset 0 0 0 1.5px var(--yellow), 0 0 0 6px color-mix(in srgb, var(--yellow) 30%, transparent); } }
+.pw-closed { align-self: flex-start; padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 800; background: var(--gray); color: var(--navy-70); }
+.pw-row .ph-appeal { margin-top: 0; }
+
+/* 다가오는 탭 위 안내 띠: 누르면 지난 탭으로 */
+.pw-banner {
+  margin: 12px 16px 0; min-height: var(--touch); padding: 12px 16px; display: flex; align-items: center; gap: 10px; width: calc(100% - 32px);
+  border: 0; border-radius: 16px; font: inherit; font-size: 14px; text-align: left; color: var(--navy); cursor: pointer;
+  background: color-mix(in srgb, var(--yellow) 30%, var(--white)); box-shadow: inset 4px 0 0 var(--yellow);
+}
+.pw-banner b { flex: 1; }
+/* 지난 탭 글자 옆 점 */
+.pw-dot { display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 4px; background: var(--yellow); vertical-align: 2px; box-shadow: 0 0 0 1.5px var(--navy); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pw-btn, .pw-card { animation: none !important; transition: none !important; }
+}

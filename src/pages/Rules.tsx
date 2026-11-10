@@ -12,7 +12,7 @@ import './Rules.css'
 /**
  * FR-WEB-003 이용 규칙 (시안 RulesPage). 로그인 전에도 볼 수 있다.
  * 로그인했으면 위쪽에 "내 경고 N회"(GET /api/penalties/me, core #92)를 보여 준다.
- * ?demo=1이면 그 아래에 경고마다 왜 받았는지·근거 기록·해명 쓰기(벌점 해명 카드, 웹 화면만)를 예시로 보여 준다.
+ * ?demo=1이면 그 아래에 경고마다 왜 받았는지·근거 기록·경고 철회 요청(FR-RPT-105, 웹 화면만)을 예시로 보여 준다.
  */
 export default function Rules() {
   const navigate = useNavigate()
@@ -75,7 +75,7 @@ function MyPenaltyCard() {
   return <PenaltyFor key={member} member={member} />
 }
 
-/** 벌점 해명 카드: core에 경고 내역 API가 없어 예시 화면(?demo=1)에서 로그인했을 때만 */
+/** 경고 목록·철회 요청: core #111 API가 없어 예시 화면(?demo=1)에서 로그인했을 때만 */
 function MyWarnings() {
   const { status } = useAuth()
   if (status !== 'in' || !demoOn()) return null
