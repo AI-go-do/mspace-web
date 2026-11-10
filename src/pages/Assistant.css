@@ -53,14 +53,17 @@
 .link { color: var(--blue); font-weight: 700; min-height: 44px; display: inline-flex; align-items: center; }
 
 .chat-dock { position: sticky; bottom: 84px; background: var(--gray); padding-top: 6px; }
+/* 글 쓰는 칸 하나에 말하기·보내기 버튼을 오른쪽 안에 넣는다 (재웅 11/10) */
 .chat-input {
-  display: flex; gap: 8px; align-items: flex-end;
-  padding: 8px 0 12px;
+  display: flex; gap: 4px; align-items: flex-end;
+  margin: 8px 0 12px; padding: 4px 4px 4px 0; border-radius: 28px; background: var(--white);
+  box-shadow: inset 0 0 0 1.5px var(--white);
 }
+.chat-input:focus-within { box-shadow: inset 0 0 0 1.5px var(--blue); }
 .chat-input textarea {
-  flex: 1; min-height: 48px; max-height: 120px; resize: none;
-  border: 1.5px solid var(--white); border-radius: 24px; padding: 12px 16px;
-  font-size: 16px; font-family: inherit; background: var(--white); color: var(--navy);
+  flex: 1; min-height: 48px; max-height: 120px; resize: none; min-width: 0;
+  border: 0; border-radius: 24px; padding: 12px 4px 12px 18px; outline: none;
+  font-size: 16px; font-family: inherit; background: transparent; color: var(--navy);
 }
 .send {
   width: 48px; height: 48px; flex: none; border: 0; border-radius: 50%;
@@ -134,7 +137,7 @@
 /* ---------- 마이크·보내기 한 버튼 ---------- */
 .act {
   position: relative; width: 48px; height: 48px; flex: none; border: 0; border-radius: 50%; cursor: pointer;
-  display: grid; place-items: center; background: var(--white); color: var(--blue);
+  display: grid; place-items: center; background: color-mix(in srgb, var(--blue) 8%, var(--white)); color: var(--blue);
   transition: background-color 0.25s, color 0.25s, transform 0.15s;
 }
 .act > * { grid-area: 1 / 1; transition: opacity 0.22s, transform 0.32s var(--ease-spring, cubic-bezier(.34, 1.56, .64, 1)); }
@@ -147,7 +150,7 @@
 .act-stop .i-stop { opacity: 1; transform: none; }
 .act:active:not(:disabled) { transform: scale(0.92); }
 .act:disabled { cursor: default; }
-.act-send:disabled { background: var(--white); color: var(--navy-70); }
+.act-send:disabled { background: var(--gray); color: var(--navy-70); }
 .act-mic:disabled { opacity: 0.6; }
 .act:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {

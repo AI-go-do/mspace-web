@@ -1,8 +1,6 @@
 import { type CSSProperties } from 'react'
-import { applianceState, useAppliances } from '../api/appliances'
 import { ENV_RULES } from '../config/adminRooms'
-import { CLIMATE_RULES, ROOM_APPLIANCES } from '../config/appliances'
-import { climateTips, type TipRules } from '../lib/climate'
+import type { TipRules } from '../lib/climate'
 import type { Advice } from '../lib/roomAdvice'
 import type { RoomView } from '../lib/roomHealth'
 import { useCountUp } from '../lib/useCountUp'
@@ -74,23 +72,6 @@ export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; 
   )
 }
 
-/** 칸 안 에어컨·공기청정기 표시: 권유 한 줄 + 켜진 기기 ("숨 막히기 12분 전") */
-function ClimateChips({ view, now, rules }: { view: RoomView; now: Date; rules: TipRules }) {
-  const store = useAppliances()
-  const devs = ROOM_APPLIANCES[view.roomId] ?? []
-  if (!devs.length) return null
-  // 덥다·춥다는 사람마다 달라서 관리자 칸에는 냉난방 권유를 올리지 않는다(환기·빈 방 기기 끄기만). 학생 화면 권유는 그대로
-  const tips = climateTips(view, now, (id) => applianceState(id, store), rules).filter((t) => t.why !== 'cool' && t.why !== 'heat')
-  const on = devs.filter((a) => applianceState(a.id, store).power === 'ON')
-  if (!tips.length && !on.length) return null
-  return (
-    <span className="cl-chips">
-      {tips.slice(0, 1).map((t) => <span key={t.key} className="cl-chip tip">{t.title}{t.button ? ` · ${t.button}` : ''}</span>)}
-      {on.map((a) => <span key={a.id} className="cl-chip on">{a.name} 켜짐</span>)}
-    </span>
-  )
-}
-
 /** 칸 안 큰 숫자 하나 (고른 값) */
 function TileValue({ view, metric }: { view: RoomView; metric: TileMetric }) {
   const raw = nowOf(view, metric)
@@ -105,7 +86,7 @@ function TileValue({ view, metric }: { view: RoomView; metric: TileMetric }) {
  * 평면도 칸 하나. 칸 전체가 상세 창을 여는 버튼이고(ct-hit), 아래 작은 단추로 이 방만 다른 값을 볼 수 있다.
  * 버튼 안에 버튼을 둘 수 없어서 칸은 div, 여는 버튼은 칸 전체를 덮게 깐다
  */
-export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, now = null, rules = CLIMATE_RULES, metric = 'co2', own = false, onMetric, onOpen }: {
+export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, metric = 'co2', onMetric, onOpen }: {
   view: RoomView
   /** 에어컨·공기청정기 권유 계산용. 아직 값이 없으면 칩을 안 그린다 */
   now?: Date | null
@@ -126,15 +107,6 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
   const used = view.presence === 'OCCUPIED'
   const state = view.tone === 'off' ? 'off' : used ? 'use' : 'empty'
   const line = advice[0]?.title ?? (metric === 'co2' ? view.co2Note : '')
-  const facts = [
-    view.co2 === null || metric === 'co2' ? null : `CO2 ${view.co2}`,
-    view.temperatureC === null || metric === 'temp' ? null : `${view.temperatureC.toFixed(1)}°C`,
-    view.humidityPct === null || metric === 'hum' ? null : `습도 ${view.humidityPct}%`,
-    view.light === null || metric === 'light' ? null : `조도 ${view.light}%`,
-    view.pir === null ? null : view.pir ? 'PIR 움직임' : 'PIR 조용',
-    view.door?.open ? `문 열림 ${view.door.minutes}분` : null,
-  ].filter(Boolean).join(' · ')
-  const label = TILE_METRICS.find((m) => m.key === metric)!.label
   return (
     <div className={`ctl-tile st-${state} tn-${tone} ${big ? 'big' : ''}`} style={{ '--k': i } as CSSProperties}>
       <button type="button" className="ct-hit" onClick={onOpen}
@@ -142,7 +114,12 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
       {tone === 'warn' && <span className="ctl-ring" aria-hidden="true" />}
       <span className="ct-head">
         <b className="ct-no">{view.roomId}</b>
-        <span className="ct-name">{view.name}<small>{view.slot}</small></span>
+        <span className="ct-name">{view.name}</span>
+        {/* 재실 센서(11/10 재웅): 사람 모양 하나로. 채움=있음, 빈 테두리=없음, 점선=모름 */}
+        <span className={`ct-pres p-${view.presence.toLowerCase()}`} title="재실 센서">
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" /></svg>
+          {view.presence === 'OCCUPIED' ? '있음' : view.presence === 'EMPTY' ? '없음' : '모름'}
+        </span>
         <span className="ct-tags">
           {reports > 0 && <span className="ct-tag warn">신고 {reports}</span>}
           {blocked && <span className="ct-tag warn">{blocked}</span>}
@@ -151,16 +128,10 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
       </span>
       <span className="ct-main">
         <span className="ct-co2">
-          <small className="ct-mlabel">{label}{own ? ' · 이 방만' : ''}</small>
           <TileValue key={metric} view={view} metric={metric} />
           {line && <em className={tone !== 'ok' ? `why ${tone}` : ''}>{advice.length ? <span aria-hidden="true">!</span> : null}{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>}
         </span>
         <Spark view={view} metric={metric} wide={big} />
-      </span>
-      {now && <ClimateChips view={view} now={now} rules={rules} />}
-      <span className="ct-foot">
-        <span>{facts || '센서 없음'}</span>
-        <span className="ct-go" aria-hidden="true">자세히 ›</span>
       </span>
       {onMetric && (
         <span className="ct-metric" role="group" aria-label={`${view.name}에서 볼 값`}>

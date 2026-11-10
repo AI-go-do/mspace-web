@@ -7,6 +7,9 @@ import { ApiError, currentMemberId } from '../api/client'
 import { useNow } from '../lib/useNow'
 import { useUnreadCount } from '../lib/useUnreadCount'
 import './Alerts.css'
+import { IconButton } from '../components/IconAction'
+import { QRCodeSVG } from 'qrcode.react'
+import { getRetrievePass, LEFT_ITEM_KIND, minutesLeft, type RetrievePass } from '../api/retrievePass'
 
 const REFRESH_MS = 30_000
 /** 이 화면에서 읽음으로 바꾼 알림을 서버 값보다 앞세우는 시간. 지나면 서버가 준 읽음 상태를 따른다 */
@@ -138,12 +141,9 @@ export default function Alerts() {
         </button>
         <div>
           <h1>알림</h1>
-          <span className="muted alerts-sub">입실·종료 10분 전, 자리 비움을 알려 드려요</span>
         </div>
         {unread > 0 && (
-          <button type="button" className="link-btn alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()}>
-            {readingAll ? '읽는 중…' : `모두 읽음 (${unread})`}
-          </button>
+          <IconButton icon="checkAll" label={readingAll ? '읽는 중' : `모두 읽음 (${unread})`} className="alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()} />
         )}
       </header>
       {readError && <p role="alert" className="alerts-msg">읽음으로 바꾸지 못했어요. 잠시 후 다시 눌러 주세요.</p>}
@@ -152,7 +152,7 @@ export default function Alerts() {
       {error && (
         <p role="alert" className="alerts-msg">
           {shown ? '새 알림을 못 받아왔어요. 잠시 뒤 다시 받아요.' : '알림을 못 불러왔어요.'}
-          <button type="button" className="link-btn" onClick={load}>다시 받기</button>
+          <IconButton icon="refresh" label="다시 받기" onClick={load} />
         </p>
       )}
 
@@ -194,7 +194,9 @@ export default function Alerts() {
                 <p className="alert-body">{n.body}</p>
                 {n.kind === 'AWAY_SOON' && n.reservationId != null
                   ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} onUse={() => readOne(n.id)} />
-                  : act && <Link to={act.to} className="alert-link" onClick={() => readOne(n.id)}>{act.label}</Link>}
+                  : n.kind === LEFT_ITEM_KIND && n.reservationId != null
+                    ? <RetrieveAction reservationId={n.reservationId} member={ownerRef.current} now={now} onUse={() => readOne(n.id)} />
+                    : act && <Link to={act.to} className="alert-link" onClick={() => readOne(n.id)}>{act.label}</Link>}
               </li>
             )
           })}
@@ -252,6 +254,59 @@ function AwayActions({ reservationId, checkoutTo, onUse }: { reservationId: numb
         )}
       {state.kind === 'error' && <p className="alert-note err" role="alert">{state.message}</p>}
       {checkoutTo && <Link to={checkoutTo} className="btn-line alert-btn" onClick={onUse}>퇴실할게요</Link>}
+    </div>
+  )
+}
+
+/** 받은 찾으러 가기 QR. 30초마다 목록을 다시 받아도 펼친 QR이 접히지 않게 예약 번호로 기억한다 */
+const retrievePasses = new Map<number, RetrievePass>()
+
+/**
+ * 두고 간 물건 알림의 [찾으러 갈게요] (FR-DEV-105, core #114).
+ * 누르면 10분짜리 QR을 받아 바로 보여 준다. 시간이 지나면 다시 눌러 새 QR을 받는다.
+ * 서버가 거절하면(3시간 지남·이미 치움 등) 그 문구를 보여 준다
+ */
+function RetrieveAction({ reservationId, member, now, onUse }: { reservationId: number; member: number | null; now: Date; onUse: () => void }) {
+  const [pass, setPass] = useState<RetrievePass | null>(() => retrievePasses.get(reservationId) ?? null)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // 화면 시계(30초)가 돌 때마다 지금 시각으로 다시 센다(시계 값은 최대 30초 늦어 남은 분이 10을 넘게 보일 수 있어서). 0이면 다시 받게 접는다
+  void now
+  const left = pass ? minutesLeft(pass.expiresAt) : 0
+  const live = pass !== null && left > 0
+
+  async function press() {
+    if (sending) return
+    onUse()
+    setSending(true)
+    setError(null)
+    try {
+      const p = await getRetrievePass(reservationId, member)
+      retrievePasses.set(reservationId, p)
+      setPass(p)
+    } catch (e) {
+      setError(e instanceof ApiError && e.status !== 0 && e.status < 500 ? e.message : '연결이 고르지 않아요. 다시 눌러 주세요.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (live) {
+    return (
+      <div className="alert-actions retrieve">
+        <div className="retrieve-qr" role="img" aria-label="찾으러 들어가는 QR">
+          <QRCodeSVG value={pass.qrText} size={176} level="M" marginSize={2} bgColor="#ffffff" fgColor="#000000" />
+        </div>
+        <p className="alert-note retrieve-left" role="status"><b>{left}분</b> 안에 문에 비춰요</p>
+      </div>
+    )
+  }
+  return (
+    <div className="alert-actions">
+      <button type="button" className="btn-primary alert-btn" disabled={sending} onClick={() => void press()}>
+        {sending ? 'QR 받는 중…' : pass ? '새 QR 받기' : '찾으러 갈게요'}
+      </button>
+      {error && <p className="alert-note err" role="alert">{error}</p>}
     </div>
   )
 }

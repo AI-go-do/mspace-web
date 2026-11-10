@@ -7,6 +7,7 @@ import {
 } from '../api/friends'
 import { BackIcon } from '../components/ReserveSteps'
 import './Friends.css'
+import { IconButton } from '../components/IconAction'
 
 const REQUEST_TIMEOUT_MS = 15_000
 
@@ -96,7 +97,7 @@ export default function Friends() {
       {msg && <p role={msg.error ? 'alert' : 'status'} className={`friends-msg ${msg.error ? 'err' : ''}`}>{msg.text}</p>}
       {loadError && (
         <p role="alert" className="friends-msg err">
-          친구 목록을 못 불러왔어요. <button type="button" className="link-btn" onClick={load}>다시 받기</button>
+          친구 목록을 못 불러왔어요. <IconButton icon="refresh" label="다시 받기" onClick={load} />
         </p>
       )}
       {!data && !loadError && <p className="friends-msg muted" role="status">불러오는 중…</p>}
@@ -113,10 +114,8 @@ export default function Friends() {
                   onClick={() => void run(`acc${r.requestId}`, async (m) => { await acceptFriend(r.requestId, m); return `${r.name}님과 친구가 됐어요.` })}>
                   {busy === `acc${r.requestId}` ? '수락 중' : '수락'}
                 </button>
-                <button type="button" className="link-btn" disabled={!!busy}
-                  onClick={() => void run(`dec${r.requestId}`, async (m) => { await declineFriend(r.requestId, m); return '요청을 거절했어요.' })}>
-                  거절
-                </button>
+                <IconButton icon="close" label="거절" disabled={!!busy}
+                  onClick={() => void run(`dec${r.requestId}`, async (m) => { await declineFriend(r.requestId, m); return '요청을 거절했어요.' })} />
               </span>
             </div>
           ))}
@@ -131,13 +130,10 @@ export default function Friends() {
             <div key={f.studentId} className="person">
               <span className="avatar">{f.name.slice(0, 1)}</span>
               <span className="who"><b>{f.name}</b><span className="muted">{f.studentId}</span></span>
-              <button type="button" className="link-btn" disabled={!!busy}
-                onClick={() => {
+              <IconButton icon="userMinus" label={busy === `rm${f.studentId}` ? '끊는 중' : '친구 끊기'} disabled={!!busy}                onClick={() => {
                   if (!window.confirm(`${f.name}님과 친구를 끊을까요? 이미 잡은 예약은 그대로예요.`)) return
                   void run(`rm${f.studentId}`, async (m) => { await removeFriend(f.studentId, m); return `${f.name}님과 친구를 끊었어요.` })
-                }}>
-                {busy === `rm${f.studentId}` ? '끊는 중' : '끊기'}
-              </button>
+                }} />
             </div>
           ))}
         </section>
@@ -150,10 +146,8 @@ export default function Friends() {
             <div key={r.requestId} className="person">
               <span className="avatar">{r.name.slice(0, 1)}</span>
               <span className="who"><b>{r.name}</b><span className="muted">{r.studentId} · 수락 기다리는 중</span></span>
-              <button type="button" className="link-btn" disabled={!!busy}
-                onClick={() => void run(`can${r.requestId}`, async (m) => { await cancelFriendRequest(r.requestId, m); return '요청을 취소했어요.' })}>
-                {busy === `can${r.requestId}` ? '취소 중' : '취소'}
-              </button>
+              <IconButton icon="close" label={busy === `can${r.requestId}` ? '취소 중' : '요청 취소'} disabled={!!busy}
+                onClick={() => void run(`can${r.requestId}`, async (m) => { await cancelFriendRequest(r.requestId, m); return '요청을 취소했어요.' })} />
             </div>
           ))}
         </section>

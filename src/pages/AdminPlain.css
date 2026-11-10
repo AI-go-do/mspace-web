@@ -274,3 +274,22 @@
 .adm .adm-seg-glow { background: color-mix(in srgb, var(--blue) 9%, var(--white)); border-radius: 7px; box-shadow: inset 0 0 0 1.5px var(--blue); }
 .adm .adm-seg button[aria-pressed='true'] { color: var(--blue); }
 .adm .adm-msg { border-radius: 8px; }
+
+/* 재실 표시(11/10): 칸 머리 이름 옆 작은 사람 모양 */
+.adm .ct-pres { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: var(--c-dim); margin-right: 6px; padding-top: 2px; white-space: nowrap; }
+.adm .ct-pres svg { fill: none; stroke: currentColor; stroke-width: 2; }
+.adm .ct-pres.p-occupied { color: var(--blue); }
+.adm .ct-pres.p-occupied svg { fill: currentColor; }
+.adm .ct-pres.p-unknown svg { stroke-dasharray: 3 2; }
+/* 칸 안 간격을 한 단위(8px)로 맞춤 */
+.adm .ctl-tile { gap: 8px; }
+
+/* 11/10 재웅 "구석구석 글자 많다": 탭 머리 부제, 섹션 설명, 카드 맨 아래 작은 설명 줄은 숨긴다(화면 읽기 프로그램용 이름은 그대로) */
+.adm .adm-head-text p,
+.adm .adm-sec-h p,
+.adm .ap-step div span,
+.adm .ap-rec > .adm-small,
+.adm .ap-log-text .adm-small { display: none; }
+/* 같은 일을 다른 방에서 했을 때 어느 줄을 되돌릴지 알 수 있게 방 이름만 남긴다 */
+.adm .ap-log-room { font-size: 12.5px; color: var(--navy-70); }
+.adm .ap-steps { margin-bottom: 8px; }

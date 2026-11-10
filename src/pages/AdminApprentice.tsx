@@ -137,6 +137,7 @@ export function AdminApprentice() {
                       <span className="ap-time">{hm(d.doneAt)}</span>
                       <div className="ap-log-text">
                         <b>{d.plan}</b>
+                        <span className="ap-log-room">{roomName(d.roomId)}</span>
                         <span className="adm-small">{roomName(d.roomId)} · {t.name} · 레벨 {d.level}에서 처리</span>
                       </div>
                       {d.undone ? <span className="ap-tag">되돌림</span>
@@ -150,8 +151,8 @@ export function AdminApprentice() {
         </section>
       </div>
       <p className="adm-foot">
-        가짜 값 단계예요. 기록은 이 브라우저에만 남고 학생에게 아무것도 보내지 않아요.{' '}
-        <button type="button" className="adm-link" onClick={resetApprentice}>가짜 기록 처음으로</button>
+        시연 기록{' '}
+        <button type="button" className="adm-link" onClick={resetApprentice}>초기화</button>
       </p>
     </section>
   )

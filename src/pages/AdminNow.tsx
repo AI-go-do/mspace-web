@@ -44,7 +44,7 @@ function ActionFeed({ issues, onOpen, sample, checks }: { issues: { v: RoomView;
             <button type="button" className={`cf-item i-${top.tone}`} onClick={() => onOpen(v.roomId)}>
               <span className="cf-no">{v.roomId}</span>
               <span className="cf-text">
-                <small>{v.name} · {top.hands ? '장치 점검' : top.auto ? '오디가 처리' : '장치 확인'}</small>
+                <small>{v.name}</small>
                 <b>{top.title}</b>
                 {top.auto && <span className="cf-auto">오디: {top.auto}</span>}
                 {list.length > 1 && <em>외 {list.length - 1}건 더</em>}
@@ -116,12 +116,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const [metric, setMetric] = useState<TileMetric>('co2')
   const [own, setOwn] = useState<Record<number, TileMetric>>({})
   const pickCommon = (m: TileMetric) => { setMetric(m); setOwn({}) }
-  const pickOwn = (roomId: number, m: TileMetric) => setOwn((o) => {
-    const next = { ...o }
-    if (m === metric) delete next[roomId]
-    else next[roomId] = m
-    return next
-  })
 
   useEffect(() => {
     const memberId = currentMemberId()
@@ -211,7 +205,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     return (
       <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)}
-        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} onMetric={(m) => pickOwn(v.roomId, m)} />
+        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} />
     )
   }
   // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
@@ -227,15 +221,14 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     <section className="admin-now ctl" aria-label="관제실 지금 방 상태">
       <div className="ctl-top">
         <Big label="지금 쓰는 방" value={known ? used : null} of={views.length || ADMIN_ROOMS.length} tone="lead" />
-        <Big label="주의" value={known ? warn + off : null} tone={warn ? 'warn' : off ? 'off' : ''} hint={off ? `장치 확인 ${off} 포함` : '환기·시간 넘김·입실 안 함·문'} />
-        <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
-        <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" hint="관리자 할 일 0" />
+        <Big label="주의" value={known ? warn + off : null} tone={warn ? 'warn' : off ? 'off' : ''} />
+        <Big label="평균 CO2" value={known ? avg : null} unit="ppm" />
+        <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" />
       </div>
 
       <div className="ctl-bar">
         <span className="ctl-live"><i aria-hidden="true" />
-          {readAt ? <>실시간 · 마지막 조회 <b>{seoulClock(readAt)}</b></> : '불러오는 중…'} · {ENV_RULES.pollMs / 1000}초마다</span>
-        {sample && <span className="ctl-sample">가짜 값 · 시연용</span>}
+          {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
             {fast ? <>빨리 감는 중 · 시연 시각 <b>{now ? seoulClock(now) : '–'}</b></> : '빨리 감기 ×60'}
@@ -275,7 +268,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           )}
           {history.length > 0 && (
             <section className="ctl-history" aria-labelledby="ctl-hist-h">
-              <h3 id="ctl-hist-h">이 화면을 연 뒤 오디가 처리한 일</h3>
+              <h3 id="ctl-hist-h">기록</h3>
               <ol>
                 {history.slice(0, 8).map((x) => (
                   <li key={x.key + x.at.getTime()}><time>{seoulClock(x.at)}</time><span><b>{x.room}</b> {x.auto}</span></li>

@@ -21,6 +21,7 @@ import { hasAgreed } from '../content/rules'
 import { seoulClock, seoulDate } from '../lib/time'
 import { addDays, dayLabel, DAY_SLOTS, freeNextDaySlots, lengthLabel, MAX_SLOTS, nextDayReach, roomLink, slotClock, slotClockAcross, tapSlot, weekChips, type Pick } from '../lib/slots'
 import './Reserve.css'
+import { IconButton } from '../components/IconAction'
 
 type Step = 'time' | 'members' | 'rules'
 
@@ -439,7 +440,7 @@ export default function Reserve() {
                 {myWaits.map((w) => (
                   <li key={w.id}>
                     <span>{seoulClock(new Date(w.startAt))} 칸을 기다리는 중 · {w.order}번째</span>
-                    <button type="button" className="link-btn" onClick={() => void cancelWait(w.id).catch(() => undefined)}>그만 기다리기</button>
+                    <IconButton icon="close" label="그만 기다리기" onClick={() => void cancelWait(w.id).catch(() => undefined)} />
                   </li>
                 ))}
               </ul>

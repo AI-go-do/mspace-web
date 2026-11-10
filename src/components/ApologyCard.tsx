@@ -21,7 +21,7 @@ export default function ApologyCard({ n, now, onClose }: { n: AppNotification; n
       <p className="apology-body">{n.body}</p>
       <div className="apology-actions">
         <button type="button" className="btn-line" onClick={() => onClose(n.id)}>괜찮아요</button>
-        <Link to="/rules" className="btn-primary" onClick={() => onClose(n.id)}>내 경고 보기</Link>
+        <Link to="/me/warnings" className="btn-primary" onClick={() => onClose(n.id)}>내 경고 보기</Link>
       </div>
     </section>
   )

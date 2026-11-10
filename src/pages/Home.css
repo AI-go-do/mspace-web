@@ -185,3 +185,19 @@
 .home-section ~ :is(.relay, .butler, .apology, .cl-card.cl-top) + :is(.relay, .butler, .apology, .cl-card.cl-top) { margin-top: 8px; }
 .home-section + .mine-card, .home-section + .today { margin-top: 0; }
 .today-now { font-size: 13px; font-weight: 700; color: var(--navy-70); font-variant-numeric: tabular-nums; }
+
+/* 오늘 브리핑 (11/10): 오늘 수업 + 수업 끝난 뒤 빈 방 하나 */
+.brief { margin: 0 12px; padding: 16px; border-radius: 20px; display: flex; flex-direction: column; gap: 12px; }
+.brief-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.brief-row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 10px; font-size: 14.5px; }
+.brief-time { color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.brief-name { padding: 8px 10px; border-radius: 8px; background: var(--gray); font-weight: 600; display: flex; justify-content: space-between; }
+.brief-name em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--blue); }
+.brief-row.is-done { opacity: 0.45; }
+.brief-row.is-now .brief-time { color: var(--blue); font-weight: 700; }
+.brief-row.is-now .brief-name { background: color-mix(in srgb, var(--blue) 9%, var(--white)); color: var(--blue); }
+.brief-pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid rgba(21, 35, 61, 0.1); color: var(--navy); text-decoration: none; }
+.brief-pick-text { display: flex; flex-direction: column; gap: 2px; }
+.brief-pick-text small { font-size: 12.5px; color: var(--navy-70); }
+.brief-pick-text b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.brief-go { flex: none; min-height: 44px; padding: 0 16px; border-radius: 12px; background: var(--blue); color: var(--white); font-weight: 700; font-size: 14.5px; display: inline-flex; align-items: center; }

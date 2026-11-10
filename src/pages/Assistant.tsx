@@ -14,6 +14,7 @@ import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, sto
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
+import { IconLink } from '../components/IconAction'
 
 /** 간단히 예약하기 첫 질문과 예시 답 (FR-AGT-105). 한 번에 다 말하면 비서가 바로 확인 카드까지 간다 */
 export const QUICK_GREETING = '언제, 누구랑 쓰실 건가요? 말로 해 주셔도 돼요. 저장한 팀이 있으면 "팀 A랑 내일 3시"처럼 말하면 돼요.'
@@ -699,8 +700,8 @@ function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: bool
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 QR 보기 →</Link>
-            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+            ? <IconLink to={`/reservations/${r.reservationId}`} icon="qr" label="입실 QR 보기" />
+            : <IconLink to={`/me/${r.reservationId}`} icon="info" label="내 예약에서 보기" />}
         </div>
         {/* 새로고침 뒤에도 마지막 결과 카드의 다음 말 버튼은 남긴다(글만 저장, 토큰·입실 번호 없음) */}
         {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
@@ -902,8 +903,8 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 QR 보기 →</Link>
-            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+            ? <IconLink to={`/reservations/${r.reservationId}`} icon="qr" label="입실 QR 보기" />
+            : <IconLink to={`/me/${r.reservationId}`} icon="info" label="내 예약에서 보기" />}
           {members.length > 0 && <TeamSave owner={owner} members={members} />}
         </div>
         {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
