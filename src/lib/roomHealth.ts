@@ -120,11 +120,20 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   })
   // 판단값은 지금부터 k분 안에 찍힌 값만으로 가운데값을 낸다. 최근 값이 빠졌을 때 오래된 낮은 값이 경고를 덮지 않게
   const freshFrom = now.getTime() - k * 60_000
-  const fresh = history
-    .filter((v, i): v is number => v !== null && new Date(times[i]).getTime() > freshFrom)
-    .slice(-k)
-    .sort((a, b) => a - b)
+  const freshPts = history
+    .map((v, i) => ({ v, t: new Date(times[i]).getTime() }))
+    .filter((p): p is { v: number; t: number } => p.v !== null && p.t > freshFrom)
+  // 지금 값이 분마다 값보다 새로우면 같이 넣는다(이미 들어 있으면 두 번 세지 않는다)
+  const curAt = env.co2 ? new Date(env.co2.at).getTime() : NaN
+  if (co2 !== null && curAt > freshFrom && !(freshPts.length && freshPts[freshPts.length - 1].t >= curAt)) freshPts.push({ v: co2, t: curAt })
+  const fresh = freshPts.slice(-k).map((p) => p.v).sort((a, b) => a - b)
   const co2Judge = co2 === null ? null : k === 1 || fresh.length === 0 ? co2 : fresh[Math.floor(fresh.length / 2)]
+  // 추세는 끊김(분마다 값 사이가 1.5분 넘게 빔) 뒤 이어진 값으로만. 끊긴 앞뒤를 1분 차이로 잇지 않게
+  let gapAt = 0
+  for (let i = times.length - 1; i > 0; i--) {
+    if (new Date(times[i]).getTime() - new Date(times[i - 1]).getTime() > 90_000) { gapAt = i; break }
+  }
+  const trendSmooth = smooth.slice(gapAt)
   const stuck = co2 !== null && sameForMinutes >= rules.stuckMinutes
   const offline = env.offline
 
@@ -136,7 +145,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
       forecast = env.forecast.slice(0, rules.forecastMinutes).map((f) => f.ppm)
       forecastFrom = 'model'
     } else {
-      const slope = trendSlope(smooth)
+      const slope = trendSlope(trendSmooth)
       if (slope !== null) {
         forecast = Array.from({ length: rules.forecastMinutes }, (_, i) => Math.round(co2Judge! + slope * (i + 1 + (k - 1) / 2)))  // 가운데값은 (k-1)/2분 늦으니 그만큼 앞당긴다
         forecastFrom = 'trend'
@@ -162,12 +171,15 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const occupied = env.presence === 'OCCUPIED'
   // 재실이 최근 presenceHoldMinutes분 내내 state였는지. 분마다 값이 없으면 지금 값만 본다
   const pHold = Math.max(1, rules.presenceHoldMinutes ?? 1)
-  const heldFor = (state: boolean) => occupancy.slice(-pHold).every((o) => o === null || o === state)
+  // 최근 pHold분 안에 찍힌 값만 본다. 그런 값이 없으면 지금 재실로 판단한다
+  const pFrom = now.getTime() - pHold * 60_000
+  const recentOcc = occupancy.filter((_, i) => new Date(times[i]).getTime() > pFrom)
+  const heldFor = (state: boolean) => recentOcc.slice(-pHold).every((o) => o === null || o === state)
   const endMs = env.current ? new Date(env.current.endAt).getTime() : null
   const overtimeMinutes = occupied && endMs !== null && now.getTime() > endMs ? Math.floor((now.getTime() - endMs) / 60_000) : 0
   const overtime = overtimeMinutes >= rules.overtimeGraceMinutes && heldFor(true)
   // 무단 사용 의심: 걸린 예약이 없는데(끝난 예약에 남은 건 "시간 넘김"이 맡는다) 최근 10분 CO2가 계속 오름
-  const slope = co2 !== null && !stuck && !offline ? trendSlope(smooth) : null
+  const slope = co2 !== null && !stuck && !offline ? trendSlope(trendSmooth) : null
   const unbooked = env.current === null && slope !== null && slope >= rules.unbookedRisePpmPerMin
 
   // 빈 방 문이 오래 열려 있음(사람이 있으면 환기라 괜찮다)

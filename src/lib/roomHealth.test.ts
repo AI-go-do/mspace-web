@@ -40,6 +40,20 @@ describe('toRoomView', () => {
     expect(v.flags.co2Over).toBe(true)
   })
 
+  it('분마다 값보다 새로 온 지금 값도 판단에 넣는다', () => {
+    const r = room(() => 600, {}, 1)
+    const series = r.series.map((p) => ({ ...p, at: iso(1) }))  // 1분 전 600 하나
+    const v = toRoomView({ ...r, series, co2: { ppm: 1200, at: iso(0) } }, cfg, now)
+    expect(v.flags.co2Over).toBe(true)
+  })
+
+  it('끊긴 앞뒤 값을 이어 추세로 그리지 않는다', () => {
+    const r = room((i) => 600 + 15 * i, {}, 3)
+    const series = [...r.series.map((p, i) => ({ ...p, at: iso(20 - i) })), { at: iso(0), ppm: 900, temperatureC: 24, humidityPct: 45 }]
+    const v = toRoomView({ ...r, series, co2: { ppm: 900, at: iso(0) } }, cfg, now)
+    expect(v.flags.co2Soon).toBe(false)
+  })
+
   it('천천히 오르면 주의가 아니고 15분 뒤 값만 보여 준다', () => {
     const v = toRoomView(room((i) => 600 + i), cfg, now)
     expect(v.flags.co2Soon).toBe(false)
