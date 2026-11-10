@@ -103,6 +103,17 @@ describe('toRoomView', () => {
     expect(toRoomView(room((i) => 700 + (i % 3), { current }), cfg, now).flags.overtime).toBe(false)
   })
 
+  it('최근 재실 값이 일부만 있으면 hold분을 다 채우기 전에는 시간 넘김으로 보지 않는다', () => {
+    const current = { reservationId: 1, startAt: iso(98), endAt: iso(8), people: 3 }
+    const r = room((i) => 700 + (i % 3), { current })
+    // 최근 3분 중 한 번만 재실 true, 나머지는 값 없음
+    const series = r.series.map((p, i) => (i === r.series.length - 1 ? { ...p, occupied: true } : p))
+    expect(toRoomView({ ...r, series }, cfg, now).flags.overtime).toBe(false)
+    // 3분 내내 true면 시간 넘김
+    const full = r.series.map((p, i) => (i >= r.series.length - 3 ? { ...p, occupied: true } : p))
+    expect(toRoomView({ ...r, series: full }, cfg, now).flags.overtime).toBe(true)
+  })
+
   it('빈 방이 27.5°C 넘어도 노랑으로 올리지 않고 참고로만 둔다(덥다는 느낌은 사람마다 달라서)', () => {
     const v = toRoomView(room((i) => 480 + (i % 2), { presence: 'EMPTY', temperatureC: 27.8, next: { startAt: iso(-79), people: 4 } }), cfg, now)
     expect(v.flags.hot).toBe(true)

@@ -174,7 +174,9 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   // 최근 pHold분 안에 찍힌 값만 본다. 그런 값이 없으면 지금 재실로 판단한다
   const pFrom = now.getTime() - pHold * 60_000
   const recentOcc = occupancy.filter((_, i) => new Date(times[i]).getTime() > pFrom)
-  const heldFor = (state: boolean) => recentOcc.slice(-pHold).every((o) => o === null || o === state)
+  const known = recentOcc.filter((o): o is boolean => o !== null).slice(-pHold)
+  // 값이 하나도 없으면 지금 재실로, 일부만 있으면 pHold분을 다 채워야 같다고 본다(한 번 깜빡임에 나서지 않게)
+  const heldFor = (state: boolean) => known.length === 0 || (known.length >= pHold && known.every((o) => o === state))
   const endMs = env.current ? new Date(env.current.endAt).getTime() : null
   const overtimeMinutes = occupied && endMs !== null && now.getTime() > endMs ? Math.floor((now.getTime() - endMs) / 60_000) : 0
   const overtime = overtimeMinutes >= rules.overtimeGraceMinutes && heldFor(true)
