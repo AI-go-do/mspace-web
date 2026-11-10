@@ -166,14 +166,6 @@ export default function Home() {
           </Link>
         </div>
         <div className="home-now">
-          <span className="home-sub">지금 {seoulClock(now)} · 비어 있는 방</span>
-          <span className="home-count">
-            <span className="dot-sky" aria-hidden="true" />
-            {day
-              ? <span><span aria-hidden="true">{rooms.length}개 중 <b className="count-num">{freeShown}</b>개</span><span className="sr-only">{rooms.length}개 중 {freeCount}개</span></span>
-              : '불러오는 중'}
-            {sample && <span className="sample">예시</span>}
-          </span>
           <div className="chips">
             {/* 지금 비어 있는 방이 있을 때만 바로 쓰기를 연다 (FR-WEB-102) */}
             {day && freeCount > 0
@@ -223,10 +215,10 @@ export default function Home() {
       )}
       {climate && !climateUrgent && <ClimateCard view={climate} now={now} />}
 
-      <h2 className="home-section">오늘 방 현황</h2>
+      <h2 className="home-section">오늘 방 현황{sample && <small className="muted"> · 예시</small>}</h2>
       <section className="card today" aria-label="오늘 방 현황">
         <div className="today-head">
-          <span className="today-now">지금 {seoulClock(now)}</span>
+          <span className="today-now">지금 {seoulClock(now)}{day && <> · 빈 방 <b>{freeShown}</b>/{rooms.length}</>}</span>
           <span className="legend">
             <span><i className="lg lg-free" />빈 시간</span>
             <span><i className="lg lg-taken" />예약됨</span>
