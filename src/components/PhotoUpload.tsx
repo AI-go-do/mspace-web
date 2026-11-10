@@ -29,9 +29,14 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-export default function PhotoUpload({ reservationId, kind, onBusyChange, disabled = false }: {
+export default function PhotoUpload({ reservationId, kind, onBusyChange, disabled = false, title, why, required = false }: {
   reservationId: number
   kind: PhotoKind
+  /** 제목·설명을 바꿀 때 (신고 화면의 어질러짐 등). 없으면 기본 문구 */
+  title?: string
+  why?: string
+  /** 필수일 때는 "안 올려도 그대로 돼요"를 빼요 */
+  required?: boolean
   /** 부모가 다른 일(퇴실 요청 등)을 하는 동안 사진을 새로 올리지 못하게 한다 */
   disabled?: boolean
   /** 올리는 동안 부모가 화면을 바꾸지 않게(퇴실하기 등) 알려 준다 */
@@ -43,7 +48,7 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  const copy = COPY[kind]
+  const copy = { title: title ?? COPY[kind].title, why: why ?? COPY[kind].why }
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -77,7 +82,7 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
         <p role="status" className="photo-done">{done}</p>
       ) : (
         <>
-          <p className="muted small">{copy.why} 안 올려도 {kind === 'CHECK_IN' ? '입실' : '퇴실'}은 그대로 돼요.</p>
+          <p className="muted small">{copy.why}{!required && <> 안 올려도 {kind === 'CHECK_IN' ? '입실' : '퇴실'}은 그대로 돼요.</>}</p>
           <input ref={fileRef} type="file" accept={ACCEPT.join(',')} hidden onChange={pick} />
           <button type="button" className="btn-line" disabled={busy || disabled} onClick={() => fileRef.current?.click()}>
             {busy ? '사진 올리는 중…' : '사진 찍기·고르기'}

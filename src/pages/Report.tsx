@@ -5,6 +5,7 @@ import {
   CATEGORIES, clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
   type ReportCategory, type SubmittedReport,
 } from '../api/reports'
+import PhotoUpload from '../components/PhotoUpload'
 import { BackIcon } from '../components/ReserveSteps'
 import './Report.css'
 
@@ -47,6 +48,8 @@ export default function Report() {
   const [content, setContent] = useState(draft?.content ?? '')
   const [noiseConfirmed, setNoiseConfirmed] = useState(false)
   const [sending, setSending] = useState(false)
+  // 사진을 올리는 동안 신고를 보내면 core가 아직 사진이 없다고 거절하니 기다린다
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<SubmittedReport | null>(null)
 
@@ -60,7 +63,7 @@ export default function Report() {
   async function send(e: FormEvent) {
     e.preventDefault()
     const memberId = currentMemberId()
-    if (sending || problem || roomId === null || category === null || memberId === null) return
+    if (sending || photoBusy || problem || roomId === null || category === null || memberId === null) return
     setSending(true)
     setError(null)
     try {
@@ -139,13 +142,16 @@ export default function Report() {
               정말 소란인가요? 공부를 계속하기 어려울 만큼이에요
             </label>
           )}
-          {category === 'MESSY' && (
-            <p className="muted report-note" role="note">
-              {MESSY_RULE}
-              {reservationId !== null && <> <Link to={`/me/${reservationId}`}>입실 사진 올리기</Link></>}
-            </p>
-          )}
+          {category === 'MESSY' && <p className="muted report-note" role="note">{MESSY_RULE}</p>}
         </fieldset>
+
+        {/* 어질러짐은 입실 사진이 있어야 보낼 수 있어서(core 409 REPORT_CHECKIN_PHOTO_REQUIRED) 메모처럼 칸으로 바로 받는다.
+            이미 올렸으면 다시 골랐을 때 "이미 올라가 있어요"로 바뀐다 */}
+        {category === 'MESSY' && reservationId !== null && (
+          <PhotoUpload key={`${reservationId}-${currentMemberId()}-report`} reservationId={reservationId} kind="CHECK_IN"
+            title="입실 사진 (어질러짐은 필수)" why="들어왔을 때 어질러진 모습을 찍어 주세요. 관리자가 판정할 때 이 사진을 봐요."
+            required disabled={sending} onBusyChange={setPhotoBusy} />
+        )}
 
         <div className="card report-sec">
           <label htmlFor="report-content"><b>메모 (선택)</b></label>
@@ -160,7 +166,7 @@ export default function Report() {
 
         <div className="rs-bar">
           {problem && <p className="count-hint" role="status">{problem}</p>}
-          <button className="btn-primary" disabled={!!problem || sending}>{sending ? '보내는 중…' : '신고 보내기'}</button>
+          <button className="btn-primary" disabled={!!problem || sending || photoBusy}>{sending ? '보내는 중…' : '신고 보내기'}</button>
         </div>
       </form>
     </main>
