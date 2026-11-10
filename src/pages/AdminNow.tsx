@@ -34,7 +34,7 @@ export function cardTone(view: RoomView, advice: Advice[]): RoomView['tone'] {
  * 오른쪽 "오디가 한 일"(10차 회의: 관리자는 보기만). 방 하나에 한 장, 누르면 그 방 상세 창.
  * 오디가 대신 처리한 일은 파랑 줄로, 장치처럼 사람 손이 꼭 필요한 일만 남색 "장치 확인"으로 남긴다
  */
-function ActionFeed({ issues, onOpen, sample }: { issues: { v: RoomView; list: Advice[] }[]; onOpen: (roomId: number) => void; sample: boolean }) {
+function ActionFeed({ issues, onOpen, sample, checks }: { issues: { v: RoomView; list: Advice[] }[]; onOpen: (roomId: number) => void; sample: boolean; checks: number }) {
   return (
     <ul className="ctl-feed">
       {issues.map(({ v, list }, i) => {
@@ -52,6 +52,7 @@ function ActionFeed({ issues, onOpen, sample }: { issues: { v: RoomView; list: A
               <span className="cf-go" aria-hidden="true">›</span>
             </button>
             {top.steps && <Judge steps={top.steps} sample={sample} />}
+            {top.hands && <div className="ca-watch"><Watch sample={sample} checks={checks} did={top.auto} /></div>}
           </li>
         )
       })}
@@ -186,8 +187,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
 
   // 맨 위 "오디가 처리": 오디가 대신 처리한 방 수, 장치처럼 사람 손이 필요한 방 수
   const handled = issues.filter((x) => !!x.list[0].auto && !x.list[0].hands).length
-  // 사람이 장치를 직접 봐야 하는 방(센서 끊김·멈춤). 맨 위 빨간 경고 줄로 띄운다
-  const alerts = issues.filter((x) => x.list[0].tone === 'off')
 
   // 새로 생긴 일만 기록에 올린다(바로 앞 조회에 없던 것). 분 숫자가 바뀌는 건 같은 일로 본다
   const keyOf = (roomId: number, title: string) => `${roomId}:${title.replace(/\d+/g, '#')}`
@@ -242,23 +241,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           </button>
         )}
       </div>
-      {alerts.length > 0 && (
-        <div className="ctl-alert" role="alert">
-          <b className="ca-title">장치 점검 {alerts.length}곳</b>
-          <ul>
-            {alerts.map(({ v, list }) => (
-              <li key={v.roomId}>
-                <button type="button" onClick={() => setOpenRoom(v.roomId)}>
-                  <span className="ca-room">{v.name}</span>
-                  <span className="ca-text"><b>{list[0].title}</b></span>
-                  <span aria-hidden="true">›</span>
-                </button>
-                <div className="ca-watch"><Watch sample={sample} checks={reads} did={list[0].auto} /></div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
 
       <div className="ctl-grid">
@@ -280,7 +262,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
           <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length : '–'}</b></h2>
-          {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} sample={sample} />}
+          {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} sample={sample} checks={reads} />}
           {known && issues.length === 0 && unknownRooms === 0 && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 오디가 지켜보고 있어요.</p>
           )}
