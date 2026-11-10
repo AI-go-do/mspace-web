@@ -61,14 +61,17 @@ export function saveAgreed(): void {
 }
 
 /** 이용 규칙 화면(FR-WEB-003)의 예약 규칙 칸 */
-export const BOOKING_FACTS: { big: string; small: string; strong?: boolean }[] = [
-  { big: '7일', small: '오늘부터 7일 안' },
-  { big: '2시간', small: '한 번에 최대' },
-  { big: '30분', small: '시간 단위' },
-  { big: '1건', small: '대표자·참여자 모두 진행 중' },
-  { big: '15분', small: '안에 입실, 아니면 노쇼', strong: true },
-  { big: '3–5명', small: '창작실 1–4 · 5번은 5–8명' },
-]
+/** 이용 규칙 화면의 예약 숫자 (요구사항 3.2·4장). 그림과 문장이 모두 여기서 읽는다 */
+export const BOOKING = {
+  advanceDays: 7,
+  slotMinutes: 30,
+  maxMinutes: 120,
+  noShowMinutes: 15,
+  instantNoShowMinutes: 10,
+  smallRoom: '3–5',
+  bigRoom: '5–8',
+  instantNote: '지금 바로 쓰기는 누른 때부터, 입실은 10분 안이에요.',
+} as const
 
 /** 표지판 그림 종류 (이용 규칙 화면) */
 export type SignIcon = 'noise' | 'food' | 'trash' | 'seat' | 'door' | 'bag' | 'camera'

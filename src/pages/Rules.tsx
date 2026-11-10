@@ -4,7 +4,8 @@ import { ApiError } from '../api/client'
 import { getMyPenalty, penaltySummary, type MyPenalty } from '../api/penalties'
 import { useAuth } from '../auth/AuthProvider'
 import { PenaltyHistory } from '../components/PenaltyHistory'
-import { BOOKING_FACTS, ROOM_RULES, type SignIcon } from '../content/rules'
+import { ROOM_RULES, type SignIcon } from '../content/rules'
+import { BookingRules } from '../components/BookingRules'
 import { demoOn } from '../lib/demo'
 import { useMemberId } from '../lib/useMemberId'
 import './Rules.css'
@@ -28,14 +29,7 @@ export default function Rules() {
 
       <MyPenaltyCard />
 
-      <section className="rules-board" aria-labelledby="booking-title">
-        <h2 id="booking-title" className="board-title">예약</h2>
-        <div className="facts">
-          {BOOKING_FACTS.map((f) => (
-            <div key={f.big} className={`fact ${f.strong ? 'hl' : ''}`}><b>{f.big}</b><span>{f.small}</span></div>
-          ))}
-        </div>
-      </section>
+      <BookingRules />
 
       <section className="rules-signs-sec" aria-labelledby="room-title">
         <h2 id="room-title" className="sec-title">방에서</h2>
