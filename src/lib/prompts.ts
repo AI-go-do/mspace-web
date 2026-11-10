@@ -74,7 +74,7 @@ export function fillTemplates(query: string): string[] {
     const h = Number(t[2])
     if (h >= 0 && h <= 24) {
       const ampm = t[1] ?? (h >= 1 && h <= 8 ? '오후' : '')
-      time = `${ampm ? `${ampm} ` : ''}${h}시${t[3] ? ' 반' : ''}`
+      time = `${ampm ? `${ampm} ` : ''}${h}시${t[3] ? ` ${t[3]}` : ''}`
     }
   }
   const d = day ? `${day} ` : ''
