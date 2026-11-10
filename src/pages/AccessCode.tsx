@@ -272,6 +272,7 @@ export default function AccessCode() {
             : showCode
             ? (r.status === 'BOOKED' ? '문 앞 카메라에 QR을 비춰 주세요 · 화면이 꺼지지 않아요' : '잠깐 나갔다 와도 같은 QR로 열려요')
             : !r.owner ? 'QR은 대표자에게만 보여요. 대표자와 같이 들어가요'
+            : active ? '입실 QR을 아직 못 받았어요. 잠시 뒤 다시 열어 주세요'
             : r.status === 'NO_SHOW' ? '입실 시간이 지나 예약이 풀렸어요'
             : '끝난 예약이라 QR이 꺼졌어요'}
         </span>
@@ -295,7 +296,7 @@ export default function AccessCode() {
           {(showCode || entered) && (
             <>
               {/* 문 앞 웹캠이 읽는 입실 QR. 흰 바탕에 검은 칸, 화면 폭의 60% 넘게. 밝기를 올려 두면 더 잘 읽힌다 */}
-              {r.status === 'BOOKED' && r.qrText && (
+              {(r.status === 'BOOKED' || r.status === 'IN_USE') && r.qrText && (
                 <div className="code-qr" role="img" aria-label="입실 QR. 문 앞 카메라에 비춰 주세요">
                   <QRCodeSVG value={r.qrText} size={256} level="M" marginSize={2} bgColor="#ffffff" fgColor="#000000" />
                 </div>
