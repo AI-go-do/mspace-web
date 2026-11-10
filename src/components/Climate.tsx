@@ -69,12 +69,14 @@ function useFlash(): [string | null, (s: string) => void] {
  * 방 하나의 에어컨·공기청정기. 위에는 "지금 켜면 좋은 것" 권유, 아래에는 기기마다 켜기·끄기.
  * 관리자 방 상세 창과 학생 홈 카드가 같이 쓴다. 가짜 단계라 누르면 이 화면 안에서만 켜진다
  */
-export function ClimatePanel({ view, now, by, member, compact }: {
+export function ClimatePanel({ view, now, by, member, compact, locked = false }: {
   view: RoomView
   now: Date
   by: CommandBy
   member?: number | null
   compact?: boolean
+  /** 가짜(시연) 값을 보고 실제 기기에 명령을 보내지 않게 단추를 막는다 */
+  locked?: boolean
 }) {
   const store = useAppliances()
   const [flash, setFlash] = useFlash()
@@ -87,6 +89,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
 
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
+    if (locked) { setError('시연 값이라 실제 기기는 움직이지 않아요.'); return }
     // 학생이 켜져 있던 에어컨을 끄면 그때 방 온도를 배운다(자주 일찍 끄는 방은 목표를 반 도씩 고친다). 끄기가 성공했을 때만
     const prev = get(a.id)
     const off = by === 'STUDENT' && a.kind === 'ac' && cmd.power === 'OFF' && prev.power === 'ON' && prev.mode && view.temperatureC !== null
@@ -115,7 +118,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
       {tips.length > 0 && (
         <ul className="cl-tips">
           {tips.map((t: ClimateTip) => {
-            const busy = t.appliance ? isSending(t.appliance.id) : false
+            const busy = locked || (t.appliance ? isSending(t.appliance.id) : false)
             return (
               <li key={t.key} className={`cl-tip w-${t.why} ${t.urgent && !(by === 'ADMIN' && (t.why === 'cool' || t.why === 'heat')) ? 'urgent' : ''}`}>
                 <span className="cl-tip-text">
@@ -137,7 +140,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
         {appliances.map((a) => {
           const s = get(a.id)
           const on = s.power === 'ON'
-          const busy = isSending(a.id)
+          const busy = locked || isSending(a.id)
           return (
             <li key={a.id} className={`cl-dev ${on ? 'on' : ''} ${busy ? 'busy' : ''}`}>
               <span className="cl-dev-ico"><Icon kind={a.kind} on={on} /></span>
