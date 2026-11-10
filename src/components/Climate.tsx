@@ -148,7 +148,7 @@ export function ClimatePanel({ view, now, by, member, compact, locked = false }:
               <span className="cl-dev-ico"><Icon kind={a.kind} on={on} /></span>
               <span className="cl-dev-text">
                 <b>{a.name}</b>
-                <small>{locked ? '시연 값 · 조작 막힘' : sending ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
+                <small>{locked ? `${stateLabel(s)} · 시연 값이라 조작 막힘` : sending ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
               </span>
               <button type="button" className={`cl-sw ${on ? 'on' : ''}`} role="switch" aria-checked={on} disabled={busy}
                 aria-label={`${a.name} ${on ? '끄기' : '켜기'}`} onClick={() => send(a, on ? { power: 'OFF' } : manualOn(a))}>

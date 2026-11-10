@@ -48,7 +48,7 @@ interface Store {
 const AUTO_KEY = 'mspace.admin.climateAuto'
 function readAuto(): boolean {
   // 10차 회의: 기기는 에이전트가 알아서 켜고 끈다 → 기본은 켜짐(끈 적이 있을 때만 꺼짐)
-  try { return localStorage.getItem(AUTO_KEY) !== '0' } catch { return true }
+  try { return localStorage.getItem(AUTO_KEY) !== '0' } catch { return false }
 }
 
 let store: Store = { states: {}, log: [], auto: readAuto() }
