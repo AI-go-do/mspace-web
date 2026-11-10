@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import Spacey from '../components/Spacey'
+import Odi from '../components/Odi'
 import { getMyReservations, isActive, type MyReservation } from '../api/reservations'
 import { getAvailability, type DayAvailability, type RoomSlots } from '../api/rooms'
 import { getSchedule, type Schedule } from '../api/schedule'
@@ -137,6 +137,8 @@ export default function Home() {
     return env ? toRoomView({ ...env, presence: 'OCCUPIED' }, ADMIN_ROOMS.find((c) => c.roomId === inRoom), now) : null
   }, [now, inRoom])
   const climateUrgent = !!climate && (climate.flags.co2Soon || climate.flags.co2Over)
+  // 오디가 먼저 챙긴 것(위에서부터 릴레이 · 비서 제안 · 방의 사과 · 급한 공기) 수. 오디 얼굴 배지에 더한다
+  const firstCount = (offer ? 1 : 0) + (butler ? 1 : 0) + (apology ? 1 : 0) + (climate && climateUrgent ? 1 : 0)
   // "숨 막히기 N분 전"이 처음 뜨면 알림함에 한 번 넣는다(예약당 최대 2번, api/co2Alert.ts). 창문은 자동으로 못 열어서 알림으로 알린다
   useEffect(() => {
     if (!climate || inUseId === null || !demoOn()) return
@@ -154,7 +156,7 @@ export default function Home() {
           </g>
         </svg>
         <div className="home-top">
-          <span className="home-brand">M-space</span>
+          <span className="home-brand"><Odi size={30} />오디</span>
           <Link to="/alerts" className="icon-btn" aria-label={unread ? `알림, 안 읽은 알림 ${unread}개` : '알림'}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -182,31 +184,49 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 비서를 첫 화면에 (FR-AGT-105, 11/9 회의). 안 읽은 소식은 카톡처럼 숫자 배지로(종 버튼보다 먼저 눈에 띄게) */}
-      <div className="card quick-ai">
-        <Link to="/assistant?quick=1" className="quick-ai-main">
-          <span className="quick-ai-face">
-            <Spacey size={36} />
-            {!!unread && <span className="quick-ai-badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
+      {/* 오디(비서)를 첫 화면 맨 위에 (FR-AGT-105, 11/10 재웅 시안). 부탁하기 → 오디가 먼저 챙긴 것 → 내 예약 → 오늘 방 현황 순서 */}
+      <section className="card odi-panel" aria-labelledby="odi-title">
+        <div className="odi-panel-head">
+          <Odi size={48} badge={firstCount + (unread ?? 0)} />
+          <span className="odi-panel-text">
+            <h2 id="odi-title">오디</h2>
+            <span className="muted">{firstCount ? `먼저 챙긴 게 ${firstCount}개 있어요` : '말하거나 쳐서 부탁해 보세요'}</span>
           </span>
-          <span className="quick-ai-text">
-            <strong>AI로 간단히 예약하기</strong>
-            <span className="muted">"내일 3시에 잡아 줘" 한마디면 돼요</span>
-          </span>
-          <span className="quick-ai-go" aria-hidden="true">›</span>
+        </div>
+        <Link to="/assistant?quick=1" className="btn-primary odi-ask">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 17v4" />
+          </svg>
+          AI로 간단히 예약하기
         </Link>
-        {!!unread && <Link to="/alerts" className="quick-ai-news">스페이시가 알려 줄 소식 {unread}개 →</Link>}
-      </div>
+        <span className="odi-hint">"내일 3시에 넷이서 2시간" 한마디면 돼요</span>
+      </section>
 
+      {firstCount > 0 && <h2 className="home-section">오디가 먼저 챙긴 것</h2>}
       {offer && <RelayCard key={offer.id} o={offer} onDecline={decline} />}
       {butler && <ButlerCard key={butler.kind} s={butler} now={now} onGo={butler.kind === 'roomFree' ? () => unwatch(butler.roomId) : undefined} />}
       {apology && <ApologyCard key={apology.id} n={apology} now={now} onClose={closeApology} />}
       {/* 숨 막히기 직전·넘음이면 방 현황보다 먼저 */}
       {climate && climateUrgent && <ClimateCard view={climate} now={now} top />}
 
-      <section className="card today" aria-labelledby="today-title">
+      {card && (
+        <>
+          <h2 className="home-section">내 예약</h2>
+          <Link to={`/reservations/${card.id}`} className="mine-card">
+            <span className="mine-card-text">
+              <span>{Date.parse(card.startAt) < dayStart ? '어제' : '오늘'} {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
+              <b>{card.owner ? '입실 QR 보기' : '예약 보기'}</b>
+            </span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          </Link>
+        </>
+      )}
+      {climate && !climateUrgent && <ClimateCard view={climate} now={now} />}
+
+      <h2 className="home-section">오늘 방 현황</h2>
+      <section className="card today" aria-label="오늘 방 현황">
         <div className="today-head">
-          <h2 id="today-title">오늘 방 현황</h2>
+          <span className="today-now">지금 {seoulClock(now)}</span>
           <span className="legend">
             <span><i className="lg lg-free" />빈 시간</span>
             <span><i className="lg lg-taken" />예약됨</span>
@@ -284,17 +304,6 @@ export default function Home() {
         <div className="hours" aria-hidden="true"><span>0시</span><span>12시</span><span>24시</span></div>
       </section>
 
-      {climate && !climateUrgent && <ClimateCard view={climate} now={now} />}
-
-      {card && (
-        <Link to={`/reservations/${card.id}`} className="mine-card">
-          <span className="mine-card-text">
-            <span>내 예약 · {Date.parse(card.startAt) < dayStart ? '어제' : '오늘'} {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
-            <b>{card.owner ? '입실 QR 보기' : '예약 보기'}</b>
-          </span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-        </Link>
-      )}
     </main>
   )
 }

@@ -113,3 +113,44 @@
 .pick-note { line-height: 1.5; }
 .ask-chip.team { border-color: var(--blue); color: var(--blue); font-weight: 700; }
 .team-save { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--gray); }
+
+/* ---------- 연관 추천 (11/10 재웅: 떠 있는 버튼 대신 칠 때 튀어나오게) ---------- */
+.suggest {
+  margin: 0 0 4px; padding: 4px; list-style: none; background: var(--white); border-radius: 18px;
+  box-shadow: 0 0 0 1px var(--line), 0 10px 24px -14px rgba(21, 35, 61, 0.35);
+  transform-origin: bottom center; animation: suggest-in 0.22s var(--ease-out, ease-out) backwards;
+}
+@keyframes suggest-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+.suggest li { animation: suggest-row 0.24s var(--ease-out, ease-out) backwards; animation-delay: calc(var(--k, 0) * 35ms); }
+@keyframes suggest-row { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.suggest button {
+  width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 14px; background: none; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; font-size: 15px; color: var(--navy-70);
+}
+.suggest button svg { flex: none; color: var(--navy-70); opacity: 0.6; }
+.suggest button b { color: var(--navy); font-weight: 800; }
+.suggest button:hover, .suggest button.on { background: var(--gray); color: var(--navy); }
+
+/* ---------- 마이크·보내기 한 버튼 ---------- */
+.act {
+  position: relative; width: 48px; height: 48px; flex: none; border: 0; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; background: var(--white); color: var(--blue);
+  transition: background-color 0.25s, color 0.25s, transform 0.15s;
+}
+.act > * { grid-area: 1 / 1; transition: opacity 0.22s, transform 0.32s var(--ease-spring, cubic-bezier(.34, 1.56, .64, 1)); }
+.act .i-send, .act .i-stop { opacity: 0; transform: scale(0.4) rotate(-90deg); }
+.act .i-stop { width: 16px; height: 16px; border-radius: 4px; background: currentColor; }
+.act-send { background: var(--blue); color: var(--white); }
+.act-send .i-mic, .act-stop .i-mic { opacity: 0; transform: scale(0.4) rotate(90deg); }
+.act-send .i-send { opacity: 1; transform: none; }
+.act-stop { background: var(--blue); color: var(--white); animation: mic-pulse 1.2s ease-in-out infinite; }
+.act-stop .i-stop { opacity: 1; transform: none; }
+.act:active:not(:disabled) { transform: scale(0.92); }
+.act:disabled { cursor: default; }
+.act-send:disabled { background: var(--white); color: var(--navy-70); }
+.act-mic:disabled { opacity: 0.6; }
+.act:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .suggest, .suggest li, .act-stop { animation: none; }
+  .act > * { transition: none; }
+}

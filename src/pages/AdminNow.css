@@ -9,7 +9,7 @@
 
 /* ---------- 큰 숫자 ---------- */
 .ctl-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 720px) { .ctl-top { grid-template-columns: 1.3fr repeat(3, minmax(0, 1fr)) 1.2fr; gap: 12px; } }
+@media (min-width: 720px) { .ctl-top { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; } }
 .ctl-big {
   position: relative; min-width: 0; padding: 14px 18px; border-radius: 20px; display: flex; flex-direction: column; gap: 2px;
   background: var(--c-glass); box-shadow: inset 0 0 0 1px var(--c-line); text-align: left; font: inherit; color: inherit;
@@ -426,3 +426,40 @@
 .sb-tip { position: absolute; top: -4px; transform: translate(-50%, -100%); padding: 3px 8px; border-radius: 8px; background: var(--white); color: var(--navy); font-size: 11.5px; font-weight: 800; white-space: nowrap; pointer-events: none; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.5); }
 .sb-empty { position: absolute; inset: 6px 0 6px; display: grid; place-items: center; padding: 0 8px; border: 1.5px dashed rgba(255, 255, 255, 0.22); border-radius: 12px; font-size: 12px; font-weight: 700; color: var(--c-dim); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .sb-line, .sb-room { animation: none; } }
+
+/* 오디가 한 일(10차): 오디가 처리한 줄은 하늘색, 사람 손이 필요한 장치 줄만 원래 문구 */
+.ctl-feed .cf-auto { color: var(--sky); font-weight: 700; }
+.ctl-hands { margin: 4px 2px 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.62); }
+.ctl-more { grid-column: 1 / -1; }
+.ctl-more > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+  padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 700; color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.ctl-more > summary::-webkit-details-marker { display: none; }
+.ctl-more > summary::after { content: '▾'; font-size: 12px; }
+.ctl-more[open] > summary { margin-bottom: 12px; }
+
+/* ---------- 방 칸에 보일 값 고르기 (11/10) ---------- */
+/* 칸 전체를 덮는 여는 버튼. 칸 안 글자는 누름을 통과시키고, 아래 값 단추만 위에 둔다 */
+.ct-hit { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; background: none; cursor: pointer; padding: 0; }
+.ctl-tile > :not(.ct-hit):not(.ct-metric) { position: relative; pointer-events: none; }
+.ctl-tile:has(.ct-hit:focus-visible) { outline: 3px solid var(--sky); outline-offset: 3px; }
+.ct-hit:focus-visible { outline: 0; }
+.ct-metric { position: relative; z-index: 2; display: flex; gap: 2px; margin: 2px -4px -4px; }
+.ct-metric button {
+  flex: 1; min-height: 32px; border: 0; border-radius: 8px; background: none; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--c-dim);
+}
+.ct-metric button[aria-pressed='true'] { color: var(--c-ink); font-weight: 800; background: var(--c-glass-2); }
+.ct-metric button:focus-visible { outline: 2px solid var(--sky); outline-offset: 1px; }
+.ct-mlabel { font-size: 12px; font-weight: 700; color: var(--c-dim); margin-bottom: 2px; }
+.ctl-floor-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ctl-floor-head h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.ctl-metric { display: inline-grid; grid-template-columns: repeat(4, minmax(56px, auto)); padding: 3px; border-radius: 10px; background: var(--c-glass-2); }
+.ctl-metric button { min-height: 34px; padding: 0 10px; border: 0; border-radius: 7px; background: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--c-dim); }
+.ctl-metric button[aria-pressed='true'] { background: var(--white); color: var(--navy); font-weight: 800; box-shadow: 0 0 0 1px var(--c-line); }
+.ctl-metric button:focus-visible, .ctl-metric-reset:focus-visible { outline: 2px solid var(--sky); outline-offset: 1px; }
+.ctl-metric-reset { border: 0; background: none; padding: 0; min-height: 34px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 719px) { .ctl-floor-head .ctl-metric { width: 100%; grid-template-columns: repeat(4, 1fr); } }
+.ctl-tile.big .ct-metric { grid-column: 1 / -1; }

@@ -120,6 +120,14 @@ const BUILD_SOURCE: 'api' | 'mock' = import.meta.env.VITE_ADMIN_ENV_SOURCE === '
  * 지금 화면이 쓸 값. 'api'로 빌드했어도 시연 모드(?demo=1)를 켜면 가짜 값으로 돌아간다.
  * 실제 장치가 1번 방에만 있어서, 발표 때는 다섯 방이 다 움직이는 가짜 값이 필요하다
  */
+/**
+ * 시연 시계(11/10 재웅 "관리자가 아무것도 안 해도 AI가 다 하는 걸 보여 주기"). 가짜 값일 때만 쓴다.
+ * 빨리 감기를 켜면 가짜 값의 시각이 speed배로 흘러, 환기·시간 넘김·노쇼가 저절로 생기고 처리되는 걸 짧게 볼 수 있다
+ */
+let sim = { real: Date.now(), at: Date.now(), speed: 1 }
+export const simNow = (): number => sim.at + (Date.now() - sim.real) * sim.speed
+export function setSimSpeed(speed: number): void { sim = { real: Date.now(), at: simNow(), speed } }
+
 export function envSource(): 'api' | 'mock' {
   return BUILD_SOURCE === 'api' && !demoOn() ? 'api' : 'mock'
 }
@@ -129,7 +137,7 @@ export async function getRoomsEnvironment(
   member?: number | null,
   minutes: number = ENV_RULES.historyMinutes,
 ): Promise<{ data: RoomsEnvironment; sample: boolean }> {
-  if (envSource() === 'mock') return { data: mockEnvironment(new Date(), minutes), sample: true }
+  if (envSource() === 'mock') return { data: mockEnvironment(new Date(simNow()), minutes), sample: true }
   const data = await api<unknown>(`/api/admin/rooms/environment?minutes=${minutes}`, { signal, member })
   // API 모양이 아직 초안이라, 칸이 빠진 응답은 화면을 깨뜨리지 않고 오류 문구로 보여 준다
   if (!isRoomsEnvironment(data)) throw new ApiError(0, 'INVALID_RESPONSE', '방 센서 응답 모양이 달라요(core API 확인 필요).')

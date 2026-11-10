@@ -9,6 +9,7 @@ import './AdminRoomDetail.css'
 import { ClimatePanel } from '../components/Climate'
 import { currentMemberId } from '../api/client'
 import { useAppliances } from '../api/appliances'
+import { Judge } from '../components/OdiSteps'
 
 const PRESENCE: Record<RoomView['presence'], string> = { OCCUPIED: '사람 있음', EMPTY: '비어 있음', UNKNOWN: '모름' }
 
@@ -107,15 +108,17 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
 
         <div className="rd-grid">
           <section className="rd-sec" aria-labelledby="rd-todo">
-            <h3 id="rd-todo">지금 확인할 것</h3>
+            <h3 id="rd-todo">오디가 한 일</h3>
             {advice.length === 0
-              ? <p className="rd-ok"><span aria-hidden="true">✓</span> 이상 없어요. 할 일이 없어요.</p>
+              ? <p className="rd-ok"><span aria-hidden="true">✓</span> 이상 없어요. 오디가 계속 지켜보고 있어요.</p>
               : (
                 <ul className="rd-advice">
                   {advice.map((a) => (
                     <li key={a.title} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
                       <b>{a.title}</b>
-                      <span>{a.todo}</span>
+                      {a.auto ? <span className="rd-auto">오디: {a.auto}</span> : <span>참고만 해요. 따로 처리할 일은 없어요.</span>}
+                      {a.hands && <span>고치는 건 사람이에요. 오디는 값이 다시 움직이는지 계속 확인해요.</span>}
+                      {a.steps && <Judge steps={a.steps} sample={sample} />}
                     </li>
                   ))}
                 </ul>
@@ -150,9 +153,11 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
               <dt>마지막 신호</dt>
               <dd>{ago(view.lastSignalAt, now)}</dd>
             </dl>
+            <details className="rd-manual">
+              <summary>비상시 직접 처리</summary>
             <div className="rd-actions">
               {reports > 0 && (
-                <button type="button" className="adm-btn" onClick={onOpenReports}>신고 {reports}건 판정하러</button>
+                <button type="button" className="adm-btn" onClick={onOpenReports}>신고 {reports}건 보기</button>
               )}
               {canCheckout && sample && (
                 <button type="button" className="adm-btn line" disabled title="가짜 값의 예약 번호라 실제 예약이 걸릴 수 있어요">강제 퇴실로 (가짜 값이라 꺼 둠)</button>
@@ -166,7 +171,8 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
                 {inspection ? '점검으로 이 방 막기' : '이 방 막기'}
               </button>
             </div>
-            <p className="rd-hint">버튼을 누르면 방 관리 칸에 값이 채워져요. 처리는 거기서 한 번 더 확인한 뒤에 해요.</p>
+            <p className="rd-hint">오디가 처리하지 못하는 경우를 위한 비상용이에요. 누르면 방 관리 칸에 값이 채워지고, 거기서 한 번 더 확인해요.</p>
+            </details>
           </section>
         </div>
       </div>

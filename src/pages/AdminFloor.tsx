@@ -15,15 +15,34 @@ import { useCountUp } from '../lib/useCountUp'
 
 export type TileTone = 'ok' | 'warn' | 'off'
 
-/** 작은 CO2 그래프. 지난 값 + 예측을 0~100 칸에 그리고 선 굵기는 화면 크기와 상관없이 같게 */
-export function Spark({ view, limit = ENV_RULES.co2LimitPpm, wide = false }: { view: RoomView; limit?: number; wide?: boolean }) {
-  const past = view.history
-  const ahead = view.forecast
+/** 방 칸에서 고를 수 있는 값 (11/10 재웅: 공통으로 고르고, 방마다 따로도) */
+export type TileMetric = 'co2' | 'temp' | 'hum' | 'light'
+export const TILE_METRICS: { key: TileMetric; label: string; unit: string }[] = [
+  { key: 'co2', label: 'CO2', unit: 'ppm' },
+  { key: 'temp', label: '온도', unit: '°C' },
+  { key: 'hum', label: '습도', unit: '%' },
+  { key: 'light', label: '조도', unit: '%' },
+]
+const seriesOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.history : m === 'temp' ? v.temps : m === 'hum' ? v.hums : v.lights)
+const nowOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.co2 : m === 'temp' ? v.temperatureC : m === 'hum' ? v.humidityPct : v.light)
+const limitOf = (m: TileMetric) => (m === 'co2' ? ENV_RULES.co2LimitPpm : m === 'temp' ? ENV_RULES.hotC : m === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct)
+/** 그래프 위아래 끝. 한 그래프(AdminOverview)와 같은 범위라 두 그림을 맞대어 볼 수 있다 */
+function rangeOf(m: TileMetric, values: number[], limit: number): [number, number] {
+  if (m === 'co2') return [Math.min(400, ...values) - 20, Math.max(limit + 120, ...values) + 20]
+  if (m === 'temp') return [Math.min(21, ...values) - 0.5, Math.max(limit + 1, ...values) + 0.5]
+  if (m === 'hum') return [Math.min(limit - 8, ...values) - 2, Math.max(62, ...values) + 2]
+  return [0, 100]
+}
+
+/** 작은 그래프. 지난 값(+ CO2면 예측)을 0~100 칸에 그리고 선 굵기는 화면 크기와 상관없이 같게. 노란 점선 = 기준(온도·습도는 참고) */
+export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; metric?: TileMetric; wide?: boolean }) {
+  const limit = limitOf(metric)
+  const past = seriesOf(view, metric)
+  const ahead = metric === 'co2' ? view.forecast : []
   const total = past.length + ahead.length
   const values = [...past, ...ahead].filter((v): v is number => v !== null)
   if (total < 2 || values.length < 2) return <div className="ctl-spark none" aria-hidden="true" />
-  const lo = Math.min(400, ...values) - 20
-  const hi = Math.max(limit + 120, ...values) + 20
+  const [lo, hi] = rangeOf(metric, values, limit)
   const x = (i: number) => (i / (total - 1)) * 100
   const y = (v: number) => 40 - ((v - lo) / (hi - lo)) * 40
   const line = (pts: [number, number][]) => pts.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(2)},${b.toFixed(2)}`).join('')
@@ -41,7 +60,7 @@ export function Spark({ view, limit = ENV_RULES.co2LimitPpm, wide = false }: { v
   const area = segs.length ? `${line(segs[segs.length - 1])}L${segs[segs.length - 1].at(-1)![0].toFixed(2)},40L${segs[segs.length - 1][0][0].toFixed(2)},40Z` : ''
   const nowX = x(lastIdx)
   return (
-    <svg className={`ctl-spark ${wide ? 'wide' : ''}`} viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+    <svg className={`ctl-spark ${wide ? 'wide' : ''} m-${metric}`} viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
       <rect x="0" y="0" width="100" height={Math.max(0, y(limit))} className="sp-over" />
       <line x1="0" x2="100" y1={y(limit)} y2={y(limit)} className="sp-limit" vectorEffect="non-scaling-stroke" />
       {area && <path d={area} className="sp-area" />}
@@ -69,8 +88,21 @@ function ClimateChips({ view, now, rules }: { view: RoomView; now: Date; rules: 
   )
 }
 
-/** 평면도 칸 하나. 누르면 방 상세 창 */
-export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, now = null, rules = CLIMATE_RULES, onOpen }: {
+/** 칸 안 큰 숫자 하나 (고른 값) */
+function TileValue({ view, metric }: { view: RoomView; metric: TileMetric }) {
+  const raw = nowOf(view, metric)
+  const shown = useCountUp(raw === null ? null : metric === 'temp' ? Math.round(raw * 10) : Math.round(raw))
+  const unit = TILE_METRICS.find((m) => m.key === metric)!.unit
+  if (raw === null || shown === null) return <b className="none">–</b>
+  const over = metric === 'co2' ? view.flags.co2Over : metric === 'light' ? view.flags.lightLeftOn : false
+  return <b className={over ? 'over' : ''}>{metric === 'temp' ? (shown / 10).toFixed(1) : shown}<i>{unit}</i></b>
+}
+
+/**
+ * 평면도 칸 하나. 칸 전체가 상세 창을 여는 버튼이고(ct-hit), 아래 작은 단추로 이 방만 다른 값을 볼 수 있다.
+ * 버튼 안에 버튼을 둘 수 없어서 칸은 div, 여는 버튼은 칸 전체를 덮게 깐다
+ */
+export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, now = null, rules = CLIMATE_RULES, metric = 'co2', own = false, onMetric, onOpen }: {
   view: RoomView
   /** 에어컨·공기청정기 권유 계산용. 아직 값이 없으면 칩을 안 그린다 */
   now?: Date | null
@@ -81,22 +113,29 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
   reports: number
   i: number
   big?: boolean
+  /** 이 칸에 보이는 값 */
+  metric?: TileMetric
+  /** 공통 선택과 다르게 이 방만 따로 고른 값인지 */
+  own?: boolean
+  onMetric?: (m: TileMetric) => void
   onOpen: () => void
 }) {
-  const shown = useCountUp(view.co2)
   const used = view.presence === 'OCCUPIED'
   const state = view.tone === 'off' ? 'off' : used ? 'use' : 'empty'
-  const line = advice[0]?.title ?? view.co2Note
+  const line = advice[0]?.title ?? (metric === 'co2' ? view.co2Note : '')
   const facts = [
-    view.temperatureC === null ? null : `${view.temperatureC.toFixed(1)}°C`,
-    view.humidityPct === null ? null : `${view.humidityPct}%`,
-    view.light === null ? null : `조도 ${view.light}%`,
+    view.co2 === null || metric === 'co2' ? null : `CO2 ${view.co2}`,
+    view.temperatureC === null || metric === 'temp' ? null : `${view.temperatureC.toFixed(1)}°C`,
+    view.humidityPct === null || metric === 'hum' ? null : `습도 ${view.humidityPct}%`,
+    view.light === null || metric === 'light' ? null : `조도 ${view.light}%`,
     view.pir === null ? null : view.pir ? 'PIR 움직임' : 'PIR 조용',
     view.door?.open ? `문 열림 ${view.door.minutes}분` : null,
   ].filter(Boolean).join(' · ')
+  const label = TILE_METRICS.find((m) => m.key === metric)!.label
   return (
-    <button type="button" className={`ctl-tile st-${state} tn-${tone} ${big ? 'big' : ''}`} style={{ '--k': i } as CSSProperties} onClick={onOpen}
-      aria-label={`${view.name} ${view.status.text}${view.co2 === null ? '' : `, CO2 ${view.co2}ppm`}${facts ? `, ${facts}` : ''}${advice.length ? `, ${line}` : ''}${reports > 0 ? `, 신고 ${reports}건` : ''}${blocked ? `, ${blocked}` : ''}. 자세히 보기`}>
+    <div className={`ctl-tile st-${state} tn-${tone} ${big ? 'big' : ''}`} style={{ '--k': i } as CSSProperties}>
+      <button type="button" className="ct-hit" onClick={onOpen}
+        aria-label={`${view.name} ${view.status.text}${view.co2 === null ? '' : `, CO2 ${view.co2}ppm`}${view.temperatureC === null ? '' : `, ${view.temperatureC.toFixed(1)}°C`}${view.humidityPct === null ? '' : `, 습도 ${view.humidityPct}%`}${view.light === null ? '' : `, 조도 ${view.light}%`}${advice.length ? `, ${line}` : ''}${reports > 0 ? `, 신고 ${reports}건` : ''}${blocked ? `, ${blocked}` : ''}. 자세히 보기`} />
       {tone === 'warn' && <span className="ctl-ring" aria-hidden="true" />}
       <span className="ct-head">
         <b className="ct-no">{view.roomId}</b>
@@ -109,16 +148,24 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
       </span>
       <span className="ct-main">
         <span className="ct-co2">
-          {view.co2 === null ? <b className="none">–</b> : <b key={view.co2 >= ENV_RULES.co2LimitPpm ? 'over' : 'ok'} className={view.flags.co2Over ? 'over' : ''}>{shown}<i>ppm</i></b>}
-          <em className={tone !== 'ok' ? `why ${tone}` : ''}>{advice.length ? <span aria-hidden="true">!</span> : null}{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>
+          <small className="ct-mlabel">{label}{own ? ' · 이 방만' : ''}</small>
+          <TileValue key={metric} view={view} metric={metric} />
+          {line && <em className={tone !== 'ok' ? `why ${tone}` : ''}>{advice.length ? <span aria-hidden="true">!</span> : null}{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>}
         </span>
-        <Spark view={view} wide={big} />
+        <Spark view={view} metric={metric} wide={big} />
       </span>
       {now && <ClimateChips view={view} now={now} rules={rules} />}
       <span className="ct-foot">
         <span>{facts || '센서 없음'}</span>
         <span className="ct-go" aria-hidden="true">자세히 ›</span>
       </span>
-    </button>
+      {onMetric && (
+        <span className="ct-metric" role="group" aria-label={`${view.name}에서 볼 값`}>
+          {TILE_METRICS.map((m) => (
+            <button key={m.key} type="button" aria-pressed={metric === m.key} onClick={() => onMetric(m.key)}>{m.label}</button>
+          ))}
+        </span>
+      )}
+    </div>
   )
 }

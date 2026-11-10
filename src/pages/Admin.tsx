@@ -12,6 +12,7 @@ import { envSource } from '../api/environment'
 import { useMemberId } from '../lib/useMemberId'
 import { seoulClockSec } from '../lib/time'
 import './Admin.css'
+import './AdminPlain.css'
 
 /**
  * 관리자 화면 (FR-WEB-101, FR-RPT-103·104) 다섯 칸. 주소 ?tab=으로 남겨 새로고침해도 같은 칸.
@@ -23,7 +24,7 @@ const SECTIONS = [
     icon: <><circle cx="12" cy="12" r="3" /><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8M8.5 8.5a4.9 4.9 0 0 0 0 7M15.5 8.5a4.9 4.9 0 0 1 0 7" /></>,
   },
   {
-    id: 'todo', label: '할 일', title: '할 일', sub: '사람이 정해야 하는 일만 모았어요. 신고 판정과 AI 제안이 한곳에 있어요.',
+    id: 'todo', label: '오디 판단', title: '오디 판단 기록', sub: '오디가 신고·경고·철회를 판정한 기록이에요. 확신도와 근거를 같이 남겨요. 관리자는 보기만 해요.',
     icon: <><path d="M4 12.5 9 17.5 20 6.5" /></>,
   },
   {
@@ -111,7 +112,8 @@ export default function Admin() {
   const section = SECTIONS[index]
 
   const go = (id: Section, extra: Record<string, string> = {}) => setParams({ tab: id, ...extra }, { replace: true })
-  const badge = (id: Section) => (id === 'todo' ? counts.total : 0)
+  // 관리자는 보기만(11/10) — 메뉴에 '할 일 N건' 숫자를 달지 않는다
+  const badge = (_id: Section) => 0
 
   return (
     <div className={`adm ${tab === 'now' ? 'on-now' : ''}`} style={{ '--i': index } as CSSProperties}>
@@ -121,8 +123,8 @@ export default function Admin() {
           <button type="button" className="adm-back" aria-label="학생 화면으로" onClick={() => navigate('/me')}><BackIcon /></button>
           <span className="adm-mark" aria-hidden="true">M</span>
           <div>
-            <b>M-space 관제실</b>
-            <span>조선대 IT융합대학 · 방 5개</span>
+            <b>오디 관리</b>
+            <span>IT융합대학 창작실 5개</span>
           </div>
         </div>
         <nav className="adm-nav" aria-label="관리 메뉴">
@@ -131,7 +133,7 @@ export default function Admin() {
             <button key={s.id} type="button" className="adm-nav-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
               <Icon>{s.icon}</Icon>
               <span>{s.label}</span>
-              <Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} />
+              <Badge n={badge(s.id)} unknown={false} />
             </button>
           ))}
         </nav>
@@ -175,7 +177,7 @@ export default function Admin() {
         <span className="adm-bar-glow" aria-hidden="true" />
         {SECTIONS.map((s) => (
           <button key={s.id} type="button" className="adm-bar-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
-            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} /></span>
+            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} unknown={false} /></span>
             {s.id === 'ai' ? 'AI' : s.label}
           </button>
         ))}
