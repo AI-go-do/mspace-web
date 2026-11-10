@@ -7,6 +7,7 @@ import { ApiError, currentMemberId } from '../api/client'
 import { useNow } from '../lib/useNow'
 import { useUnreadCount } from '../lib/useUnreadCount'
 import './Alerts.css'
+import { IconButton } from '../components/IconAction'
 
 const REFRESH_MS = 30_000
 /** 이 화면에서 읽음으로 바꾼 알림을 서버 값보다 앞세우는 시간. 지나면 서버가 준 읽음 상태를 따른다 */
@@ -140,9 +141,7 @@ export default function Alerts() {
           <h1>알림</h1>
         </div>
         {unread > 0 && (
-          <button type="button" className="link-btn alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()}>
-            {readingAll ? '읽는 중…' : `모두 읽음 (${unread})`}
-          </button>
+          <IconButton icon="checkAll" label={readingAll ? '읽는 중' : `모두 읽음 (${unread})`} className="alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()} />
         )}
       </header>
       {readError && <p role="alert" className="alerts-msg">읽음으로 바꾸지 못했어요. 잠시 후 다시 눌러 주세요.</p>}
@@ -151,7 +150,7 @@ export default function Alerts() {
       {error && (
         <p role="alert" className="alerts-msg">
           {shown ? '새 알림을 못 받아왔어요. 잠시 뒤 다시 받아요.' : '알림을 못 불러왔어요.'}
-          <button type="button" className="link-btn" onClick={load}>다시 받기</button>
+          <IconButton icon="refresh" label="다시 받기" onClick={load} />
         </p>
       )}
 

@@ -57,12 +57,8 @@
 .inuse-step small { font-size: 12px; font-weight: 500; opacity: 0.75; }
 .inuse-step:disabled { opacity: 0.6; }
 .inuse-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
-.inuse-link { min-height: var(--touch); display: flex; align-items: center; justify-content: center; text-decoration: none; color: inherit; border-radius: 12px; transition: transform 0.12s ease, opacity 0.12s ease; -webkit-tap-highlight-color: transparent; }
-.inuse-link svg { width: 26px; height: 26px; }
-/* 단추 모양 없이 그림만, 누르면 살짝 눌리는 움직임(11/10 재웅) */
-.inuse-link:active { transform: scale(0.82); opacity: 0.7; }
-.inuse-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .inuse-link { transition: none; } .inuse-link:active { transform: none; } }
+/* 그림 단추 모양은 공통 .icon-act (tokens.css) */
+.inuse-link { width: 100%; }
 
 .sub-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; align-items: center; gap: 8px; }
 .sub-head h1 { margin: 0; font-size: 22px; font-weight: 700; }

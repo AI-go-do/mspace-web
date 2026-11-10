@@ -9,10 +9,7 @@
 .sc-sec { margin: 12px 16px 0; }
 .sc-text { font-size: 14px; line-height: 1.6; }
 .sc-small { margin: -4px 0 0; font-size: 12px; line-height: 1.5; }
-.sc-link {
-  min-height: var(--touch); border: 0; background: transparent; cursor: pointer;
-  font-size: 14px; color: var(--navy-70); text-decoration: underline;
-}
+.sc-trash { align-self: center; color: var(--navy-70); }
 .sc-confirm { border: 1.5px solid var(--yellow); }
 .sc-draft { background: var(--yellow); }
 

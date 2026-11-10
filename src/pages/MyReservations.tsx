@@ -11,6 +11,7 @@ import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import { useStillHere } from './Alerts'
 import './Mine.css'
+import { IconLink } from '../components/IconAction'
 
 const Chevron = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
@@ -302,9 +303,9 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
         <span className="inuse-note">퇴실·연장은 대표자가 해요</span>
       )}
       <div className="inuse-links">
-        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link" aria-label="입실 QR" title="입실 QR"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" /></svg></Link>}
-        <Link to={`/me/${r.id}`} className="inuse-link" aria-label="예약 자세히" title="예약 자세히"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8v.01" /></svg></Link>
-        <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link" aria-label="방에 문제가 있나요? 신고하기" title="신고"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg></Link>
+        {r.owner && <IconLink to={`/reservations/${r.id}`} icon="qr" label="입실 QR" className="inuse-link" />}
+        <IconLink to={`/me/${r.id}`} icon="info" label="예약 자세히" className="inuse-link" />
+        <IconLink to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} icon="flag" label="방에 문제가 있나요? 신고하기" className="inuse-link" />
       </div>
     </section>
   )

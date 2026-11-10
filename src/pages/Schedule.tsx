@@ -7,6 +7,7 @@ import {
 } from '../api/schedule'
 import { ACCEPT, shrinkImage } from '../lib/shrinkImage'
 import './Schedule.css'
+import { IconButton } from '../components/IconAction'
 
 type Row = ScheduleClass & { key: number }
 let nextKey = 1
@@ -172,7 +173,7 @@ export default function Schedule() {
           <div className="sc-col sc-sec">
             <button type="button" className="btn-primary" disabled={busy !== null} onClick={edit}>고치기</button>
             {capture}
-            {!askDelete && <button type="button" className="sc-link" onClick={() => { reset(); setAskDelete(true) }}>전체 지우기</button>}
+            {!askDelete && <IconButton icon="trash" label="시간표 전체 지우기" className="sc-trash" onClick={() => { reset(); setAskDelete(true) }} />}
             {askDelete && (
               <div className="card sc-col sc-confirm" role="group" aria-label="전체 지우기 확인">
                 <b>시간표를 모두 지울까요?</b>

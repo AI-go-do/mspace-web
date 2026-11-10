@@ -7,6 +7,7 @@ import type { RoomSlots } from '../api/rooms'
 import type { Denied } from '../content/denied'
 import { SANCTION, agreeRules, saveAgreed } from '../content/rules'
 import '../pages/Reserve.css'
+import { IconButton } from './IconAction'
 
 /** 예약(FR-WEB-001)과 지금 바로 쓰기(FR-WEB-102)가 같이 쓰는 단계 화면 */
 
@@ -198,7 +199,7 @@ export function Members(props: {
 
       {loadError && (
         <p role="alert" className="notice">
-          친구 목록을 못 불러왔어요. <button type="button" className="link-btn" onClick={loadFriends}>다시 받기</button>
+          친구 목록을 못 불러왔어요. <IconButton icon="refresh" label="다시 받기" onClick={loadFriends} />
         </p>
       )}
       {!friends && !loadError && <p className="notice muted" role="status">친구 목록 불러오는 중…</p>}
