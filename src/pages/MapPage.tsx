@@ -80,7 +80,6 @@ export default function MapPage() {
       <header className="sub-head">
         <div>
           <h1>방 고르기{sample && <span className="sample">예시</span>}</h1>
-          <span className="muted small">지금 {seoulClock(now)} 기준 · 방을 누르고 시간을 정해요</span>
         </div>
       </header>
 
@@ -98,7 +97,6 @@ export default function MapPage() {
             {updatedAt && ` 아래 현황은 ${seoulClock(updatedAt)} 기준이라 지금과 다를 수 있어요.`}
           </p>
         )}
-        {sample && <p role="status" className="muted small">서버에 닿지 않아 예시 현황을 보여 주고 있어요.</p>}
         <div className="map-floor">
           <div className="map-rooms">
             {ordered.map((r) => {

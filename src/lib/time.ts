@@ -73,6 +73,6 @@ export function nowState(slots: Slot[], now = new Date(), occupiedNow?: boolean)
   const free = isFreeNow(slots, now, occupiedNow)
   const change = ahead.find((s) => s.available !== free)
   const at = change ? seoulClock(new Date(change.startAt)) : null
-  if (free) return { free, text: at ? `${at}까지 비어 있어요` : '오늘은 계속 비어 있어요' }
-  return { free, text: at ? `사용 중 · ${at}에 비어요` : '오늘은 남은 시간이 없어요' }
+  if (free) return { free, text: at ? `${at}까지 빔` : '오늘 계속 빔' }
+  return { free, text: at ? `사용 중 · ${at}까지` : '오늘 마감' }
 }

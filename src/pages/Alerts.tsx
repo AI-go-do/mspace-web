@@ -138,7 +138,6 @@ export default function Alerts() {
         </button>
         <div>
           <h1>알림</h1>
-          <span className="muted alerts-sub">입실·종료 10분 전, 자리 비움을 알려 드려요</span>
         </div>
         {unread > 0 && (
           <button type="button" className="link-btn alerts-readall" disabled={readingAll || !list || !mine} onClick={() => void readAll()}>

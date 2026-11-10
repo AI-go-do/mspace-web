@@ -26,18 +26,14 @@ export function PenaltyHistory() {
         <h2 id="ph-title">왜 받았나요</h2>
         <span className="sample">예시</span>
       </div>
-      <p className="ph-lead">
-        경고마다 판정에 쓰인 기록을 그대로 보여 드려요.{' '}
-        {open > 0 ? <b>철회를 요청할 수 있는 경고가 {open}건 있어요.</b> : `억울하면 받은 뒤 ${APPEAL_RULES.days}일 안에 철회를 요청할 수 있어요.`}{' '}
-        요청하면 AI가 기록을 다시 비교해 알려 드려요.
-      </p>
+      <p className="ph-lead">{open > 0 ? <b>철회 요청 가능 {open}건</b> : `철회 요청은 ${APPEAL_RULES.days}일 안`}</p>
       <ul className="ph-list">
         {list.map((w, i) => (
           <WarningItem key={w.id} w={w} i={i} now={now} fresh={justSent === w.id} onWrite={() => setWriting(w)} />
         ))}
       </ul>
       <p className="ph-foot">
-        예시 화면이에요. 보낸 요청은 이 탭에만 남고, AI 판단도 예시예요.{' '}
+
         <button type="button" className="ph-link" onClick={() => { resetAppeals(); setJustSent(null) }}>예시 처음으로</button>
       </p>
       {writing && (

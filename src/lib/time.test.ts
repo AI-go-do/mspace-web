@@ -52,15 +52,15 @@ describe('nowState 배치도 한 줄', () => {
     })
   const at = new Date(Date.UTC(2026, 10, 3, 9, 50)) // 서울 18:50
   it('비어 있다가 예약이 나오면 그때까지', () => {
-    expect(nowState(mk([true, true, false]), at)).toEqual({ free: true, text: '20:00까지 비어 있어요' })
+    expect(nowState(mk([true, true, false]), at)).toEqual({ free: true, text: '20:00까지 빔' })
   })
   it('사용 중이면 언제 비는지', () => {
-    expect(nowState(mk([false, false, true]), at)).toEqual({ free: false, text: '사용 중 · 20:00에 비어요' })
+    expect(nowState(mk([false, false, true]), at)).toEqual({ free: false, text: '사용 중 · 20:00까지' })
   })
   it('서버가 사용 중이라 하면 다음 빈 칸까지 사용 중', () => {
-    expect(nowState(mk([true, true, false]), at, true)).toEqual({ free: false, text: '사용 중 · 19:00에 비어요' })
+    expect(nowState(mk([true, true, false]), at, true)).toEqual({ free: false, text: '사용 중 · 19:00까지' })
   })
   it('끝까지 비어 있음', () => {
-    expect(nowState(mk([true, true]), at).text).toBe('오늘은 계속 비어 있어요')
+    expect(nowState(mk([true, true]), at).text).toBe('오늘 계속 빔')
   })
 })
