@@ -9,6 +9,7 @@ import { InboxItem, Notice } from './AdminApprentice'
 import { ReportList } from './AdminReports'
 import { RestProposals } from './AdminRest'
 import { POLL_MS } from '../lib/poll'
+import { demoOn } from '../lib/demo'
 
 /**
  * "할 일": 사람이 정해야 하는 일을 한곳에. 신고 판정(core, 실제 API)과 AI 처리안(가짜 단계)을 같이 보여 준다.
@@ -68,59 +69,69 @@ export function useTodoCounts(): TodoCounts {
   return { reports: shown, reportsKnown: known, reportsFailed: failed, ai, total: shown + ai, byRoom: known ? res.byRoom : {} }
 }
 
-type Filter = 'all' | 'reports' | 'ai'
+/**
+ * 오디가 판정·처리한 기록 (10차 회의·11/10 재웅: 관리자는 보기만, 판단은 AI).
+ * core에 AI 판정이 아직 없어 시연 값(?demo=1)에서만 예시를 보여 준다. 확신도·근거를 같이 남겨 발표의 "AI 판단 신뢰도" 표와 이어진다
+ */
+type Judgement = { at: string; room: string; what: string; verdict: string; sure: number; why: string; tone: 'warn' | 'ok' | 'off' }
+const SAMPLE_JUDGEMENTS: Judgement[] = [
+  { at: '13:42', room: '창작실 2', what: '예약이 끝났는데 사람이 남아 있음 (#1042)', verdict: '경고 1회 · 대표자에게 알림', sure: 96, why: "끝난 뒤 19분째 재실 센서 '있음', 퇴실 안내 뒤 10분 더 지켜봄", tone: 'warn' },
+  { at: '13:20', room: '창작실 3', what: '어질러짐 신고 (학생)', verdict: '경고 없음 · 신고자에게 결과 알림', sure: 88, why: '입실 사진과 퇴실 사진이 거의 같아요. 의자 1개만 옮겨짐', tone: 'ok' },
+  { at: '12:55', room: '창작실 4', what: 'CO2가 59분째 같은 값', verdict: '센서 고장으로 보고 장치 담당에게 넘김', sure: 91, why: '재실 센서는 움직이는데 CO2만 변화 없음', tone: 'off' },
+  { at: '11:30', room: '창작실 1', what: '두고 간 물건 (카메라)', verdict: '대표자에게 2시간 안에 가져가라고 알림', sure: 84, why: '퇴실 뒤 빈 방 사진에서 책상 위 물건 1개', tone: 'warn' },
+  { at: '10:05', room: '창작실 5', what: '경고 철회 요청', verdict: '철회 · 경고 지움', sure: 72, why: '확신도가 기준(80%)보다 낮아 "확인 불가 = 철회" 규칙', tone: 'ok' },
+]
 
-/** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게, 메뉴 배지와 칩 숫자가 늘 같게) */
+function JudgeLog() {
+  if (!demoOn()) {
+    return (
+      <div className="adm-empty">
+        <b>오디 판정 기록이 아직 없어요</b>
+        <span>core에 AI 판정이 붙으면 신고·경고·철회 판정이 여기 쌓여요. 주소에 ?demo=1을 붙이면 예시를 볼 수 있어요.</span>
+      </div>
+    )
+  }
+  return (
+    <ol className="jl">
+      {SAMPLE_JUDGEMENTS.map((j) => (
+        <li key={j.at + j.room} className={`jl-item t-${j.tone}`}>
+          <time>{j.at}</time>
+          <div className="jl-main">
+            <small>{j.room} · {j.what}</small>
+            <b>{j.verdict}</b>
+            <span>근거: {j.why}</span>
+          </div>
+          <span className="jl-sure" title="오디 확신도">{j.sure}%</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게) */
 export function AdminTodo({ counts, onForceCheckout, onOpenRooms }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
-  const [filter, setFilter] = useState<Filter>('all')
   const { state } = useApprentice()
   const ai = state.inbox.filter(inTodo)
-  // 신고 수를 확인하지 못했으면 신고 칩은 "?", 전체 칩은 "N+"
-  const unknown = !counts.reportsKnown
-  const FILTERS: { id: Filter; label: string; n: number | string }[] = [
-    { id: 'all', label: '전체', n: unknown ? `${counts.ai}+` : counts.total },
-    { id: 'reports', label: '신고 판정', n: unknown ? '?' : counts.reports },
-    { id: 'ai', label: 'AI 제안', n: counts.ai },
-  ]
-
   return (
-    <section className="todo" aria-label="할 일">
-      <RestProposals onOpenRooms={onOpenRooms} />
-      <div className="adm-chips" role="group" aria-label="보기">
-        {FILTERS.map((f) => (
-          <button key={f.id} type="button" className="adm-chip" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
-            {f.label}<span className="adm-chip-n">{f.n}</span>
-          </button>
-        ))}
-      </div>
-      <div className={`todo-cols f-${filter}`}>
-        {filter !== 'ai' && (
-          <section className="todo-col" aria-labelledby="todo-rep-h">
-            <h2 id="todo-rep-h" className="todo-h"><span className="todo-h-dot d-rep" aria-hidden="true" />신고 판정 <small>학생·방 카메라 신고</small></h2>
-            <ReportList onForceCheckout={onForceCheckout} />
-          </section>
-        )}
-        {filter !== 'reports' && (
-          <section className="todo-col" aria-labelledby="todo-ai-h">
-            <h2 id="todo-ai-h" className="todo-h"><span className="todo-h-dot d-ai" aria-hidden="true" />AI 제안 <small>맞으면 점수가 쌓여요</small></h2>
-            <Notice />
-            {ai.length === 0 ? (
-              <div className="adm-empty">
-                <span className="adm-empty-mark" aria-hidden="true">✓</span>
-                <b>AI 제안이 없어요</b>
-                <span>AI가 먼저 처리한 일은 "AI 수습사원"에 남아요.</span>
-              </div>
-            ) : (
-              <ul className="todo-list">
-                {ai.map((p, i) => (
-                  <InboxItem key={p.id} p={p} i={i} t={state.trainees.find((t) => t.kind === p.kind)!} />
-                ))}
-              </ul>
-            )}
-            <p className="adm-foot">가짜 값 단계라 [맞아요]를 눌러도 학생에게 아무것도 보내지 않아요.</p>
-          </section>
-        )}
-      </div>
+    <section className="todo" aria-label="오디 판단 기록">
+      <JudgeLog />
+      {demoOn() && <p className="adm-foot">시연 값이에요. 확신도가 기준보다 낮으면 경고하지 않거나 철회해요(Q-24 제안). 기준 숫자는 팀 규칙 전 임시 값이에요.</p>}
+      <details className="jl-manual">
+        <summary>비상시 직접 판정 · 판정 기다리는 신고 {counts.reportsKnown ? counts.reports : '?'}건 · AI 제안 {counts.ai}건</summary>
+        <p className="adm-foot">core에 AI 판정이 붙기 전까지 쓰는 임시 칸이에요. 붙으면 없앨 거예요.</p>
+        <RestProposals onOpenRooms={onOpenRooms} />
+        <section className="todo-col" aria-labelledby="todo-rep-h">
+          <h2 id="todo-rep-h" className="todo-h">신고 판정</h2>
+          <ReportList onForceCheckout={onForceCheckout} />
+        </section>
+        <section className="todo-col" aria-labelledby="todo-ai-h">
+          <h2 id="todo-ai-h" className="todo-h">AI 제안</h2>
+          <Notice />
+          {ai.length === 0
+            ? <p className="adm-foot">AI 제안이 없어요.</p>
+            : <ul className="todo-list">{ai.map((p, i) => <InboxItem key={p.id} p={p} i={i} t={state.trainees.find((t) => t.kind === p.kind)!} />)}</ul>}
+        </section>
+      </details>
     </section>
   )
 }

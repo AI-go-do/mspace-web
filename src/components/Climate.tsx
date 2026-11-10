@@ -69,12 +69,14 @@ function useFlash(): [string | null, (s: string) => void] {
  * 방 하나의 에어컨·공기청정기. 위에는 "지금 켜면 좋은 것" 권유, 아래에는 기기마다 켜기·끄기.
  * 관리자 방 상세 창과 학생 홈 카드가 같이 쓴다. 가짜 단계라 누르면 이 화면 안에서만 켜진다
  */
-export function ClimatePanel({ view, now, by, member, compact }: {
+export function ClimatePanel({ view, now, by, member, compact, locked = false }: {
   view: RoomView
   now: Date
   by: CommandBy
   member?: number | null
   compact?: boolean
+  /** 가짜(시연) 값을 보고 실제 기기에 명령을 보내지 않게 단추를 막는다 */
+  locked?: boolean
 }) {
   const store = useAppliances()
   const [flash, setFlash] = useFlash()
@@ -87,6 +89,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
 
   const send = (a: ApplianceConfig, cmd: ApplianceCommand) => {
     setError(null)
+    if (locked) { setError('시연 값이라 실제 기기는 움직이지 않아요.'); return }
     // 학생이 켜져 있던 에어컨을 끄면 그때 방 온도를 배운다(자주 일찍 끄는 방은 목표를 반 도씩 고친다). 끄기가 성공했을 때만
     const prev = get(a.id)
     const off = by === 'STUDENT' && a.kind === 'ac' && cmd.power === 'OFF' && prev.power === 'ON' && prev.mode && view.temperatureC !== null
@@ -115,7 +118,8 @@ export function ClimatePanel({ view, now, by, member, compact }: {
       {tips.length > 0 && (
         <ul className="cl-tips">
           {tips.map((t: ClimateTip) => {
-            const busy = t.appliance ? isSending(t.appliance.id) : false
+            const sending = t.appliance ? isSending(t.appliance.id) : false
+            const busy = locked || sending
             return (
               <li key={t.key} className={`cl-tip w-${t.why} ${t.urgent && !(by === 'ADMIN' && (t.why === 'cool' || t.why === 'heat')) ? 'urgent' : ''}`}>
                 <span className="cl-tip-text">
@@ -125,7 +129,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
                 </span>
                 {t.appliance && t.command && t.button && (
                   <button type="button" className="cl-go" disabled={busy} onClick={() => send(t.appliance!, t.command!)}>
-                    {busy ? <><i className="cl-spin" aria-hidden="true" />보내는 중</> : t.button}
+                    {sending ? <><i className="cl-spin" aria-hidden="true" />보내는 중</> : t.button}
                   </button>
                 )}
               </li>
@@ -137,13 +141,14 @@ export function ClimatePanel({ view, now, by, member, compact }: {
         {appliances.map((a) => {
           const s = get(a.id)
           const on = s.power === 'ON'
-          const busy = isSending(a.id)
+          const sending = isSending(a.id)
+          const busy = locked || sending
           return (
-            <li key={a.id} className={`cl-dev ${on ? 'on' : ''} ${busy ? 'busy' : ''}`}>
+            <li key={a.id} className={`cl-dev ${on ? 'on' : ''} ${sending ? 'busy' : ''}`}>
               <span className="cl-dev-ico"><Icon kind={a.kind} on={on} /></span>
               <span className="cl-dev-text">
                 <b>{a.name}</b>
-                <small>{busy ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
+                <small>{locked ? `${stateLabel(s)} · 시연 값이라 조작 막힘` : sending ? (a.via === 'ir' ? '리모컨 신호 보내는 중…' : '플러그에 보내는 중…') : stateLabel(s)}</small>
               </span>
               <button type="button" className={`cl-sw ${on ? 'on' : ''}`} role="switch" aria-checked={on} disabled={busy}
                 aria-label={`${a.name} ${on ? '끄기' : '켜기'}`} onClick={() => send(a, on ? { power: 'OFF' } : manualOn(a))}>
@@ -169,7 +174,7 @@ export function ClimatePanel({ view, now, by, member, compact }: {
       <p className="cl-foot" role="status">
         {error ? <span className="cl-err">{error}</span>
           : flash ? <span className="cl-ok">✓ {flash}</span>
-            : APPLIANCE_SOURCE === 'mock' ? '시연: 화면에서만 켜져요. 실제 기기에는 아무 신호도 가지 않아요.' : '에어컨은 적외선 리모컨, 공기청정기는 스마트 플러그로 켜요.'}
+            : APPLIANCE_SOURCE === 'mock' ? '시연 화면이에요' : '에어컨은 적외선 리모컨, 공기청정기는 스마트 플러그로 켜요.'}
       </p>
     </div>
   )

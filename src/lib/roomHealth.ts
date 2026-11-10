@@ -112,6 +112,29 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const humidityPct = sensors.has('humidity') ? env.humidityPct : null
 
   const sameForMinutes = sameTail(history)
+  // 판단용 CO2: co2MedianOf분 가운데값으로 순간 튄 값을 거른다(1이면 그대로). 화면 숫자는 그대로 보여 준다
+  const k = Math.max(1, rules.co2MedianOf ?? 1)
+  // 판단값은 지금부터 k분 안에 찍힌 값만으로 가운데값을 낸다. 최근 값이 빠졌을 때 오래된 낮은 값이 경고를 덮지 않게
+  const freshFrom = now.getTime() - k * 60_000
+  const freshPts = history
+    .map((v, i) => ({ v, t: new Date(times[i]).getTime() }))
+    .filter((p): p is { v: number; t: number } => p.v !== null && p.t > freshFrom)
+  // 지금 값이 분마다 값보다 새로우면 같이 넣는다(이미 들어 있으면 두 번 세지 않는다)
+  const curAt = env.co2 ? new Date(env.co2.at).getTime() : NaN
+  if (co2 !== null && curAt > freshFrom && !(freshPts.length && freshPts[freshPts.length - 1].t >= curAt)) freshPts.push({ v: co2, t: curAt })
+  const fresh = freshPts.slice(-k).map((p) => p.v).sort((a, b) => a - b)
+  const co2Judge = co2 === null ? null : k === 1 || fresh.length === 0 ? co2 : fresh[Math.floor(fresh.length / 2)]
+  // 추세는 끊김(분마다 값 사이가 1.5분 넘게 빔) 뒤 이어진 값으로만. 끊긴 앞뒤를 1분 차이로 잇지 않게
+  let gapAt = 0
+  for (let i = times.length - 1; i > 0; i--) {
+    if (new Date(times[i]).getTime() - new Date(times[i - 1]).getTime() > 90_000) { gapAt = i; break }
+  }
+  // 가운데값 고르기도 끊김 뒤 값끼리만(끊기기 전 값이 끊김 뒤 첫 값에 섞이지 않게)
+  const afterGap = history.slice(gapAt)
+  const trendSmooth = k === 1 ? afterGap : afterGap.map((_, i) => {
+    const w = afterGap.slice(Math.max(0, i - k + 1), i + 1).filter((x): x is number => x !== null).sort((a, b) => a - b)
+    return w.length ? w[Math.floor(w.length / 2)] : null
+  })
   const stuck = co2 !== null && sameForMinutes >= rules.stuckMinutes
   const offline = env.offline
 
@@ -123,27 +146,53 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
       forecast = env.forecast.slice(0, rules.forecastMinutes).map((f) => f.ppm)
       forecastFrom = 'model'
     } else {
-      const slope = trendSlope(history)
+      const slope = trendSlope(trendSmooth)
       if (slope !== null) {
-        forecast = Array.from({ length: rules.forecastMinutes }, (_, i) => Math.round(co2 + slope * (i + 1)))
+        forecast = Array.from({ length: rules.forecastMinutes }, (_, i) => Math.round(co2Judge! + slope * (i + 1 + (k - 1) / 2)))  // 가운데값은 (k-1)/2분 늦으니 그만큼 앞당긴다
         forecastFrom = 'trend'
       }
     }
   }
-  const co2Over = co2 !== null && co2 >= rules.co2LimitPpm
-  const crossAt = co2Over ? -1 : forecast.findIndex((v) => v >= rules.co2LimitPpm)
+  // 순간 튄 값에 나서지 않게, 최근 hold분 값이 모두 기준 이상일 때만 "넘음"(1이면 지금 값 하나만 본다)
+  const hold = Math.max(1, rules.co2OverHoldMinutes ?? 1)
+  // hold가 2분 이상이면 끊김 뒤, 지금부터 hold분 안에 찍힌 값(새 지금 값 포함)이 hold개 넘게 모두 기준 이상이어야 한다
+  const holdFrom = now.getTime() - hold * 60_000
+  const holdPts = history
+    .map((v, i) => ({ v, t: new Date(times[i]).getTime(), i }))
+    .filter((p) => p.i >= gapAt && p.t > holdFrom)
+    .map((p) => ({ v: p.v, t: p.t }))
+  if (co2 !== null && curAt > holdFrom && !(holdPts.length && holdPts[holdPts.length - 1].t >= curAt)) holdPts.push({ v: co2, t: curAt })
+  const co2OverRaw = co2Judge !== null && co2Judge >= rules.co2LimitPpm &&
+    (hold === 1 || (holdPts.length >= hold && holdPts.every((p) => p.v !== null && p.v >= rules.co2LimitPpm)))
+  const crossAt = co2OverRaw ? -1 : forecast.findIndex((v) => v >= rules.co2LimitPpm)
   const etaMinutes = crossAt >= 0 ? crossAt + 1 : null
-  const co2Soon = etaMinutes !== null && etaMinutes <= rules.warnWithinMinutes
+  // 알릴 사람이 없는 빈 방(재실 없음 + 지금 걸린 예약 없음)은 값만 보여 주고 나서지 않는다(co2AlertWhenEmpty 0)
+  const nowMs = now.getTime()
+  const activeBooking = !!env.current && nowMs >= new Date(env.current.startAt).getTime() && nowMs < new Date(env.current.endAt).getTime()
+  const someoneToTell = env.presence !== 'EMPTY' || activeBooking || (rules.co2AlertWhenEmpty ?? 1) >= 1
+  const co2Over = co2OverRaw && someoneToTell
+  const co2Soon = someoneToTell && etaMinutes !== null && etaMinutes <= rules.warnWithinMinutes
 
   const hot = temperatureC !== null && temperatureC >= rules.hotC
   const dry = humidityPct !== null && humidityPct < rules.dryPct
 
   const occupied = env.presence === 'OCCUPIED'
+  // 재실이 최근 presenceHoldMinutes분 내내 state였는지. 분마다 값이 없으면 지금 값만 본다
+  const pHold = Math.max(1, rules.presenceHoldMinutes ?? 1)
+  // 최근 pHold분 안에 찍힌 값만 본다. 그런 값이 없으면 지금 재실로 판단한다
+  const pFrom = now.getTime() - pHold * 60_000
+  const recentOcc = occupancy.filter((_, i) => new Date(times[i]).getTime() > pFrom)
+  const known = recentOcc.filter((o): o is boolean => o !== null).slice(-pHold)
+  // 값이 하나도 없으면 지금 재실로, 일부만 있으면 pHold분을 다 채워야 같다고 본다(한 번 깜빡임에 나서지 않게)
+  // pHold가 1이면 지금 재실 값만 본다
+  const heldFor = (state: boolean) => pHold === 1
+    ? env.presence === (state ? 'OCCUPIED' : 'EMPTY')
+    : known.length === 0 || (known.length >= pHold && known.every((o) => o === state))
   const endMs = env.current ? new Date(env.current.endAt).getTime() : null
   const overtimeMinutes = occupied && endMs !== null && now.getTime() > endMs ? Math.floor((now.getTime() - endMs) / 60_000) : 0
-  const overtime = overtimeMinutes >= rules.overtimeGraceMinutes
+  const overtime = overtimeMinutes >= rules.overtimeGraceMinutes && heldFor(true)
   // 무단 사용 의심: 걸린 예약이 없는데(끝난 예약에 남은 건 "시간 넘김"이 맡는다) 최근 10분 CO2가 계속 오름
-  const slope = co2 !== null && !stuck && !offline ? trendSlope(history) : null
+  const slope = co2 !== null && !stuck && !offline ? trendSlope(trendSmooth) : null
   const unbooked = env.current === null && slope !== null && slope >= rules.unbookedRisePpmPerMin
 
   // 빈 방 문이 오래 열려 있음(사람이 있으면 환기라 괜찮다)
@@ -153,7 +202,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const startMs = env.current ? new Date(env.current.startAt).getTime() : null
   const noEntryMinutes = env.presence === 'EMPTY' && startMs !== null && endMs !== null && now.getTime() >= startMs && now.getTime() < endMs
     ? Math.floor((now.getTime() - startMs) / 60_000) : 0
-  const noEntry = noEntryMinutes >= rules.noEntryWarnMinutes
+  const noEntry = noEntryMinutes >= rules.noEntryWarnMinutes && heldFor(false)
   // 밤(운영 밖)에 문 열림: 사람이 있든 없든 바로
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', hour12: false }).format(now)) % 24
   const night = rules.nightFromHour > rules.nightToHour
@@ -204,7 +253,7 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   if (co2 === null) co2Note = '센서 없음'
   else if (offline) co2Note = '신호가 끊겼어요'
   else if (stuck) co2Note = `${sameForMinutes}분째 값이 그대로`
-  else if (co2Over) co2Note = `기준 ${rules.co2LimitPpm} 넘음`
+  else if (co2OverRaw) co2Note = co2Over ? `기준 ${rules.co2LimitPpm} 넘음` : `기준 ${rules.co2LimitPpm} 넘음 · 빈 방이라 알림 안 함`
   else if (co2Soon) co2Note = `예측: ${etaMinutes}분 뒤 ${rules.co2LimitPpm} 넘음`
   else if (unbooked) co2Note = '예약이 없는데 오르는 중'
   else if (forecast.length) co2Note = `${rules.forecastMinutes}분 뒤 약 ${forecast[forecast.length - 1]}`

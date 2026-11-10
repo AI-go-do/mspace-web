@@ -86,7 +86,7 @@ export function notificationAction(n: AppNotification): { to: string; label: str
   // 빈방 릴레이: 홈 맨 위 릴레이 카드에 남은 받을 시간과 [받을게요]·[넘길게요]가 있다
   if (n.kind === 'RELAY_OFFER') return { to: '/', label: '받으러 가기' }
   // 빈방 알림: 지켜보던 방이 비었으니 지금 바로 쓰기로(알림에는 방 번호 칸이 없어 방은 그 화면에서 고른다)
-  if (n.kind === 'ROOM_FREE') return { to: '/now', label: '지금 바로 쓰기' }
+  if (n.kind === 'ROOM_FREE') return { to: '/now', label: '빈 방 바로 쓰기' }
   if (n.reservationId == null) return null
   switch (n.kind) {
     case 'START_SOON':

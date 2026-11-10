@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { isDemoId } from '../api/apology'
 import { agoLabel, type AppNotification } from '../api/notifications'
-import Spacey from './Spacey'
+import Odi from './Odi'
 import './ApologyCard.css'
 
 /**
@@ -12,7 +12,7 @@ export default function ApologyCard({ n, now, onClose }: { n: AppNotification; n
   return (
     <section className="apology" aria-labelledby="apology-title">
       <div className="apology-top">
-        <span className="apology-mascot" aria-hidden="true"><Spacey size={28} label="" /></span>
+        <span className="apology-mascot" aria-hidden="true"><Odi size={28} /></span>
         <span className="apology-eyebrow">방이 먼저 사과해요 · <time dateTime={n.createdAt}>{agoLabel(n.createdAt, now)}</time></span>
         {isDemoId(n.id) && <span className="sample">예시</span>}
         <span className="apology-badge">경고 무름</span>

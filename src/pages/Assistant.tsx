@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, HINT_PICK_FRIENDS, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
@@ -7,9 +7,9 @@ import { findFriend, getFriends, type Friend } from '../api/friends'
 import { matchFriends } from '../lib/friendMatch'
 import { peekPicked, savePicked, takePicked } from '../lib/pickedFriends'
 import { getTeams, saveTeam, TEAM_NAME_MAX, teamFriends, teamInMessage, type Team } from '../api/teams'
-import Spacey from '../components/Spacey'
+import Odi from '../components/Odi'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
-import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
+import { suggest } from '../lib/prompts'
 import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, stopSpeaking } from '../lib/speech'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
@@ -26,7 +26,7 @@ const MAX_CHARS = 1000
 type Ask = (message: string) => void
 
 /**
- * 비서 스페이시 (FR-AGT-101, docs api 7장).
+ * 비서 오디 (FR-AGT-101, docs api 7장).
  * 보내면 접수 번호를 받고 1초마다 결과를 조회한다. 답을 기다리는 동안에는 새 말을 보내지 않는다
  * (서버도 학생 한 명당 한 건만 받는다, 409). 쓰기는 확인 카드의 [확인]을 눌러야 한다.
  */
@@ -35,7 +35,9 @@ export default function Assistant() {
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
   // 추천 메뉴에서 펼친 단계(방 예약 → 언제). null이면 처음 메뉴
-  const [menu, setMenu] = useState<PromptChip[] | null>(null)
+  // 연관 추천: 입력 칸을 누르면 열리고, 고른 줄(sel)은 위아래 화살표로 옮긴다. Esc로 닫는다
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [sel, setSel] = useState(-1)
   // 음성: 듣는 중이면 멈추는 함수. 마이크로 보낸 말의 답은 소리로 읽어 준다
   const [listening, setListening] = useState(false)
   const [voiceNote, setVoiceNote] = useState('')
@@ -151,15 +153,7 @@ export default function Assistant() {
     }
   }
 
-  /** 추천 버튼: 다음 단계가 있으면 펼치고, 아니면 그 말을 보낸다 */
-  function pick(c: PromptChip) {
-    if (c.next) return setMenu(c.next)
-    setMenu(null)
-    if (c.message) void send(c.message)
-  }
-
   const ask: Ask = (m) => {
-    setMenu(null)
     void send(m)
   }
 
@@ -280,6 +274,16 @@ export default function Assistant() {
 
   const busy = chat.pending !== null
   const trimmed = text.trim()
+  // 이 폰에서 내가 보낸 말(최근 것 먼저, 같은 말 한 번). 서버로 보내지 않고 추천에만 쓴다
+  const recentAsks = [...new Set(chat.messages.filter((m) => m.role === 'user').map((m) => m.text.trim()).filter(Boolean).reverse())].slice(0, 20)
+  const action: 'mic' | 'send' | 'stop' = listening ? 'stop' : trimmed || !micOk ? 'send' : 'mic'
+  // 듣는 중·답을 기다리는 중에는 띄우지 않는다. 대화가 이미 있으면 빈 칸에서는 띄우지 않고 칠 때만
+  const suggestions = suggestOpen && !busy && !clearing && !listening && (trimmed || chat.messages.length === 0) ? suggest(text, 4, undefined, recentAsks) : []
+  function pickSuggestion(m: string) {
+    setSel(-1)
+    setSuggestOpen(false)
+    void send(m)
+  }
 
   async function send(message: string, fromVoice = false) {
     const msg = message.trim()
@@ -370,9 +374,9 @@ export default function Assistant() {
   return (
     <main className="chat-page">
       <header className="chat-head">
-        <Spacey size={40} />
+        <Odi size={40} />
         <div>
-          <h1>비서 스페이시</h1>
+          <h1>오디</h1>
           <p className="muted">빈 방 찾기·예약·취소를 말로 할 수 있어요</p>
         </div>
         {chat.messages.length > 0 && (
@@ -385,8 +389,8 @@ export default function Assistant() {
       <div className="chat-list" aria-live="polite">
         {chat.messages.length === 0 && (
           <div className="bubble bot">
-            안녕하세요, 스페이시예요. 아래 버튼을 누르거나{micOk ? ' 마이크로 말해' : ' 글로 적어'} 주세요.
-            <p className="muted chat-tip">누르기만 해도 빈 방 찾기 → 확인 카드 → [확인]까지 이어져요.</p>
+            안녕하세요, 오디예요. 아래 칸에 적거나{micOk ? ' 마이크로 말해' : ''} 주세요.
+            <p className="muted chat-tip">적기 시작하면 이어서 할 만한 말을 띄워 드려요.</p>
           </div>
         )}
         {chat.messages.map((m, i) => (
@@ -405,51 +409,63 @@ export default function Assistant() {
       </div>
 
       <div className="chat-dock">
-      <nav className="prompt-bar" aria-label="추천 말">
-        {menu && (
-          <button type="button" className="ask-chip back" onClick={() => setMenu(null)}>{BACK_LABEL}</button>
-        )}
-        {(menu ?? MAIN_PROMPTS).map((c) => (
-          <button key={c.label} type="button" className={`ask-chip ${c.next ? 'more' : ''}`} onClick={() => pick(c)} disabled={busy || clearing || listening}>
-            {c.label}{c.next ? ' ›' : ''}
-          </button>
-        ))}
-      </nav>
       {(listening || voiceNote) && (
         <p className={`voice-note ${voiceNote ? 'err' : ''}`} role="status">
           {voiceNote || '듣고 있어요… 말이 끝나면 바로 보내요. 이름·학번은 말하지 마세요.'}
         </p>
       )}
+      {suggestions.length > 0 && (
+        <ul className="suggest" id="chat-suggest" role="listbox" aria-label={trimmed ? '이어서 할 말' : '이렇게 물어보세요'}>
+          {suggestions.map((m, k) => (
+            <li key={m} role="option" id={`chat-suggest-${k}`} aria-selected={k === sel} style={{ '--k': k } as CSSProperties}>
+              {/* 누를 때 입력 칸 초점을 잃지 않게 mousedown을 막는다 */}
+              <button type="button" tabIndex={-1} className={k === sel ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => pickSuggestion(m)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m16 16 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                <span><Highlight text={m} query={trimmed} /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <form className="chat-input" onSubmit={onSubmit}>
-        <label htmlFor="chat-text" className="sr-only">비서에게 할 말</label>
+        <label htmlFor="chat-text" className="sr-only">오디에게 할 말</label>
         <textarea
           id="chat-text"
           rows={1}
           value={text}
           maxLength={MAX_CHARS}
-          placeholder={busy ? '답을 기다리는 중이에요' : '예: 내일 2시에 빈 방 있어?'}
-          onChange={(e) => setText(e.target.value)}
+          placeholder={busy ? '답을 기다리는 중이에요' : listening ? '듣고 있어요…' : '오디에게 물어보세요'}
+          role="combobox" aria-expanded={suggestions.length > 0} aria-controls="chat-suggest" aria-autocomplete="list"
+          aria-activedescendant={sel >= 0 && suggestions.length > 0 ? `chat-suggest-${sel}` : undefined}
+          onFocus={() => setSuggestOpen(true)}
+          onBlur={() => { setSuggestOpen(false); setSel(-1) }}
+          onChange={(e) => { setText(e.target.value); setSuggestOpen(true); setSel(-1) }}
           onKeyDown={(e) => {
+            if (e.key === 'ArrowDown' && suggestions.length) { e.preventDefault(); setSel((k) => (k + 1) % suggestions.length); return }
+            if (e.key === 'ArrowUp' && suggestions.length) { e.preventDefault(); setSel((k) => (k <= 0 ? suggestions.length : k) - 1); return }
+            if (e.key === 'Escape') { setSuggestOpen(false); setSel(-1); return }
             // 한글 조합 중 Enter는 글자 확정이라 보내지 않는다
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
-              void send(text)
+              if (sel >= 0 && suggestions[sel]) pickSuggestion(suggestions[sel])
+              else void send(text)
             }
           }}
         />
-        {micOk && (
-          <button
-            type="button" className={`mic ${listening ? 'on' : ''}`} onClick={toggleMic}
-            disabled={(busy || clearing) && !listening}
-            aria-label={listening ? '듣기 멈추기' : '말로 하기'} aria-pressed={listening}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor" />
-            </svg>
-          </button>
-        )}
-        <button type="submit" className="send" disabled={busy || clearing || listening || !trimmed} aria-label="보내기">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
+        {/* 버튼 하나: 비었으면 마이크, 글이 있으면 보내기, 듣는 중이면 멈추기. 바뀔 때 아이콘이 돌며 바뀐다 */}
+        <button
+          type={action === 'send' ? 'submit' : 'button'}
+          className={`act act-${action}`}
+          onClick={action === 'send' ? undefined : toggleMic}
+          disabled={action === 'send' ? busy || clearing || !trimmed : action === 'mic' ? busy || clearing : false}
+          aria-label={action === 'send' ? '보내기' : action === 'stop' ? '듣기 멈추기' : '말로 하기'}
+          aria-pressed={action === 'send' ? undefined : listening}
+        >
+          <svg className="i-mic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor" />
+          </svg>
+          <svg className="i-send" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span className="i-stop" aria-hidden="true" />
         </button>
       </form>
       </div>
@@ -695,7 +711,7 @@ function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: bool
     <div className="bot-card past">
       <p className="card-label">지난 확인 카드</p>
       <strong className="card-summary">{c.summary}</strong>
-      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 스페이시에게 말해 주세요.</p>
+      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 오디에게 말해 주세요.</p>
     </div>
   )
 }
@@ -957,7 +973,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       {closed ? (
         <>
           <p className="card-error" role="alert">
-            {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 스페이시에게 다시 말해 주세요.'}
+            {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 오디에게 다시 말해 주세요.'}
           </p>
           {state.kind === 'closed' && <Link to="/me/reservations" className="card-link">내 예약 보기 →</Link>}
         </>
@@ -971,4 +987,12 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       )}
     </div>
   )
+}
+
+/** 추천 말에서 친 글자와 같은 부분을 굵게 */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const parts = query.split(/\s+/).filter(Boolean)
+  if (!parts.length) return <>{text}</>
+  const esc = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return <>{text.split(new RegExp(`(${esc})`, 'g')).map((t, i) => (i % 2 ? <b key={i}>{t}</b> : t))}</>
 }

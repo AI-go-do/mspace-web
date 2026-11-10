@@ -47,7 +47,12 @@ interface Store {
 
 const AUTO_KEY = 'mspace.admin.climateAuto'
 function readAuto(): boolean {
-  try { return localStorage.getItem(AUTO_KEY) === '1' } catch { return false }
+  // 10차 회의: 기기는 에이전트가 알아서 켠다. 가짜 기기는 기본 켜짐(끈 적이 있을 때만 꺼짐).
+  // 실제 기기는 예전 판이 '끔'을 키 삭제로 기억했으니, 관리자가 켠 기록('1')이 있을 때만 켠다.
+  try {
+    const v = localStorage.getItem(AUTO_KEY)
+    return v === '1' || (APPLIANCE_SOURCE === 'mock' && v !== '0')
+  } catch { return false }
 }
 
 let store: Store = { states: {}, log: [], auto: readAuto() }
@@ -102,7 +107,7 @@ export async function sendApplianceCommand(
 }
 
 export function setClimateAuto(on: boolean): void {
-  try { if (on) localStorage.setItem(AUTO_KEY, '1'); else localStorage.removeItem(AUTO_KEY) } catch { /* 기억 못 해도 이 화면에서는 켜진다 */ }
+  try { if (on) localStorage.setItem(AUTO_KEY, '1'); else localStorage.setItem(AUTO_KEY, '0') } catch { /* 기억 못 해도 이 화면에서는 켜진다 */ }
   set({ ...store, auto: on })
 }
 

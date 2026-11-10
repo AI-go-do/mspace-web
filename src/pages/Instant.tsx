@@ -214,7 +214,7 @@ export default function Instant() {
         <div className="rs-title">
           <button type="button" className="back" aria-label="뒤로" disabled={busy} onClick={() => navigate(-1)}><BackIcon /></button>
           <div>
-            <h1>지금 바로 쓰기</h1>
+            <h1>빈 방 바로 쓰기</h1>
             <span className="muted sub">지금 {seoulClock(now)}부터 시작해요</span>
           </div>
         </div>
