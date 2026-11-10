@@ -426,3 +426,7 @@
 .sb-tip { position: absolute; top: -4px; transform: translate(-50%, -100%); padding: 3px 8px; border-radius: 8px; background: var(--white); color: var(--navy); font-size: 11.5px; font-weight: 800; white-space: nowrap; pointer-events: none; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.5); }
 .sb-empty { position: absolute; inset: 6px 0 6px; display: grid; place-items: center; padding: 0 8px; border: 1.5px dashed rgba(255, 255, 255, 0.22); border-radius: 12px; font-size: 12px; font-weight: 700; color: var(--c-dim); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .sb-line, .sb-room { animation: none; } }
+
+/* 오디가 한 일(10차): 오디가 처리한 줄은 하늘색, 사람 손이 필요한 장치 줄만 원래 문구 */
+.ctl-feed .cf-auto { color: var(--sky); font-weight: 700; }
+.ctl-hands { margin: 4px 2px 0; font-size: 12px; line-height: 1.5; color: rgba(255, 255, 255, 0.62); }

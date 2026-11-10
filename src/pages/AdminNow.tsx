@@ -29,24 +29,30 @@ export function cardTone(view: RoomView, advice: Advice[]): RoomView['tone'] {
   return view.tone !== 'ok' ? view.tone : advice.length ? 'warn' : 'ok'
 }
 
-/** 오른쪽 "지금 확인할 것". 방 하나에 한 장, 누르면 그 방 상세 창 */
-function IssueFeed({ issues, onOpen }: { issues: { v: RoomView; list: Advice[] }[]; onOpen: (roomId: number) => void }) {
+/**
+ * 오른쪽 "오디가 한 일"(10차 회의: 관리자는 보기만). 방 하나에 한 장, 누르면 그 방 상세 창.
+ * 오디가 대신 처리한 일은 파랑 줄로, 장치처럼 사람 손이 꼭 필요한 일만 남색 "장치 확인"으로 남긴다
+ */
+function ActionFeed({ issues, onOpen }: { issues: { v: RoomView; list: Advice[] }[]; onOpen: (roomId: number) => void }) {
   return (
     <ul className="ctl-feed">
-      {issues.map(({ v, list }, i) => (
-        <li key={v.roomId} style={{ '--k': i } as CSSProperties}>
-          <button type="button" className={`cf-item i-${list[0].tone}`} onClick={() => onOpen(v.roomId)}>
-            <span className="cf-no">{v.roomId}</span>
-            <span className="cf-text">
-              <small>{v.name} · {list[0].tone === 'off' ? '장치 확인' : '주의'}</small>
-              <b>{list[0].title}</b>
-              <span>{list[0].todo}</span>
-              {list.length > 1 && <em>외 {list.length - 1}건 더</em>}
-            </span>
-            <span className="cf-go" aria-hidden="true">›</span>
-          </button>
-        </li>
-      ))}
+      {issues.map(({ v, list }, i) => {
+        const top = list[0]
+        return (
+          <li key={v.roomId} style={{ '--k': i } as CSSProperties}>
+            <button type="button" className={`cf-item i-${top.tone}`} onClick={() => onOpen(v.roomId)}>
+              <span className="cf-no">{v.roomId}</span>
+              <span className="cf-text">
+                <small>{v.name} · {top.auto ? '오디가 처리' : '장치 확인'}</small>
+                <b>{top.title}</b>
+                <span className={top.auto ? 'cf-auto' : ''}>{top.auto ? `오디: ${top.auto}` : top.todo}</span>
+                {list.length > 1 && <em>외 {list.length - 1}건 더</em>}
+              </span>
+              <span className="cf-go" aria-hidden="true">›</span>
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -65,7 +71,7 @@ function Big({ label, value, of, unit, tone, hint }: { label: string; value: num
 }
 
 /**
- * 관리자 "지금" = 관제실. 어두운 판 위에 방 1~5 평면도 + 오른쪽 "지금 확인할 것" + 아래 "전체 실시간 분석".
+ * 관리자 "지금" = 관제실. 어두운 판 위에 방 1~5 평면도 + 오른쪽 "오디가 한 일" + 아래 "전체 실시간 분석". 관리자는 보기만(10차 회의).
  * 맨 위 큰 숫자(쓰는 방·주의·확인 필요·평균 CO2·할 일)로 먼저 상황을 잡고, 이상한 방은 칸 모양(노란 고리·줄무늬)으로 먼저 보이게 한다.
  * 10초마다 새로 읽는다. 데이터는 api/environment 창구 하나에서만 받는다(지금은 가짜 값)
  */
@@ -145,6 +151,10 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       .sort((a, b) => Number(b.list[0].tone === 'off') - Number(a.list[0].tone === 'off'))
     : []
 
+  // 맨 위 "오디가 처리": 오디가 대신 처리한 방 수, 장치처럼 사람 손이 필요한 방 수
+  const handled = issues.filter((x) => !!x.list[0].auto).length
+  const needHands = issues.length - handled
+
   // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
   const avg = useMemo(() => overview(views).avg, [views])
 
@@ -171,14 +181,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <Big label="주의" value={known ? warn : null} tone={warn ? 'warn' : ''} hint="환기·시간 넘김·입실 안 함·문" />
         <Big label="확인 필요" value={known ? off : null} tone={off ? 'off' : ''} hint="센서 멈춤·끊김" />
         <Big label="평균 CO2" value={known ? avg : null} unit="ppm" hint={`기준 ${ENV_RULES.co2LimitPpm}`} />
-        <button type="button" className={`ctl-big as-btn ${todo.total ? 'todo' : ''}`} onClick={onOpenTodo}>
-          <span className="cb-label">할 일</span>
-          <b className="cb-num" aria-hidden="true">{todo.reportsKnown ? todo.total : '–'}</b>
-          <span className="sr-only">{todo.reportsKnown ? `${todo.total}건` : '모름'}</span>
-          <span className="cb-hint">{!todo.reportsKnown ? `신고 수를 확인하지 못했어요 · AI 제안 ${todo.ai}`
-            : todo.total ? `신고 ${todo.reports} · AI 제안 ${todo.ai}` : '사람이 볼 일이 없어요'}</span>
-          <span className="cb-go" aria-hidden="true">→</span>
-        </button>
+        <Big label="오디가 처리" value={known ? handled : null} unit="건" tone="lead" hint={needHands ? `장치 확인 ${needHands}건만 사람 손이 필요해요` : '관리자가 할 일은 없어요'} />
       </div>
 
       <div className="ctl-bar">
@@ -206,22 +209,18 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
-          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />지금 확인할 것 <b>{now ? issues.length : '–'}</b></h2>
-          {issues.length > 0 && <IssueFeed issues={issues} onOpen={setOpenRoom} />}
+          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length : '–'}</b></h2>
+          {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} />}
           {known && issues.length === 0 && unknownRooms === 0 && (
-            <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 확인할 것이 없어요.</p>
+            <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 오디가 지켜보고 있어요.</p>
           )}
           {known && issues.length === 0 && unknownRooms > 0 && (
-            <p className="ctl-allok" role="status">확인할 것은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요{missingRooms > 0 ? ` (${missingRooms}개 방은 값이 오지 않았어요)` : ''}.</p>
+            <p className="ctl-allok" role="status">이상한 방은 없지만, {unknownRooms}개 방은 재실을 알 수 없어요{missingRooms > 0 ? ` (${missingRooms}개 방은 값이 오지 않았어요)` : ''}.</p>
           )}
           {data && views.length === 0 && (
             <p className="ctl-allok" role="status">방 정보를 받지 못했어요. 잠시 뒤 다시 확인해요.</p>
           )}
-          <button type="button" className="ctl-todo" onClick={onOpenTodo}>
-            <b>{todo.reportsKnown ? todo.total : '?'}</b>
-            <span>사람이 정할 일<small>{todo.reportsKnown ? `신고 판정 ${todo.reports} · AI 제안 ${todo.ai}` : '신고 수를 확인하지 못했어요'}</small></span>
-            <span aria-hidden="true">›</span>
-          </button>
+          <p className="ctl-hands">신고 판정·경고·철회 재검토도 AI가 해요. 결과는 기록 칸에 남아요.</p>
         </aside>
 
         {views.length > 0 && <AdminOverview views={views} />}

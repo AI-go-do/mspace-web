@@ -11,6 +11,8 @@ export interface Advice {
   title: string
   todo: string
   action?: 'checkout' | 'block' | 'reports'
+  /** 오디(AI)가 사람 대신 한 일·할 일(10차 회의: 관리자는 보기만). 없으면 사람이 장치를 봐야 하는 일 */
+  auto?: string
   /** 노랑·남색 표시까지는 아닌 참고(온도·습도). 맨 위 띠·카드 이유 줄에는 올리지 않는다 */
   minor?: boolean
 }
@@ -32,34 +34,34 @@ export function roomAdvice(v: RoomView, now: Date, ctx: AdviceContext = {}, rule
     out.push({ tone: 'off', title: `CO2가 ${v.sameForMinutes}분째 같은 값이에요`, todo: '센서가 멈췄을 수 있어요. 장치를 다시 켜 보고, 그래도 같으면 점검으로 막아 두세요.', action: 'block' })
   }
   if (flags.nightDoor && v.door) {
-    out.push({ tone: 'warn', title: `밤에 문이 열렸어요 (${seoulClock(new Date(v.door.since))}부터)`, todo: v.current ? `예약 #${v.current.reservationId}이 있는 시간이에요. 예약한 사람인지 확인해 주세요.` : '예약이 없는 시간이에요. 누가 들어갔는지 바로 확인해 주세요.' })
+    out.push({ tone: 'warn', title: `밤에 문이 열렸어요 (${seoulClock(new Date(v.door.since))}부터)`, todo: v.current ? `예약 #${v.current.reservationId}이 있는 시간이에요. 예약한 사람인지 확인해 주세요.` : '예약이 없는 시간이에요. 누가 들어갔는지 바로 확인해 주세요.', auto: v.current ? '대표자에게 문 열림을 알렸어요' : '기록해 두고 아침 보고에 올렸어요' })
   }
   if (ctx.blocked && (v.presence === 'OCCUPIED' || flags.unbooked)) {
-    out.push({ tone: 'warn', title: `${ctx.blocked}으로 막아 둔 방에 사람이 있어요`, todo: '공사·점검 담당자인지 확인하고, 아니면 나가도록 안내해 주세요.' })
+    out.push({ tone: 'warn', title: `${ctx.blocked}으로 막아 둔 방에 사람이 있어요`, todo: '공사·점검 담당자인지 확인하고, 아니면 나가도록 안내해 주세요.', auto: '기록해 두고 아침 보고에 올렸어요' })
   }
   if (ctx.openReports && ctx.openReports > 0) {
-    out.push({ tone: 'warn', title: `판정 기다리는 신고 ${ctx.openReports}건`, todo: '할 일 칸에서 사진을 보고 판정해 주세요.', action: 'reports' })
+    out.push({ tone: 'warn', title: `판정 기다리는 신고 ${ctx.openReports}건`, todo: '할 일 칸에서 사진을 보고 판정해 주세요.', action: 'reports', auto: '사진을 비교해 판정하고 있어요' })
   }
   if (flags.co2Over) {
-    out.push({ tone: 'warn', title: `CO2가 기준 ${rules.co2LimitPpm}ppm을 넘었어요`, todo: '방 안 사람에게 문·창문을 열어 환기하도록 알려 주세요.' })
+    out.push({ tone: 'warn', title: `CO2가 기준 ${rules.co2LimitPpm}ppm을 넘었어요`, todo: '방 안 사람에게 문·창문을 열어 환기하도록 알려 주세요.', auto: '방 사용자에게 환기 알림을 보냈어요' })
   } else if (flags.co2Soon && v.etaMinutes !== null) {
-    out.push({ tone: 'warn', title: `약 ${v.etaMinutes}분 뒤 CO2가 ${rules.co2LimitPpm}ppm을 넘을 것 같아요`, todo: '넘기 전에 미리 환기하면 답답해지지 않아요. 예측은 그래프의 점선과 범위로 볼 수 있어요.' })
+    out.push({ tone: 'warn', title: `약 ${v.etaMinutes}분 뒤 CO2가 ${rules.co2LimitPpm}ppm을 넘을 것 같아요`, todo: '넘기 전에 미리 환기하면 답답해지지 않아요. 예측은 그래프의 점선과 범위로 볼 수 있어요.', auto: '넘기 전에 방 사용자에게 환기 알림을 보내요' })
   }
   if (flags.overtime && v.current) {
-    out.push({ tone: 'warn', title: `예약이 ${v.overtimeMinutes}분 지났는데 사람이 있어요 (#${v.current.reservationId})`, todo: '다음 예약이 있으면 먼저 퇴실을 안내하고, 안 되면 강제 퇴실해 주세요.', action: 'checkout' })
+    out.push({ tone: 'warn', title: `예약이 ${v.overtimeMinutes}분 지났는데 사람이 있어요 (#${v.current.reservationId})`, todo: '다음 예약이 있으면 먼저 퇴실을 안내하고, 안 되면 강제 퇴실해 주세요.', action: 'checkout', auto: '대표자에게 퇴실 안내를 보냈어요' })
   }
   if (flags.noEntry && v.current) {
     const left = Math.max(0, rules.noShowMinutes - v.noEntryMinutes)
-    out.push({ tone: 'warn', title: `예약이 시작된 지 ${v.noEntryMinutes}분인데 아무도 없어요 (#${v.current.reservationId})`, todo: left > 0 ? `${left}분 안에 입실하지 않으면 노쇼로 바뀌고 방이 풀려요. 따로 할 일은 없어요.` : '곧 노쇼로 바뀌고 방이 풀려요. 따로 할 일은 없어요.' })
+    out.push({ tone: 'warn', title: `예약이 시작된 지 ${v.noEntryMinutes}분인데 아무도 없어요 (#${v.current.reservationId})`, todo: left > 0 ? `${left}분 안에 입실하지 않으면 노쇼로 바뀌고 방이 풀려요. 따로 할 일은 없어요.` : '곧 노쇼로 바뀌고 방이 풀려요. 따로 할 일은 없어요.', auto: `입실이 없으면 ${rules.noShowMinutes}분에 노쇼로 풀어요` })
   }
   if (flags.unbooked) {
-    out.push({ tone: 'warn', title: '예약이 없는데 CO2가 계속 오르고 있어요', todo: '예약 없이 쓰는 사람이 있을 수 있어요. 지나가는 길에 한번 확인해 주세요.' })
+    out.push({ tone: 'warn', title: '예약이 없는데 CO2가 계속 오르고 있어요', todo: '예약 없이 쓰는 사람이 있을 수 있어요. 지나가는 길에 한번 확인해 주세요.', auto: '기록해 두고 아침 보고에 올렸어요' })
   }
   if (flags.doorLeftOpen && v.door) {
-    out.push({ tone: 'warn', title: `빈 방 문이 ${v.door.minutes}분째 열려 있어요`, todo: '지나가는 길에 닫아 주세요. 밤이나 주말이면 누가 들어갔는지 먼저 확인해 주세요.' })
+    out.push({ tone: 'warn', title: `빈 방 문이 ${v.door.minutes}분째 열려 있어요`, todo: '지나가는 길에 닫아 주세요. 밤이나 주말이면 누가 들어갔는지 먼저 확인해 주세요.', auto: '마지막 예약 대표자에게 알렸어요' })
   }
   if (flags.lightLeftOn) {
-    out.push({ tone: 'warn', title: `빈 방에 불이 ${v.lightOnEmptyMinutes}분째 켜져 있어요`, todo: v.nextAt ? '다음 예약 전까지 비어 있으면 지나갈 때 꺼 주세요.' : '지나갈 때 불을 꺼 주세요. 밤이면 문이 잠겼는지도 같이 봐 주세요.' })
+    out.push({ tone: 'warn', title: `빈 방에 불이 ${v.lightOnEmptyMinutes}분째 켜져 있어요`, todo: v.nextAt ? '다음 예약 전까지 비어 있으면 지나갈 때 꺼 주세요.' : '지나갈 때 불을 꺼 주세요. 밤이면 문이 잠겼는지도 같이 봐 주세요.', auto: '기록해 두고 아침 보고에 올렸어요' })
   }
   if (flags.hot) {
     const before = v.nextAt && v.presence !== 'OCCUPIED' && new Date(v.nextAt).getTime() > now.getTime()
