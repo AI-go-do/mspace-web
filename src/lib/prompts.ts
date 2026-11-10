@@ -32,7 +32,7 @@ export const SCHEDULE_STEPS: PromptChip[] = [
 
 export const MY_STEPS: PromptChip[] = [
   { label: '내 예약 보기', message: '내 예약 보여 줘' },
-  { label: '입실 번호', message: '입실 번호 보여 줘' },
+  { label: '입실 QR', message: '입실 QR 보여 줘' },
   { label: '예약 취소', message: '내 예약 취소해 줘' },
   { label: '연장하기', message: '지금 예약 30분 연장해 줘' },
   { label: '퇴실하기', message: '지금 퇴실할게' },

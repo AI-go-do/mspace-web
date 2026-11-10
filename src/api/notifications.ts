@@ -91,7 +91,7 @@ export function notificationAction(n: AppNotification): { to: string; label: str
   switch (n.kind) {
     case 'START_SOON':
     case 'NO_SHOW_SOON':
-      return { to: `/reservations/${n.reservationId}`, label: '입실 번호 보기' }
+      return { to: `/reservations/${n.reservationId}`, label: '입실 QR 보기' }
     case 'AWAY_SOON':
       return { to: `/me/${n.reservationId}/checkout`, label: '퇴실할게요' }
     // 끝나기 10분 전: 연장 버튼은 사용 중 카드(마이 탭 맨 위)에 있다.

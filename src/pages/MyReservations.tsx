@@ -22,7 +22,7 @@ export const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * 다른 화면에서도 쓰는 내 예약 목록 받기.
- * 화면이 열려 있는 동안 30초마다, 그리고 화면으로 돌아올 때 다시 받는다(키패드로 입실하면 상태가 바뀌므로).
+ * 화면이 열려 있는 동안 30초마다, 그리고 화면으로 돌아올 때 다시 받는다(QR로 입실하면 상태가 바뀌므로).
  * 요청은 한 번에 하나만 보내고, 진행 중에 또 오면 끝난 뒤 한 번만 다시 받는다.
  */
 export function useMyReservations() {
@@ -241,7 +241,7 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
       const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current.value)
       key.current = { minutes: 0, value: newKey() }
       setPicking(false)
-      onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 번호가 새로 나왔어요.`)
+      onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 QR이 새로 나왔어요.`)
       onChanged()
     } catch (e) {
       setNote(e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요')
@@ -302,7 +302,7 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
         <span className="inuse-note">퇴실·연장은 대표자가 해요</span>
       )}
       <div className="inuse-links">
-        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
+        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 QR 다시 보기</Link>}
         <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
         <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link">방에 문제가 있나요?</Link>
       </div>

@@ -290,7 +290,7 @@ export default function Home() {
         <Link to={`/reservations/${card.id}`} className="mine-card">
           <span className="mine-card-text">
             <span>내 예약 · {Date.parse(card.startAt) < dayStart ? '어제' : '오늘'} {seoulClock(new Date(card.startAt))}–{seoulClock(new Date(card.endAt))} · 창작실 {card.room.id}</span>
-            <b>{card.owner ? '입실 번호 보기' : '예약 보기'}</b>
+            <b>{card.owner ? '입실 QR 보기' : '예약 보기'}</b>
           </span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15233D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
         </Link>
