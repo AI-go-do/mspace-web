@@ -203,6 +203,8 @@ function MyPageFor({ member }: { member: number | null }) {
 
       <button type="button" className="my-logout" onClick={tryLogout}>로그아웃</button>
       {logoutError && <p role="alert" className="muted mine-msg">{logoutError}</p>}
+      {/* 내 경고는 눈에 띄지 않게 맨 아래 작은 글자로(11/10 재웅). 경고를 받으면 알림으로 먼저 온다 */}
+      <Link to="/me/warnings" className="my-quiet">내 경고 기록</Link>
     </main>
   )
 }

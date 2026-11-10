@@ -83,7 +83,9 @@ export function withRead(list: AppNotification[], id: number | null): AppNotific
 /** 알림에서 바로 갈 곳. 예약과 상관없거나 갈 곳이 없으면 null */
 export function notificationAction(n: AppNotification): { to: string; label: string } | null {
   // 방의 사과는 예약이 없어도(예시) 경고 수가 돌아왔는지 보러 간다
-  if (isApology(n)) return { to: '/rules', label: '내 경고 보기' }
+  if (isApology(n)) return { to: '/me/warnings', label: '내 경고 보기' }
+  // 경고를 받았다: 횟수·근거·철회 요청은 마이 맨 아래 '내 경고'에 있다(11/10 재웅: 이용 규칙에서 뺌)
+  if (n.kind === 'WARNING') return { to: '/me/warnings', label: '내 경고 보기' }
   // 숨 막히기: 홈 맨 위 "내 방 공기" 카드(공기청정기·에어컨 버튼)로
   if (n.kind === CO2_ALERT_KIND) return { to: '/', label: '내 방 공기 보기' }
   // 빈방 릴레이: 홈 맨 위 릴레이 카드에 남은 받을 시간과 [받을게요]·[넘길게요]가 있다

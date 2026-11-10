@@ -31,14 +31,14 @@ describe('방의 사과 카드 (Q-19)', () => {
     expect(pickApology(list, new Set([2]))?.id).toBe(1)
     expect(pickApology(list, new Set([1, 2]))).toBeNull()
   })
-  it('알림함의 사과는 경고 수를 보러 이용 규칙으로 간다(예약 번호가 없어도)', () => {
+  it('알림함의 사과는 경고 수를 보러 마이의 내 경고로 간다(예약 번호가 없어도)', () => {
     expect(notificationAction({ ...n(1, 'DEVICE_APOLOGY', '2026-11-10T14:16:00+09:00'), reservationId: null }))
-      .toEqual({ to: '/rules', label: '내 경고 보기' })
+      .toEqual({ to: '/me/warnings', label: '내 경고 보기' })
   })
-  it('core #99가 보내는 DEVICE_APOLOGY(예약 번호 있음)도 사과로 보고 이용 규칙으로 간다', () => {
+  it('core #99가 보내는 DEVICE_APOLOGY(예약 번호 있음)도 사과로 보고 내 경고로 간다', () => {
     const fromCore = n(9, 'DEVICE_APOLOGY', '2026-11-10T14:20:00+09:00')
     expect(isApology(fromCore)).toBe(true)
-    expect(notificationAction(fromCore)).toEqual({ to: '/rules', label: '내 경고 보기' })
+    expect(notificationAction(fromCore)).toEqual({ to: '/me/warnings', label: '내 경고 보기' })
     expect(pickApology([fromCore])?.id).toBe(9)
   })
   it('예전 이름 ROOM_APOLOGY도 사과로 받고, 다른 종류는 사과가 아니다', () => {

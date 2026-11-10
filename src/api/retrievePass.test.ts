@@ -18,3 +18,10 @@ describe('찾으러 가기 QR', () => {
     expect(notificationAction({ id: 1, reservationId: 9, kind: 'LEFT_ITEM', title: '', body: '', createdAt: '', read: false })).toBeNull()
   })
 })
+
+describe('경고 알림', () => {
+  it('경고를 받으면 마이 맨 아래 내 경고로 간다(이용 규칙에서는 뺌)', () => {
+    expect(notificationAction({ id: 2, reservationId: 9, kind: 'WARNING', title: '', body: '', createdAt: '', read: false }))
+      .toEqual({ to: '/me/warnings', label: '내 경고 보기' })
+  })
+})
