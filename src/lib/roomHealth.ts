@@ -114,10 +114,6 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const sameForMinutes = sameTail(history)
   // 판단용 CO2: co2MedianOf분 가운데값으로 순간 튄 값을 거른다(1이면 그대로). 화면 숫자는 그대로 보여 준다
   const k = Math.max(1, rules.co2MedianOf ?? 1)
-  const smooth = k === 1 ? history : history.map((_, i) => {
-    const w = history.slice(Math.max(0, i - k + 1), i + 1).filter((x): x is number => x !== null).sort((a, b) => a - b)
-    return w.length ? w[Math.floor(w.length / 2)] : null
-  })
   // 판단값은 지금부터 k분 안에 찍힌 값만으로 가운데값을 낸다. 최근 값이 빠졌을 때 오래된 낮은 값이 경고를 덮지 않게
   const freshFrom = now.getTime() - k * 60_000
   const freshPts = history
@@ -133,7 +129,12 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   for (let i = times.length - 1; i > 0; i--) {
     if (new Date(times[i]).getTime() - new Date(times[i - 1]).getTime() > 90_000) { gapAt = i; break }
   }
-  const trendSmooth = smooth.slice(gapAt)
+  // 가운데값 고르기도 끊김 뒤 값끼리만(끊기기 전 값이 끊김 뒤 첫 값에 섞이지 않게)
+  const afterGap = history.slice(gapAt)
+  const trendSmooth = k === 1 ? afterGap : afterGap.map((_, i) => {
+    const w = afterGap.slice(Math.max(0, i - k + 1), i + 1).filter((x): x is number => x !== null).sort((a, b) => a - b)
+    return w.length ? w[Math.floor(w.length / 2)] : null
+  })
   const stuck = co2 !== null && sameForMinutes >= rules.stuckMinutes
   const offline = env.offline
 
@@ -154,8 +155,15 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   }
   // 순간 튄 값에 나서지 않게, 최근 hold분 값이 모두 기준 이상일 때만 "넘음"(1이면 지금 값 하나만 본다)
   const hold = Math.max(1, rules.co2OverHoldMinutes ?? 1)
-  const recent = history.slice(-hold)
-  const co2OverRaw = co2Judge !== null && co2Judge >= rules.co2LimitPpm && recent.length >= hold - 1 && recent.slice(0, -1).every((v) => v !== null && v >= rules.co2LimitPpm)
+  // hold가 2분 이상이면 끊김 뒤, 지금부터 hold분 안에 찍힌 값(새 지금 값 포함)이 hold개 넘게 모두 기준 이상이어야 한다
+  const holdFrom = now.getTime() - hold * 60_000
+  const holdPts = history
+    .map((v, i) => ({ v, t: new Date(times[i]).getTime(), i }))
+    .filter((p) => p.i >= gapAt && p.t > holdFrom)
+    .map((p) => ({ v: p.v, t: p.t }))
+  if (co2 !== null && curAt > holdFrom && !(holdPts.length && holdPts[holdPts.length - 1].t >= curAt)) holdPts.push({ v: co2, t: curAt })
+  const co2OverRaw = co2Judge !== null && co2Judge >= rules.co2LimitPpm &&
+    (hold === 1 || (holdPts.length >= hold && holdPts.every((p) => p.v !== null && p.v >= rules.co2LimitPpm)))
   const crossAt = co2OverRaw ? -1 : forecast.findIndex((v) => v >= rules.co2LimitPpm)
   const etaMinutes = crossAt >= 0 ? crossAt + 1 : null
   // 알릴 사람이 없는 빈 방(재실 없음 + 지금 걸린 예약 없음)은 값만 보여 주고 나서지 않는다(co2AlertWhenEmpty 0)
@@ -176,7 +184,10 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   const recentOcc = occupancy.filter((_, i) => new Date(times[i]).getTime() > pFrom)
   const known = recentOcc.filter((o): o is boolean => o !== null).slice(-pHold)
   // 값이 하나도 없으면 지금 재실로, 일부만 있으면 pHold분을 다 채워야 같다고 본다(한 번 깜빡임에 나서지 않게)
-  const heldFor = (state: boolean) => known.length === 0 || (known.length >= pHold && known.every((o) => o === state))
+  // pHold가 1이면 지금 재실 값만 본다
+  const heldFor = (state: boolean) => pHold === 1
+    ? env.presence === (state ? 'OCCUPIED' : 'EMPTY')
+    : known.length === 0 || (known.length >= pHold && known.every((o) => o === state))
   const endMs = env.current ? new Date(env.current.endAt).getTime() : null
   const overtimeMinutes = occupied && endMs !== null && now.getTime() > endMs ? Math.floor((now.getTime() - endMs) / 60_000) : 0
   const overtime = overtimeMinutes >= rules.overtimeGraceMinutes && heldFor(true)

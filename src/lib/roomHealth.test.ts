@@ -114,6 +114,31 @@ describe('toRoomView', () => {
     expect(toRoomView({ ...r, series: full }, cfg, now).flags.overtime).toBe(true)
   })
 
+  it('재실 유지가 1분이면 분마다 값이 비었다고 해도 지금 재실로 시간 넘김을 본다', () => {
+    const current = { reservationId: 1, startAt: iso(98), endAt: iso(8), people: 3 }
+    const r = room((i) => 700 + (i % 3), { current })
+    const series = r.series.map((p, i) => (i === r.series.length - 1 ? { ...p, occupied: false } : p))
+    expect(toRoomView({ ...r, series }, cfg, now, { ...ENV_RULES, presenceHoldMinutes: 1 }).flags.overtime).toBe(true)
+  })
+
+  it('CO2 넘음 유지는 끊기기 전 높은 값을 세지 않는다', () => {
+    const rules = { ...ENV_RULES, co2OverHoldMinutes: 3, co2MedianOf: 1 }
+    // 20~18분 전 1200, 끊겼다가 지금 1200 하나 → 3분 유지가 아님
+    const r = room(() => 1200, {}, 3)
+    const series = [...r.series.map((p, i) => ({ ...p, at: iso(20 - i) })), { at: iso(0), ppm: 1200, temperatureC: 24, humidityPct: 45 }]
+    expect(toRoomView({ ...r, series, co2: { ppm: 1200, at: iso(0) } }, cfg, now, rules).flags.co2Over).toBe(false)
+    // 3분 내내 1200이면 넘음
+    expect(toRoomView(room(() => 1200), cfg, now, rules).flags.co2Over).toBe(true)
+  })
+
+  it('끊긴 뒤 첫 값의 추세에 끊기기 전 값을 섞지 않는다', () => {
+    // 20~18분 전 400, 끊겼다가 1분 전·지금 900 → 추세 0이라 곧 넘음 아님
+    const r = room(() => 400, {}, 3)
+    const tail = [1, 0].map((m) => ({ at: iso(m), ppm: 900, temperatureC: 24, humidityPct: 45 }))
+    const series = [...r.series.map((p, i) => ({ ...p, at: iso(20 - i) })), ...tail]
+    expect(toRoomView({ ...r, series, co2: { ppm: 900, at: iso(0) } }, cfg, now).flags.co2Soon).toBe(false)
+  })
+
   it('빈 방이 27.5°C 넘어도 노랑으로 올리지 않고 참고로만 둔다(덥다는 느낌은 사람마다 달라서)', () => {
     const v = toRoomView(room((i) => 480 + (i % 2), { presence: 'EMPTY', temperatureC: 27.8, next: { startAt: iso(-79), people: 4 } }), cfg, now)
     expect(v.flags.hot).toBe(true)
