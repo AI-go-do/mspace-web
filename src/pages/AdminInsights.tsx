@@ -1,8 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getUsageStats, pct, SUSPENSION_REASON, SUSPENSION_SCOPE,
-  WARNING_REASON, type Penalties, type SourceCounts, type UsageStats,
+  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, LEFT_ITEM_LABEL, pct,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -113,6 +113,67 @@ export function AdminPenalties() {
             </ul>
           </section>
           </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+/**
+ * 방 카메라 정리 확인 목록 (FR-DEV-105·FR-WEB-101, core #110). 퇴실 뒤 젯슨이 본 결과를 최근 순으로.
+ * 사진은 남기지 않아 결과·물건 이름만 있다. 치워야 함이면 자동 신고 번호가 같이 오고, 판정은 할 일 칸에서 사람이 한다
+ */
+export function AdminTidyChecks() {
+  const [days, setDays] = useState(7)
+  const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const memberId = currentMemberId()
+    if (memberId === null) return
+    setRows(null)
+    setError(null)
+    const ctrl = new AbortController()
+    let stale = false
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
+    getTidyChecks(days, ctrl.signal, memberId)
+      .then((r) => { if (!stale) setRows(r) })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
+      .finally(() => clearTimeout(timer))
+    return () => { stale = true; clearTimeout(timer); ctrl.abort() }
+  }, [days])
+
+  const counts = rows ? tidyCounts(rows) : null
+  return (
+    <section className="rec-body" aria-label="카메라 정리 확인">
+      <RangeChips value={days} onChange={setDays} label="기간" />
+      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {!rows && !error && <Skeleton />}
+      {rows && counts && (
+        <>
+          <div className="stat-tiles three">
+            <Tile hero label="치워야 함" value={counts.dirty} />
+            <Tile label="깨끗함" value={counts.clean} i={1} />
+            <Tile label="귀중품 두고 감" value={counts.left} i={2} />
+          </div>
+          <section className="card admin-sec">
+            <h2>퇴실 뒤 카메라가 본 것</h2>
+            {rows.length === 0 && <p className="adm-small">이 기간에 받은 결과가 없어요.</p>}
+            <ul className="pen-list">
+              {rows.map((r) => (
+                <li key={r.reservationId} className={`pen-row ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
+                  <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
+                  <span className="pen-what">
+                    <span className={`pen-tag ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
+                      {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 신고 #${r.reportId}` : ''}
+                    </span>
+                    {r.leftItems.length > 0 && <span>두고 간 것: {r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join('·')}</span>}
+                    <span className="muted">{r.endedAt ? `${stamp(r.endedAt)} 퇴실 · ` : ''}{stamp(r.observedAt)} 확인</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </>
       )}
     </section>

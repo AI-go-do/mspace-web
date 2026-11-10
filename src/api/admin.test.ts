@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { adminErrorMessage, judgeConfirm, JUDGE_OPTIONS, stillInRoom } from './admin'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clearTokens, saveTokens } from '../auth/tokens'
+import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -62,5 +63,41 @@ describe('judgeConfirm', () => {
     expect(judgeConfirm(opt('UNVERIFIED'), true)).toContain('알림은 가지 않아요')
     expect(judgeConfirm(opt('FALSE'), true)).toContain('경고는 가지 않아요')
     expect(judgeConfirm(opt('CONFIRMED'), true)).toBe(opt('CONFIRMED').confirm)
+  })
+})
+
+describe('카메라 정리 확인 (core #110)', () => {
+  it('결과와 두고 간 귀중품을 한 줄로', () => {
+    expect(tidySummary({ result: 'CLEAN', leftItems: [] })).toBe('깨끗함')
+    expect(tidySummary({ result: 'NEEDS_CLEANING', leftItems: ['BAG', 'LAPTOP'] })).toBe('치워야 함 · 두고 간 것: 가방·노트북')
+    expect(tidySummary({ result: 'SOMETHING_NEW', leftItems: ['UMBRELLA'] })).toBe('SOMETHING_NEW · 두고 간 것: UMBRELLA')
+  })
+
+  it('치워야 함·깨끗함·귀중품 두고 감을 센다', () => {
+    const rows = [
+      { result: 'NEEDS_CLEANING', leftItems: [] },
+      { result: 'CLEAN', leftItems: ['PHONE'] },
+      { result: 'CLEAN', leftItems: [] },
+    ]
+    expect(tidyCounts(rows)).toEqual({ dirty: 1, clean: 2, left: 1 })
+  })
+
+  afterEach(() => { vi.unstubAllGlobals(); clearTokens() })
+  it('목록은 관리자 주소로 받고 기간은 1–92일로 자른다', async () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+    saveTokens({ accessToken: 't', expiresAt: new Date(Date.now() + 3_600_000).toISOString(), memberId: 1 })
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify({ items: [{ reservationId: 40, roomId: 2, roomName: '창작실 2', endedAt: null, result: 'CLEAN', items: [], leftItems: [], reportId: null, observedAt: '2026-11-09T21:00:00+09:00' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    const rows = await getTidyChecks(365)
+    expect(calls[0]).toContain('/api/tidy-checks?days=92')
+    expect(rows[0].roomName).toBe('창작실 2')
   })
 })

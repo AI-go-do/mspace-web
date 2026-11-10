@@ -347,6 +347,9 @@
   position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 2); border-radius: 12px; background: var(--navy);
   transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.4s var(--ease-spring);
 }
+.adm-seg.three { grid-template-columns: repeat(3, 1fr); }
+.adm-seg.three .adm-seg-glow { width: calc((100% - 8px) / 3); }
+.adm-seg.three button { padding: 0 16px; }
 .adm-seg button {
   position: relative; min-height: 40px; padding: 0 22px; border: 0; background: none; cursor: pointer;
   font-size: 14px; font-weight: 800; color: var(--navy-70); transition: color 0.25s;
