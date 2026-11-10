@@ -150,8 +150,8 @@ export function AdminApprentice() {
         </section>
       </div>
       <p className="adm-foot">
-        가짜 값 단계예요. 기록은 이 브라우저에만 남고 학생에게 아무것도 보내지 않아요.{' '}
-        <button type="button" className="adm-link" onClick={resetApprentice}>가짜 기록 처음으로</button>
+        시연 기록{' '}
+        <button type="button" className="adm-link" onClick={resetApprentice}>처음으로</button>
       </p>
     </section>
   )

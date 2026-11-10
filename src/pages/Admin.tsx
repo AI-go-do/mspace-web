@@ -124,7 +124,6 @@ export default function Admin() {
           <span className="adm-mark" aria-hidden="true">M</span>
           <div>
             <b>오디 관리</b>
-            <span>IT융합대학 창작실 5개</span>
           </div>
         </div>
         <nav className="adm-nav" aria-label="관리 메뉴">

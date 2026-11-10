@@ -138,8 +138,8 @@ export default function MyReservations() {
         <>
           {openAppeals > 0 && (
             <button type="button" className="pw-banner" onClick={() => setTab('past')}>
-              <b>철회를 요청할 수 있는 경고가 {openAppeals}건 있어요</b>
-              <span className="muted">지난 예약 보기</span>
+              <b>경고 {openAppeals}건 · 철회 요청 가능</b>
+              <span className="muted" aria-hidden="true">›</span>
             </button>
           )}
           {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
@@ -275,7 +275,8 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
           <div className="inuse-row">
             <button type="button" className="inuse-btn2" disabled={!canContinue || sending} aria-expanded={picking}
               onClick={() => { setNote(null); setPicking((v) => !v) }}>
-              연장하기
+              {/* 아직 못 하면 문장 대신 버튼에 언제부터인지만(11/10 재웅 "글자 많다") */}
+              {!canContinue && end > now.getTime() ? `연장 ${seoulClock(new Date(end - 10 * 60_000))}부터` : '연장하기'}
             </button>
             {still.state.kind !== 'done' && (
               <button type="button" className="inuse-btn2" disabled={still.state.kind === 'sending'} onClick={() => void still.press()}>
@@ -283,7 +284,6 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
               </button>
             )}
           </div>
-          {!canContinue && end > now.getTime() && <span className="inuse-note">연장은 끝나기 10분 전부터 할 수 있어요</span>}
           {picking && canContinue && (
             <div className="inuse-steps" role="group" aria-label="얼마나 더 쓸까요">
               {CONTINUE_STEPS.map((m) => (
@@ -302,9 +302,9 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
         <span className="inuse-note">퇴실·연장은 대표자가 해요</span>
       )}
       <div className="inuse-links">
-        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 QR 다시 보기</Link>}
-        <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
-        <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link">방에 문제가 있나요?</Link>
+        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">QR</Link>}
+        <Link to={`/me/${r.id}`} className="inuse-link">자세히</Link>
+        <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link" aria-label="방에 문제가 있나요? 신고하기">신고</Link>
       </div>
     </section>
   )
