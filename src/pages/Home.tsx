@@ -180,10 +180,10 @@ export default function Home() {
       <section className="card odi-panel" aria-labelledby="odi-title">
         <div className="odi-panel-head">
           <Odi size={48} badge={firstCount + (unread ?? 0)} />
-          <span className="odi-panel-text">
+          <div className="odi-panel-text">
             <h2 id="odi-title">오디</h2>
             <span className="muted">{firstCount ? `먼저 챙긴 게 ${firstCount}개 있어요` : '말하거나 쳐서 부탁해 보세요'}</span>
-          </span>
+          </div>
         </div>
         <Link to="/assistant?quick=1" className="btn-primary odi-ask">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

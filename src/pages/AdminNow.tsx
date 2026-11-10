@@ -17,7 +17,7 @@ import { AdminSensorBoard } from './AdminSensorBoard'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { Judge, Steps, STEP_MS } from '../components/OdiSteps'
-import { useAppliances } from '../api/appliances'
+import { APPLIANCE_SOURCE, useAppliances } from '../api/appliances'
 import { useClimateRules } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
@@ -167,7 +167,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const { auto } = useAppliances()
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
-  useClimateAuto(views, now, auto, currentMemberId(), climateRules)
+  // 가짜(시연) 값으로는 실제 기기에 명령을 보내지 않아요. 가짜 기기일 때만 자동 제어를 보여 줘요
+  useClimateAuto(views, now, auto && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null

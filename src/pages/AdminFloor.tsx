@@ -61,7 +61,10 @@ export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; 
   const nowX = x(lastIdx)
   return (
     <svg className={`ctl-spark ${wide ? 'wide' : ''} m-${metric}`} viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
-      <rect x="0" y="0" width="100" height={Math.max(0, y(limit))} className="sp-over" />
+      {/* 경고 쪽 칸: 습도는 기준 아래(건조), 조도는 경고 칸 없음 (AdminOverview와 같게) */}
+      {metric !== 'light' && (metric === 'hum'
+        ? <rect x="0" y={y(limit)} width="100" height={Math.max(0, 40 - y(limit))} className="sp-over" />
+        : <rect x="0" y="0" width="100" height={Math.max(0, y(limit))} className="sp-over" />)}
       <line x1="0" x2="100" y1={y(limit)} y2={y(limit)} className="sp-limit" vectorEffect="non-scaling-stroke" />
       {area && <path d={area} className="sp-area" />}
       {segs.map((s, i) => <path key={i} d={line(s)} className="sp-line" vectorEffect="non-scaling-stroke" pathLength={1} />)}

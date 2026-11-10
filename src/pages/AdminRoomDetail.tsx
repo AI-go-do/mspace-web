@@ -114,7 +114,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
               : (
                 <ul className="rd-advice">
                   {advice.map((a) => (
-                    <li key={a.title} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
+                    <li key={a.title.replace(/\d+/g, '#')} className={`a-${a.tone}${a.minor ? ' a-minor' : ''}`}>
                       <b>{a.title}</b>
                       {a.auto ? <span className="rd-auto">오디: {a.auto}</span> : <span>참고만 해요. 따로 처리할 일은 없어요.</span>}
                       {a.steps && <Judge steps={a.steps} sample={sample} />}
