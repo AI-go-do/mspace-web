@@ -65,10 +65,17 @@ export default function Home() {
   // 관리자가 막은 기간(Q-23): 막힌 칸은 예약으로, 지금 막힌 방은 "점검 중"처럼 사유로 보인다
   const blocks = useStudentBlocks()
 
+  // 시간표는 자주 바뀌지 않아 화면을 열 때(회원이 바뀌면 다시) 한 번만 받는다. 못 받으면 수업 끝 제안만 빠진다.
+  // 다른 탭에서 다른 회원으로 바뀌면 앞 사람 시간표를 바로 지우고, 늦게 온 앞 사람 응답은 버린다
   useEffect(() => {
     let alive = true
-    // 시간표는 자주 바뀌지 않아 화면을 열 때 한 번만 받는다. 못 받으면 수업 끝 제안만 빠진다
-    getSchedule().then((s) => alive && setSchedule(s)).catch(() => {})
+    setSchedule(undefined)
+    getSchedule(member).then((s) => alive && setSchedule(s)).catch(() => {})
+    return () => { alive = false }
+  }, [member])
+
+  useEffect(() => {
+    let alive = true
     const load = () =>
       getAvailability(seoulDate())
         .then((r) => {
