@@ -32,6 +32,14 @@ describe('toRoomView', () => {
     expect(v.co2Note).toBe('예측: 10분 뒤 1000 넘음')
   })
 
+  it('최근 값이 빠졌으면 오래된 낮은 값으로 지금 높은 CO2를 덮지 않는다', () => {
+    // 20~18분 전 600, 그 뒤 값이 끊겼다가 지금 1200
+    const r = room(() => 600, {}, 3)
+    const series = [...r.series.map((p, i) => ({ ...p, at: iso(20 - i) })), { at: iso(0), ppm: 1200, temperatureC: 24, humidityPct: 45 }]
+    const v = toRoomView({ ...r, series, co2: { ppm: 1200, at: iso(0) } }, cfg, now)
+    expect(v.flags.co2Over).toBe(true)
+  })
+
   it('천천히 오르면 주의가 아니고 15분 뒤 값만 보여 준다', () => {
     const v = toRoomView(room((i) => 600 + i), cfg, now)
     expect(v.flags.co2Soon).toBe(false)

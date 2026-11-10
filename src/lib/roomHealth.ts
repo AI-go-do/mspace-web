@@ -118,7 +118,13 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
     const w = history.slice(Math.max(0, i - k + 1), i + 1).filter((x): x is number => x !== null).sort((a, b) => a - b)
     return w.length ? w[Math.floor(w.length / 2)] : null
   })
-  const co2Judge = co2 === null ? null : k === 1 ? co2 : smooth[smooth.length - 1] ?? co2
+  // 판단값은 지금부터 k분 안에 찍힌 값만으로 가운데값을 낸다. 최근 값이 빠졌을 때 오래된 낮은 값이 경고를 덮지 않게
+  const freshFrom = now.getTime() - k * 60_000
+  const fresh = history
+    .filter((v, i): v is number => v !== null && new Date(times[i]).getTime() > freshFrom)
+    .slice(-k)
+    .sort((a, b) => a - b)
+  const co2Judge = co2 === null ? null : k === 1 || fresh.length === 0 ? co2 : fresh[Math.floor(fresh.length / 2)]
   const stuck = co2 !== null && sameForMinutes >= rules.stuckMinutes
   const offline = env.offline
 
