@@ -7,7 +7,8 @@ import {
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
-import { Icon, IconButton } from '../components/IconAction'
+import { IconButton } from '../components/IconAction'
+import Odi from '../components/Odi'
 import { AuthPhoto, Skeleton } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -153,7 +154,7 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
 export interface TidyAction { doing: string; done: string; later?: boolean }
 
 /**
- * 비교 사진 옆 방 카메라 AI 판단(재웅 11/11: 오디가 아니라 젯슨 안 카메라 모델이 판단하니 이름도 그렇게): 판단 한 줄 + 근거 + 한 일.
+ * 비교 사진 옆 오디 AI 상자(재웅 11/11 "오디 AI 안에서 젯슨 YOLO 판단 로딩 → 판단 완료 → 학생 알림 보냄"): 판단 한 줄 + 근거 + 한 일.
  * 판단은 젯슨 카메라 모델(FR-DEV-105), 알림·경고는 그 결과를 받은 core가 같은 처리 안에서 바로 보낸다(core TidyCheckService:
  * 퇴실 직후 LEFT_ITEMS → 대표자·참여자 LEFT_ITEM 알림, 3시간 뒤에도 남음 → 신고 + 대표자 경고). 그래서 결과 줄이 있으면 보낸 것으로 쓴다.
  * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
@@ -194,49 +195,52 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
 function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
   const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
-  const total = r.verdict.length
-  // step: -1 생각 중, 0..total 판단 쓰는 중, 그 뒤 한 일마다 2칸(하는 중 → 끝)
-  const last = total + r.actions.length * 2
-  const [step, setStep] = useState(() => (reducedMotion() ? last : -1))
+  // 첫 줄은 젯슨 카메라 모델 판단, 그 뒤는 core가 한 일. 줄마다 2칸(하는 중 → 끝)
+  const steps: TidyAction[] = [{ doing: '젯슨 YOLO 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
+  const last = steps.length * 2
+  const [step, setStep] = useState(() => (reducedMotion() ? last : 0))
   useEffect(() => {
     if (reducedMotion()) return
     const timers: ReturnType<typeof setTimeout>[] = []
-    let t = 1300
-    for (let i = 0; i <= total; i++) { const k = i; timers.push(setTimeout(() => setStep(k), t)); t += 45 }
-    t += 350
-    for (let a = 0; a < r.actions.length; a++) {
-      const k = total + a * 2 + 1
-      timers.push(setTimeout(() => setStep(k), t)); t += 1100
-      timers.push(setTimeout(() => setStep(k + 1), t)); t += 250
+    let t = 250
+    for (let k = 1; k <= last; k++) {
+      const at = k
+      timers.push(setTimeout(() => setStep(at), t))
+      t += k % 2 === 1 ? (k === 1 ? 1600 : 1100) : 450
     }
     return () => timers.forEach(clearTimeout)
-  }, [total, r.actions.length])
-  const thinking = step < 0
-  const written = step >= total
+  }, [last])
+  const judged = step >= 2
   const allDone = step >= last
   return (
-    <div className={`tidy-ai${r.warn ? ' t-warn' : ''}${thinking ? ' thinking' : ''}${allDone ? ' done' : ''}`} aria-live="polite">
+    <div className={`tidy-ai${r.warn ? ' t-warn' : ''}${!judged ? ' thinking' : ''}${allDone ? ' done' : ''}`} aria-live="polite">
       <div className="tidy-ai-head">
-        <span className="tidy-ai-odi"><Icon name="camera" /></span>
-        <span className="tidy-ai-name">방 카메라 AI <i aria-hidden="true">✦</i></span>
-        {top !== null && written && <span className="tidy-ai-sure" title="카메라 모델 확신도">확신 {Math.round(top * 100)}%</span>}
+        <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
+        <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
+        <span className="tidy-ai-model">젯슨 · YOLO</span>
       </div>
-      {thinking
-        ? <p className="tidy-ai-think">사진 두 장을 비교하는 중<span className="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
-        : <p className="tidy-ai-verdict">{r.verdict.slice(0, Math.max(step, 0))}{!written && <span className="caret" aria-hidden="true" />}</p>}
-      {written && <p className="tidy-ai-reason"><b>근거</b> {r.why}</p>}
-      {written && (
-        <ul className="tidy-ai-acts">
-          {r.actions.map((a, i) => {
-            const at = total + i * 2 + 1
-            if (step < at) return null
-            const finished = step > at
-            const cls = !finished ? 'doing' : a.later ? 'later' : 'ok'
-            return <li key={i} className={cls}><span className="mark" aria-hidden="true" />{finished ? a.done : a.doing}</li>
-          })}
-        </ul>
-      )}
-      {allDone && <p className="tidy-ai-fin">완료! 관리자가 할 일은 없어요</p>}
+      <ol className="tidy-ai-acts">
+        {steps.map((a, i) => {
+          const at = i * 2 + 1
+          if (step < at) return null
+          const finished = step > at
+          const cls = !finished ? 'doing' : a.later ? 'later' : 'ok'
+          return (
+            <li key={i} className={cls}>
+              <span className="mark" aria-hidden="true" />
+              <span className="txt">{finished ? a.done : a.doing}
+                {i === 0 && finished && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
+              </span>
+              {i === 0 && finished && (
+                <div className="tidy-ai-result">
+                  <b className="tidy-ai-verdict">{r.verdict}</b>
+                  <span className="tidy-ai-reason">{r.why}</span>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }

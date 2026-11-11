@@ -446,23 +446,22 @@
   box-shadow: 0 6px 24px -10px color-mix(in srgb, var(--ai-c) 55%, transparent), 0 2px 10px -6px color-mix(in srgb, var(--blue) 40%, transparent);
 }
 .tidy-ai-head { display: flex; align-items: center; gap: 8px; }
-.tidy-ai-odi { flex: none; width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 50%; color: var(--white); background: linear-gradient(135deg, var(--ai-a), var(--ai-c)); }
-.tidy-ai-odi svg { width: 16px; height: 16px; }
+.tidy-ai-odi { display: inline-flex; border-radius: 50%; }
+.tidy-ai-model { margin-left: auto; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--navy-70, #6b7487); background: var(--gray); }
 .tidy-ai-name { font-size: 13.5px; font-weight: 800; background: linear-gradient(90deg, var(--ai-a), var(--ai-c)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tidy-ai-name i { font-style: normal; display: inline-block; }
-.tidy-ai-sure { margin-left: auto; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+.tidy-ai-sure { margin-left: 8px; font-style: normal; padding: 2px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums;
   color: var(--blue); background: color-mix(in srgb, var(--sky) 22%, var(--white)); }
-.tidy-ai-think { margin: 12px 0 2px; font-size: 15px; font-weight: 700;
+.tidy-ai-acts .doing .txt {
   background: linear-gradient(90deg, var(--navy-70, #6b7487) 0%, var(--navy-70, #6b7487) 35%, var(--ai-c) 50%, var(--navy-70, #6b7487) 65%, var(--navy-70, #6b7487) 100%);
   background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
-.tidy-ai-think .dots i { font-style: normal; display: inline-block; }
-.tidy-ai-verdict { margin: 10px 0 0; min-height: 26px; font-size: 18px; font-weight: 800; color: var(--navy); }
+.tidy-ai-verdict { font-weight: 800; color: var(--navy); }
 .tidy-ai.t-warn .tidy-ai-verdict { color: #8a5a00; }
-.tidy-ai-verdict .caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--ai-c); }
-.tidy-ai-reason { margin: 10px 0 0; font-size: 13.5px; color: var(--navy); }
-.tidy-ai-reason b { margin-right: 8px; color: var(--blue); }
-.tidy-ai-acts { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px dashed color-mix(in srgb, var(--blue) 25%, transparent); display: grid; gap: 7px; font-size: 13.5px; font-weight: 700; color: var(--navy); }
-.tidy-ai-acts li { display: flex; align-items: center; gap: 8px; }
+.tidy-ai-acts { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; font-size: 13.5px; font-weight: 700; color: var(--navy); }
+.tidy-ai-acts li { display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; align-items: center; }
+.tidy-ai-result { grid-column: 2; margin: 6px 0 4px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--sky) 12%, var(--white)); display: flex; flex-direction: column; gap: 2px; }
+.tidy-ai-result .tidy-ai-verdict { margin: 0; min-height: 0; font-size: 16px; }
+.tidy-ai-result .tidy-ai-reason { margin: 0; font-size: 13px; font-weight: 500; color: var(--navy-70, #6b7487); }
 .tidy-ai-acts .mark { flex: none; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 900; color: var(--white); }
 .tidy-ai-acts .doing { color: var(--navy-70, #6b7487); }
 .tidy-ai-acts .doing .mark { border: 2px solid color-mix(in srgb, var(--ai-c) 25%, transparent); border-top-color: var(--ai-c); }
@@ -470,13 +469,11 @@
 .tidy-ai-acts .ok .mark::before { content: '✓'; }
 .tidy-ai-acts .later .mark { border: 2px dashed var(--ai-c); }
 .tidy-ai-acts .later { color: var(--navy-70, #6b7487); }
-.tidy-ai-fin { margin: 10px 0 0; font-size: 14px; font-weight: 800; background: linear-gradient(90deg, var(--ai-a), var(--ai-c)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 @keyframes ai-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @keyframes ai-border { to { background-position: 0 0, 300% 0; } }
 @keyframes ai-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @keyframes ai-dot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
-@keyframes ai-caret { 50% { opacity: 0; } }
 @keyframes ai-spark { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(1.35) rotate(25deg); opacity: 0.6; } }
 @keyframes ai-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ai-c) 45%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 .tidy-what { font-size: 14px; font-weight: 700; }
@@ -500,13 +497,9 @@
   .adm .tidy-ai { animation: rise-in 0.35s 0.2s var(--ease-out) backwards, ai-border 6s linear infinite !important; }
   .adm .tidy-ai.thinking .tidy-ai-odi { animation: ai-pulse 1s ease-out infinite !important; }
   .adm .tidy-ai-name i { animation: ai-spark 1.6s ease-in-out infinite !important; }
-  .adm .tidy-ai-think { animation: ai-shimmer 1.4s linear infinite !important; }
-  .adm .tidy-ai-think .dots i { animation: ai-dot 1.2s ease-in-out infinite !important; }
-  .adm .tidy-ai-think .dots i:nth-child(2) { animation-delay: 0.2s !important; }
-  .adm .tidy-ai-think .dots i:nth-child(3) { animation-delay: 0.4s !important; }
-  .adm .tidy-ai-verdict .caret { animation: ai-caret 0.8s steps(1) infinite !important; }
+  .adm .tidy-ai-acts .doing .txt { animation: ai-shimmer 1.4s linear infinite !important; }
   .adm .tidy-ai-sure { animation: rise-in 0.3s var(--ease-out) backwards !important; }
-  .adm .tidy-ai-reason, .adm .tidy-ai-acts li, .adm .tidy-ai-fin { animation: rise-in 0.3s var(--ease-out) backwards !important; }
+  .adm .tidy-ai-result, .adm .tidy-ai-acts li { animation: rise-in 0.3s var(--ease-out) backwards !important; }
   .adm .tidy-ai-acts .doing .mark { animation: ai-spin 0.8s linear infinite !important; }
   .adm .tidy-ai-acts .ok .mark { animation: ai-pop 0.35s var(--ease-out) !important; }
 }
