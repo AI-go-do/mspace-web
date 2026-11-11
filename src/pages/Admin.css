@@ -456,8 +456,6 @@
   background: linear-gradient(90deg, var(--navy-70, #6b7487) 0%, var(--navy-70, #6b7487) 35%, var(--ai-c) 50%, var(--navy-70, #6b7487) 65%, var(--navy-70, #6b7487) 100%);
   background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tidy-ai-verdict { font-weight: 800; color: var(--navy); }
-.tidy-ai-note { margin-left: 6px; font-style: normal; font-size: 12px; font-weight: 600; color: var(--navy-70, #6b7487); }
-.tidy-ai-note.low { color: #8a5a00; }
 .tidy-ai.t-warn .tidy-ai-verdict { color: #8a5a00; }
 .tidy-ai-acts { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; font-size: 13.5px; font-weight: 700; color: var(--navy); }
 .tidy-ai-acts li { display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; align-items: center; }

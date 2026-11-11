@@ -188,17 +188,6 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
         ] }
 }
 
-/** core 경고 기준 확신도(mspace.tidy.warn-min-confidence 기본 0.8, FR-DEV-105). API로 오지 않아 기본값을 쓴다 */
-export const WARN_MIN_CONFIDENCE = 0.8
-
-/** 확신도 옆 글: 경고 기준과 같이 보여 준다(재웅 11/11 "50%면 알림 보내기가 뭐하잖아") */
-export function sureNote(top: number | null, clean: boolean, phase: TidyPhase = 'FIRST'): string | null {
-  if (top === null || clean) return null
-  const pct = Math.round(WARN_MIN_CONFIDENCE * 100)
-  if (top >= WARN_MIN_CONFIDENCE) return '경고 기준 넘음'
-  return phase === 'RECHECK' ? `경고 기준(${pct}%) 아래` : `경고 기준(${pct}%) 아래라 알림만`
-}
-
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
@@ -210,8 +199,6 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
 function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
   const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
-  const note = sureNote(top, !r.warn, row.phase)
-  const low = top !== null && top < WARN_MIN_CONFIDENCE
   // 첫 줄은 젯슨 카메라 모델 판단, 그 뒤는 core가 한 일. 줄마다 2칸(하는 중 → 끝)
   const steps: TidyAction[] = [{ doing: 'YOLOv8s 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
   const last = steps.length * 2
@@ -247,7 +234,6 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
               <span className="mark" aria-hidden="true" />
               <span className="txt">{finished ? a.done : a.doing}
                 {i === 0 && finished && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
-                {i === 0 && finished && note && <em className={`tidy-ai-note${low ? ' low' : ''}`}>{note}</em>}
               </span>
               {i === 0 && finished && (
                 <div className="tidy-ai-result">
