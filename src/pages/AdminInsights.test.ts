@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { tidyReason } from './AdminInsights'
+import { sureNote, tidyReason } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
 describe('정리 확인 판단 글', () => {
+  it('확신도는 경고 기준(80%)과 같이 보여 준다', () => {
+    expect(sureNote(0.88, false)).toBe('경고 기준 넘음')
+    expect(sureNote(0.55, false)).toBe('경고 기준(80%) 아래라 알림만')
+    expect(sureNote(0.55, false, 'RECHECK')).toBe('경고 기준(80%) 아래')
+    expect(sureNote(0.9, true)).toBeNull()
+    expect(sureNote(null, false)).toBeNull()
+  })
+
   it('3시간 뒤에 남았어도 신고가 없으면 경고 보냈다고 하지 않는다', () => {
     const r = tidyReason({ ...base, phase: 'RECHECK', reportId: null })
     expect(r.actions.map((a) => a.done)).toEqual(['확신이 기준 아래라 경고는 안 했어요'])
