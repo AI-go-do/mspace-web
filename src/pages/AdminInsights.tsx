@@ -200,7 +200,7 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
   const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
   // 첫 줄은 젯슨 카메라 모델 판단, 그 뒤는 core가 한 일. 줄마다 2칸(하는 중 → 끝)
-  const steps: TidyAction[] = [{ doing: '젯슨 YOLO 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
+  const steps: TidyAction[] = [{ doing: 'YOLOv8s 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
   const last = steps.length * 2
   const [step, setStep] = useState(() => (reducedMotion() ? last : 0))
   useEffect(() => {
@@ -221,7 +221,7 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
       <div className="tidy-ai-head">
         <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
         <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
-        <span className="tidy-ai-model">젯슨 · YOLO</span>
+        <span className="tidy-ai-model" title="방 카메라 물건 찾기 모델 (device README &quot;v8s (지금)&quot;)">YOLOv8s</span>
       </div>
       <ol className="tidy-ai-acts">
         {steps.map((a, i) => {
