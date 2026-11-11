@@ -1,13 +1,14 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, LEFT_ITEM_LABEL, pct,
+  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
 import { IconButton } from '../components/IconAction'
+import Odi from '../components/Odi'
 import { AuthPhoto, Skeleton } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -150,24 +151,45 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
 }
 
 /**
- * 비교 사진 아래 AI 판단 한 줄(재웅 11/11 "AI 모델 판단하면서 써 줘"). 젯슨 모델이 무엇을 보고 어떻게 정했고,
- * 그래서 core가 무엇을 했는지(알림 / 대표자 경고)를 보통 크기 글로
+ * 비교 사진 아래 오디(AI) 판단 카드(재웅 11/11 "AI 모델 판단하면서 써 줘", "AI스럽게, 애니메이션도").
+ * 오디 얼굴 + 판단 + 확신 막대가 차오르고, 한 일이 순서대로 하나씩 켜진다. 아직 안 한 일(3시간 뒤 다시 확인)은 깜빡인다.
+ * 움직임 줄이기를 켠 사람에게는 .adm 공통 규칙으로 움직임이 꺼진다
  */
+export function tidySteps(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId'>): { text: string; pending?: boolean }[] {
+  const clean = row.result === 'CLEAN' && row.leftItems.length === 0
+  if (row.phase === 'RECHECK') {
+    return [{ text: '퇴실 직후와 비교' }, { text: clean ? '이제 비었어요' : '아직 있어요' },
+      { text: row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '경고 없음' }]
+  }
+  return clean
+    ? [{ text: '앞 팀 사진과 비교' }, { text: '깨끗해요' }, { text: '할 일 없음' }]
+    : [{ text: '앞 팀 사진과 비교' }, { text: '학생에게 알림' }, { text: '3시간 뒤 다시 확인', pending: true }]
+}
+
 function TidyJudgement({ row }: { row: TidyCheckRow }) {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
+  // 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만). 모델 이름은 확신도에만 쓴다
   const seen = seenItemsSummary(row.items)
-  const left = row.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join(' · ')
-  const what = seen.text || left
-  const verdict = clean ? '깨끗함' : row.phase === 'RECHECK' ? '3시간 뒤에도 남음' : (TIDY_LABEL[row.result] ?? row.result)
-  const then = clean ? null
-    : row.phase === 'RECHECK' ? (row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '경고 없음')
-    : '알림 보냄 · 3시간 뒤 다시 확인'
+  const verdict = clean ? '깨끗해요' : row.phase === 'RECHECK' ? '3시간 뒤에도 두고 간 물품이 있어요' : '두고 간 물품이 있어요'
+  const pct = seen.top !== null ? Math.round(seen.top * 100) : null
   return (
     <div className={`tidy-judge ${clean ? '' : 'on'}`}>
-      <span className="tidy-judge-head">AI 판단</span>
-      <b>{verdict}</b>
-      {what && <span>{what}{seen.top !== null ? ` · 확신 ${Math.round(seen.top * 100)}%` : ''}</span>}
-      {then && <span className="tidy-judge-then">→ {then}</span>}
+      <span className="tidy-judge-odi"><Odi size={34} label="오디" /></span>
+      <div className="tidy-judge-body">
+        <span className="tidy-judge-head">오디가 봤어요</span>
+        <span className="tidy-judge-verdict"><b>{verdict}</b></span>
+        {pct !== null && (
+          <span className="tidy-judge-conf" aria-label={`확신 ${pct}%`}>
+            <span className="tidy-judge-bar"><span style={{ '--w': `${pct}%` } as CSSProperties} /></span>
+            <span className="tidy-judge-pct">{pct}%</span>
+          </span>
+        )}
+        <ol className="tidy-judge-steps">
+          {tidySteps(row).map((st, i) => (
+            <li key={i} className={st.pending ? 'pending' : ''} style={{ '--i': i } as CSSProperties}>{st.text}</li>
+          ))}
+        </ol>
+      </div>
     </div>
   )
 }
@@ -207,7 +229,7 @@ export function AdminTidyChecks() {
       {rows && counts && (
         <>
           <div className="stat-tiles three">
-            <Tile hero label="물건 남음" value={counts.left} />
+            <Tile hero label="두고 간 물품" value={counts.left} />
             <Tile label="깨끗함" value={counts.clean} i={1} />
             <Tile label="3시간 뒤 경고" value={counts.warned} i={2} />
           </div>
@@ -230,9 +252,6 @@ export function AdminTidyChecks() {
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>
                       </span>
-                      {(r.items.length > 0 || r.leftItems.length > 0) && (
-                        <span className="tidy-what">{seenItemsSummary(r.items).text || r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join(' · ')}</span>
-                      )}
                       <span className="muted">{stamp(r.endedAt ?? r.observedAt)} 퇴실</span>
                     </span>
                     <IconButton

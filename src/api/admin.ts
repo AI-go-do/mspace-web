@@ -48,7 +48,7 @@ export interface TidyResult {
   observedAt: string
 }
 
-export const TIDY_LABEL: Record<string, string> = { CLEAN: '깨끗함', LEFT_ITEMS: '물건 남음', NEEDS_CLEANING: '치워야 함' }
+export const TIDY_LABEL: Record<string, string> = { CLEAN: '깨끗함', LEFT_ITEMS: '두고 간 물품', NEEDS_CLEANING: '치워야 함' }
 export const LEFT_ITEM_LABEL: Record<string, string> = { BAG: '가방', PHONE: '휴대폰', EARBUDS: '이어폰', LAPTOP: '노트북' }
 
 /** "깨끗함" / "치워야 함 · 두고 간 것: 가방·노트북" */
