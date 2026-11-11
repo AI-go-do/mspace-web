@@ -130,7 +130,7 @@ interface Shot { reservationId: number; phase: TidyPhase; label: string; when: s
  * 펼친 줄의 비교 사진 두 장.
  * - 퇴실 직후 줄: 같은 방 바로 앞 예약의 퇴실 직후 사진 ↔ 이번 퇴실 직후 사진.
  *   AI가 비교에 쓰는 입실 직전 사진은 젯슨 안에만 두고 지운다(Q-22). 관리자는 서버에 남은 퇴실 사진(10차·core #115)만 보므로
- *   "입실 전"이라 부르지 않고 "앞 팀 퇴실 뒤"라고 적는다
+ *   큰 이름은 "입실 전"(재웅 11/11), 아래에 "앞 팀 퇴실 사진"이라고 무슨 사진인지 적는다
  * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
  */
 export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
@@ -145,7 +145,7 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
   const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
     && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '앞 팀 퇴실 뒤', when: `예약 #${before.reservationId} · ${stamp(before.observedAt)}` } : null,
+    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `앞 팀 퇴실 사진 · ${stamp(before.observedAt)}` } : null,
     { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: stamp(r.observedAt) },
   ]
 }
@@ -225,9 +225,9 @@ export function AdminTidyChecks() {
                             <AuthPhoto
                               url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
                               empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
-                              alt={`${r.roomName} ${shot?.label ?? '앞 팀 퇴실 뒤'} 사진`}
+                              alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
                             />
-                            <figcaption><b>{shot?.label ?? '앞 팀 퇴실 뒤'}</b><span className="muted">{shot?.when ?? '이 기간에 앞 팀 기록 없음'}</span></figcaption>
+                            <figcaption><b>{shot?.label ?? '입실 전'}</b><span className="muted">{shot?.when ?? '이 기간에 앞 팀 기록 없음'}</span></figcaption>
                           </figure>
                         ))}
                       </div></div>
