@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, stillInRoom, tidyCounts, tidySummary } from './admin'
+import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -73,13 +73,26 @@ describe('카메라 정리 확인 (core #110)', () => {
     expect(tidySummary({ result: 'SOMETHING_NEW', leftItems: ['UMBRELLA'] })).toBe('SOMETHING_NEW · 두고 간 것: UMBRELLA')
   })
 
-  it('치워야 함·깨끗함·귀중품 두고 감을 센다', () => {
-    const rows = [
-      { result: 'NEEDS_CLEANING', leftItems: [] },
-      { result: 'CLEAN', leftItems: ['PHONE'] },
-      { result: 'CLEAN', leftItems: [] },
+  it('퇴실 직후 줄로 물건 남음·깨끗함을, 다시 확인 줄로 경고를 센다', () => {
+    const rows: Parameters<typeof tidyCounts>[0] = [
+      { phase: 'FIRST', result: 'LEFT_ITEMS', leftItems: [], reportId: null },
+      { phase: 'RECHECK', result: 'LEFT_ITEMS', leftItems: [], reportId: 12 },
+      { phase: 'FIRST', result: 'CLEAN', leftItems: [], reportId: null },
+      { phase: 'FIRST', result: 'CLEAN', leftItems: ['PHONE'], reportId: null },
+      { phase: 'FIRST', result: 'NEEDS_CLEANING', leftItems: [], reportId: 3 },
     ]
-    expect(tidyCounts(rows)).toEqual({ dirty: 1, clean: 2, left: 1 })
+    expect(tidyCounts(rows)).toEqual({ left: 3, clean: 1, warned: 1 })
+  })
+
+  it('AI 판단 줄은 같은 물건을 묶고 가장 높은 확신도만 낸다', () => {
+    expect(seenItemsSummary([{ name: 'cup', confidence: 0.71 }, { name: 'cup', confidence: 0.88 }, { name: 'backpack', confidence: 0.6 }, { name: 'stapler', confidence: null }]))
+      .toEqual({ text: '컵 2개 · 가방 · stapler', top: 0.88 })
+    expect(seenItemsSummary([])).toEqual({ text: '', top: null })
+  })
+
+  it('남은 물건은 확신도 높은 순으로, 확신도 없으면 이름만', () => {
+    expect(seenItemsLabel([{ name: 'cup', confidence: 0.61 }, { name: 'umbrella', confidence: 0.934 }, { name: 'bag', confidence: null }]))
+      .toBe('umbrella 93% · cup 61% · bag')
   })
 
   afterEach(() => { vi.unstubAllGlobals(); clearTokens() })
