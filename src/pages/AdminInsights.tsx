@@ -146,7 +146,7 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
   const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
     && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `${stamp(before.observedAt)} 이 방 카메라` } : null,
+    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `${stamp(before.observedAt)} 이전 퇴실 사진` } : null,
     { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: '' },
   ]
 }
