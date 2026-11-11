@@ -154,7 +154,7 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
  * 비교 사진 아래 오디(AI) 판단. "오디 판단" 탭 기록 줄(.jl-item)과 같은 모양: 판단 한 줄 + 근거 + 처리, 오른쪽에 확신도.
  * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
  */
-export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>): { verdict: string; why: string; then: string; warn: boolean } {
+export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; then: string; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
   const n = row.items.length
   if (row.phase === 'RECHECK') {
@@ -166,7 +166,7 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
   return clean
     ? { verdict: '깨끗해요', why: '앞 팀 사진과 달라진 곳이 없어요', then: '할 일 없음', warn: false }
     : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `앞 팀 사진엔 없던 물품 ${n}개` : '앞 팀 사진엔 없던 물품',
-        then: '학생에게 알림 · 3시간 뒤 다시 확인', warn: true }
+        then: rechecked ? '학생에게 알림 · 3시간 뒤 다시 확인함' : '학생에게 알림 · 3시간 뒤 다시 확인', warn: true }
 }
 
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -175,8 +175,9 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
  * AI 답변처럼 보이는 판단 상자(재웅 11/11 "진짜 AI스럽게"): 빛나는 테두리, "비교하는 중" 반짝 글 → 판단이 한 글자씩 써지고
  * → 근거·처리가 떠오른다. 움직임 줄이기를 켠 사람에게는 처음부터 다 보인다
  */
-function TidyJudgement({ row }: { row: TidyCheckRow }) {
-  const r = tidyReason(row)
+/** rechecked: 같은 예약의 3시간 뒤 다시 확인 줄이 이미 있는지(퇴실 직후 줄의 "처리"를 끝난 일로 쓴다) */
+function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
+  const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
   const [typed, setTyped] = useState(() => (reducedMotion() ? r.verdict.length : -1))
   useEffect(() => {
@@ -268,7 +269,7 @@ export function AdminTidyChecks() {
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>
                       </span>
-                      <span className="muted">{stamp(r.endedAt ?? r.observedAt)} 퇴실</span>
+                      <span className="muted">{r.phase === 'RECHECK' ? `${stamp(r.observedAt)} 다시 확인` : `${stamp(r.endedAt ?? r.observedAt)} 퇴실`}</span>
                     </span>
                     <IconButton
                       icon={isOpen ? 'close' : 'camera'}
@@ -288,7 +289,7 @@ export function AdminTidyChecks() {
                             <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
                           </figure>
                         ))}
-                      </div><TidyJudgement row={r} /></div>
+                      </div><TidyJudgement row={r} rechecked={r.phase === 'FIRST' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK')} /></div>
                     )}
                   </li>
                 )

@@ -498,3 +498,9 @@
   .adm .tidy-ai-why > div { animation: rise-in 0.35s var(--ease-out) backwards !important; }
   .adm .tidy-ai-why > div + div { animation-delay: 0.25s !important; }
 }
+
+/* 넓은 화면은 사진 오른쪽 빈 곳에 오디 AI 상자(재웅 11/11 "옆에 공간 많잖아"). 폰은 아래 */
+@media (min-width: 960px) {
+  .tidy-photos { display: grid; grid-template-columns: minmax(0, 560px) minmax(260px, 380px); gap: 16px; align-items: start; }
+  .tidy-photos .tidy-ai { margin-top: 0; }
+}
