@@ -69,7 +69,9 @@ export const SILENCE_MS = 2200
 /** 한 번 듣기의 최대 길이. 넘으면 지금까지 들린 말로 끝낸다(켜 둔 채 잊지 않게) */
 export const MAX_LISTEN_MS = 30_000
 /** 브라우저가 스스로 듣기를 끝냈을 때 다시 켜는 최대 횟수 */
-const MAX_RESTARTS = 6
+export const MAX_RESTARTS = 6
+/** 멈춘 뒤 onend를 기다리는 최대 시간 */
+const STOP_WAIT_MS = 1500
 
 /**
  * 들린 조각을 한 문장으로 잇는다. 안드로이드 크롬은 이어 듣기에서 앞 조각을 다음 조각에 또 넣어 주기도 해서
@@ -114,11 +116,14 @@ export function listenOnce(
   let stopping = false
   let ended = false
   let silence: ReturnType<typeof setTimeout> | undefined
+  let stopWait: ReturnType<typeof setTimeout> | undefined
   const heard = () => joinHeard([committed, current])
   const finish = () => {
     if (stopping) return
     stopping = true
     clearTimeout(silence)
+    // stop() 뒤에 onend가 오지 않는 브라우저에서도 듣기를 끝낸다(ended 확인이 두 번 보내기를 막는다)
+    stopWait = setTimeout(() => r.onend?.(), STOP_WAIT_MS)
     try { r.stop() } catch { /* 이미 끝남 */ }
   }
   const limit = setTimeout(finish, maxMs)
@@ -161,6 +166,7 @@ export function listenOnce(
     ended = true
     clearTimeout(silence)
     clearTimeout(limit)
+    clearTimeout(stopWait)
     const text = heard()
     if (!failed && text) h.onFinal(text)
     h.onEnd()

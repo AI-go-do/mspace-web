@@ -271,7 +271,8 @@ export default function Assistant() {
   }, [chat.pending])
 
   // 새 말이 붙으면 아래로 내린다. 처음 열 때는 바로, 그 뒤는 부드럽게(한 번에 툭 뛰지 않게, 11/11 재웅).
-  // 답이 길면 답 첫 줄이 위 머리글 밑에 보이는 데까지만 내린다(끝까지 내리면 답 앞부분을 놓친다)
+  // 답이 길면 답 첫 줄이 위 머리글 밑에 보이는 데까지만 내린다(끝까지 내리면 답 앞부분을 놓친다).
+  // 답에 확인 카드가 붙었으면 카드 위끝을 맞춘다([확인] 버튼이 화면 밖으로 밀리지 않게)
   const scrolledOnce = useRef(false)
   useEffect(() => {
     const end = listEnd.current
@@ -284,8 +285,12 @@ export default function Assistant() {
     if (!first && !chat.pending && lastMsg?.role === 'assistant') {
       const bots = end.parentElement?.querySelectorAll('.bubble.bot')
       const bubble = bots?.[bots.length - 1]
+      let anchor: Element | undefined = bubble
+      for (let el = bubble?.nextElementSibling; el && el !== end && !el.classList.contains('bubble'); el = el.nextElementSibling) {
+        if (el.classList.contains('bot-card') && !el.classList.contains('past')) { anchor = el; break }
+      }
       const headH = head.current?.getBoundingClientRect().height ?? 0
-      if (bubble) top = Math.min(top, window.scrollY + bubble.getBoundingClientRect().top - headH - 12)
+      if (anchor) top = Math.min(top, window.scrollY + anchor.getBoundingClientRect().top - headH - 12)
     }
     if (Math.abs(top - window.scrollY) < 2) return
     const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { canListen, canSpeak, joinHeard, listenOnce, SILENCE_MS, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
+import { canListen, canSpeak, joinHeard, listenOnce, MAX_RESTARTS, SILENCE_MS, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
 
 /** 테스트용 가짜 음성 인식. 만든 것을 last에 둔다 */
 class FakeRecognition implements Recognition {
@@ -125,6 +125,36 @@ describe('한 번 듣고 보내기', () => {
     r.onend!()
     expect(r.starts).toBe(1)
     expect(h.onFinal).toHaveBeenCalledWith('내 예약 보여 줘')
+  })
+
+  it('브라우저가 계속 끊어도 정해진 횟수까지만 다시 켜고 들린 말을 보낸다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    for (let i = 0; i <= MAX_RESTARTS; i++) {
+      r.say([{ t: `말${i}`, final: true }])
+      r.onend!()
+    }
+    expect(r.starts).toBe(MAX_RESTARTS + 1)
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).toHaveBeenCalledWith(Array.from({ length: MAX_RESTARTS + 1 }, (_, i) => `말${i}`).join(' '))
+  })
+
+  it('멈춘 뒤 브라우저가 onend를 안 줘도 잠시 뒤 끝내고 한 번만 보낸다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    const stop = listenOnce(h, FakeRecognition)!
+    const r = FakeRecognition.last!
+    r.stop = () => { /* onend를 주지 않는 브라우저 */ }
+    r.say([{ t: '지금 빈 방', final: true }])
+    stop()
+    expect(h.onEnd).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1500)
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+    r.onend!() // 늦게 와도 두 번 보내지 않는다
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
   })
 
   it('한참 말해도 최대 길이가 되면 그때까지 들린 말로 끝낸다', () => {
