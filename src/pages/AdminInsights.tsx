@@ -249,7 +249,7 @@ function TidyJudgement({ row, rechecked, photo = 'ok' }: { row: TidyCheckRow; re
             <li key={i} className={cls}>
               <span className="mark" aria-hidden="true" />
               <span className="txt">{finished ? (i === 0 && noPhoto ? NO_PHOTO[photo as 'none' | 'failed'].done : a.done) : a.doing}
-                {i === 0 && finished && !noPhoto && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
+                {i === 0 && finished && photo === 'ok' && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
               </span>
               {i === 0 && finished && (
                 <div className="tidy-ai-result">

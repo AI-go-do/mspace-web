@@ -287,7 +287,7 @@ export function AuthPhoto({ url, empty, alt, onState }: { url: string | null; em
   if (!url || state === 'none') return <span className="evidence-photo empty">{empty}</span>
   if (state === 'failed') return <span className="evidence-photo empty">사진을 못 받았어요</span>
   if (!src) return <span className="evidence-photo loading" aria-label="사진 불러오는 중" />
-  return <a href={src} target="_blank" rel="noreferrer" className="evidence-photo"><img src={src} alt={alt} /></a>
+  return <a href={src} target="_blank" rel="noreferrer" className="evidence-photo"><img src={src} alt={alt} onError={() => setState('failed')} /></a>
 }
 
 /** 강제 퇴실 (FR-RPT-104 퇴출, core #73). 예약 번호 + 사유(선택, 200자). 사유는 학생 알림에 그대로 보인다 */
