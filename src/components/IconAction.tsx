@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 /** 작은 보조 동작은 글자·단추 바탕 없이 그림만, 누르면 눌리는 움직임 (재웅 11/10 "저게 공통이야") */
-export type IconName = 'qr' | 'info' | 'flag' | 'refresh' | 'checkAll' | 'share' | 'trash' | 'close' | 'userMinus'
+export type IconName = 'qr' | 'info' | 'flag' | 'refresh' | 'checkAll' | 'share' | 'trash' | 'close' | 'userMinus' | 'camera'
 
 const PATHS: Record<IconName, ReactNode> = {
   qr: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" /></>,
@@ -14,6 +14,7 @@ const PATHS: Record<IconName, ReactNode> = {
   trash: <><path d="M4 7h16M10 11v6M14 11v6" /><path d="M6 7l1 13h10l1-13M9 7V4h6v3" /></>,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   userMinus: <><circle cx="9" cy="8" r="4" /><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7M16 11h6" /></>,
+  camera: <><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7H7l2-3h6l2 3h2.5A1.5 1.5 0 0 1 21 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" /><circle cx="12" cy="13" r="3.5" /></>,
 }
 
 export function Icon({ name }: { name: IconName }) {

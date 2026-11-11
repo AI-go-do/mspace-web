@@ -2,12 +2,13 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, LEFT_ITEM_LABEL, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, tidyPhotoUrl, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
-import { Skeleton } from './AdminReports'
+import { IconButton } from '../components/IconAction'
+import { AuthPhoto, Skeleton } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
 const RANGES = [7, 30, 90]
@@ -121,10 +122,12 @@ export function AdminPenalties() {
 
 /**
  * 방 카메라 정리 확인 목록 (FR-DEV-105·FR-WEB-101, core #110). 퇴실 뒤 젯슨이 본 결과를 최근 순으로.
- * 사진은 남기지 않아 결과·물건 이름만 있다. 치워야 함이면 자동 신고 번호가 같이 오고, 판정은 할 일 칸에서 사람이 한다
+ * 치워야 함이면 자동 신고 번호가 같이 온다. 카메라 그림을 누르면 그 줄 아래에 빈 방 사진(core #115)을 펼친다.
+ * 사진은 누른 줄만 받는다(7일이면 수백 장이라 한꺼번에 받지 않음). 다시 확인 사진은 두고 간 물건이 있을 때만
  */
 export function AdminTidyChecks() {
   const [days, setDays] = useState(7)
+  const [open, setOpen] = useState<number | null>(null)
   const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -161,7 +164,7 @@ export function AdminTidyChecks() {
             {rows.length === 0 && <p className="adm-small">이 기간에 받은 결과가 없어요.</p>}
             <ul className="pen-list">
               {rows.map((r) => (
-                <li key={r.reservationId} className={`pen-row ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
+                <li key={r.reservationId} className={`pen-row tidy-row ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
                   <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
                   <span className="pen-what">
                     <span className={`pen-tag ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
@@ -170,6 +173,26 @@ export function AdminTidyChecks() {
                     {r.leftItems.length > 0 && <span>두고 간 것: {r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join('·')}</span>}
                     <span className="muted">{r.endedAt ? `${stamp(r.endedAt)} 퇴실 · ` : ''}{stamp(r.observedAt)} 확인</span>
                   </span>
+                  <IconButton
+                    icon={open === r.reservationId ? 'close' : 'camera'}
+                    label={open === r.reservationId ? '사진 닫기' : '방 사진 보기'}
+                    aria-expanded={open === r.reservationId}
+                    onClick={() => setOpen(open === r.reservationId ? null : r.reservationId)}
+                  />
+                  {open === r.reservationId && (
+                    <div className="tidy-photos">
+                      <figure className="evidence-cell">
+                        <AuthPhoto url={tidyPhotoUrl(r.reservationId, 'FIRST')} empty="사진 없음" alt={`${r.roomName} 퇴실 뒤 사진`} />
+                        <figcaption><b>퇴실 뒤</b><span className="muted">{stamp(r.observedAt)}</span></figcaption>
+                      </figure>
+                      {r.leftItems.length > 0 && (
+                        <figure className="evidence-cell">
+                          <AuthPhoto url={tidyPhotoUrl(r.reservationId, 'RECHECK')} empty="아직 다시 안 봄" alt={`${r.roomName} 다시 확인 사진`} />
+                          <figcaption><b>다시 확인</b><span className="muted">3시간 뒤</span></figcaption>
+                        </figure>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

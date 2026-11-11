@@ -181,6 +181,14 @@ export function getTidyChecks(days: number, signal?: AbortSignal, member?: numbe
   return api<{ items: TidyCheckRow[] }>(`/api/tidy-checks?days=${Math.min(92, Math.max(1, days))}`, { signal, member }).then((r) => r.items)
 }
 
+/** 정리 확인 단계: FIRST 퇴실 직후 · RECHECK 두고 간 물건 다시 확인 */
+export type TidyPhase = 'FIRST' | 'RECHECK'
+
+/** 방 카메라가 올린 빈 방 사진 (core #115). 대표자·참여자·관리자만, 없으면 404 PHOTO_NOT_FOUND. Bearer가 필요해 Blob으로 받는다 */
+export function tidyPhotoUrl(reservationId: number, phase: TidyPhase): string {
+  return `/api/reservations/${reservationId}/tidy-photos/${phase}`
+}
+
 /** 정리 확인 숫자: 치워야 함 · 깨끗함 · 귀중품을 두고 간 퇴실 */
 export function tidyCounts(rows: Pick<TidyCheckRow, 'result' | 'leftItems'>[]): { dirty: number; clean: number; left: number } {
   return {

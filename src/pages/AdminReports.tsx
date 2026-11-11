@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { currentMemberId } from '../api/client'
+import { ApiError, currentMemberId } from '../api/client'
 import {
   adminErrorMessage, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeConfirm, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
-  stillInRoom, tidySummary, type AdminReport, type Evidence, type EvidencePhoto,
+  stillInRoom, tidyPhotoUrl, tidySummary, type AdminReport, type Evidence, type EvidencePhoto,
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
 import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
@@ -222,10 +222,11 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
           </figure>
         ) : (
           <figure className="evidence-cell">
-            <span className="evidence-photo empty">방 카메라 자동 신고</span>
+            {/* 방 카메라 자동 신고: 퇴실 뒤 카메라가 찍은 빈 방 사진(core #115, 사람 0명일 때만 젯슨이 보냄) */}
+            <AuthPhoto url={ev.previous ? tidyPhotoUrl(ev.previous.reservationId, 'FIRST') : null} empty="카메라 사진 없음" alt="퇴실 뒤 방 카메라 사진" />
             <figcaption>
-              <b>신고자 없음</b>
-              <span className="muted">카메라가 본 내용은 신고 글에 있어요</span>
+              <b>방 카메라</b>
+              <span className="muted">{ev.previous?.tidyCheck ? `${seoulClock(new Date(ev.previous.tidyCheck.observedAt))} 찍음` : '자동 신고'}</span>
             </figcaption>
           </figure>
         )}
@@ -240,11 +241,18 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
   )
 }
 
-/** Bearer가 필요한 사진을 받아 object URL로 띄운다. 화면을 떠나면 URL을 버린다 */
+/** 학생이 올린 증거 사진(입실·퇴실) */
 function Photo({ photo, empty }: { photo: EvidencePhoto | null; empty: string }) {
+  return <AuthPhoto url={photo?.exists ? photo.url : null} empty={empty} alt={photo?.kind === 'CHECK_IN' ? '신고자 입실 사진' : '앞 사람 퇴실 사진'} />
+}
+
+/**
+ * Bearer가 필요한 사진을 받아 object URL로 띄운다. 화면을 떠나면 URL을 버린다.
+ * 404(사진이 아직 안 왔거나 30일 지나 지워짐)는 empty 글로, 그 밖의 실패는 "못 받았어요"로
+ */
+export function AuthPhoto({ url, empty, alt }: { url: string | null; empty: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
-  const url = photo?.exists ? photo.url : null
+  const [state, setState] = useState<'ok' | 'none' | 'failed'>('ok')
 
   useEffect(() => {
     if (!url) return
@@ -254,10 +262,10 @@ function Photo({ photo, empty }: { photo: EvidencePhoto | null; empty: string })
     const timer = setTimeout(() => ctrl.abort(), 30_000)
     let objectUrl: string | null = null
     let stale = false
-    setFailed(false)
+    setState('ok')
     getPhotoBlob(url, ctrl.signal, memberId)
       .then((b) => { if (stale) return; objectUrl = URL.createObjectURL(b); setSrc(objectUrl) })
-      .catch(() => { if (!stale) setFailed(true) })
+      .catch((e) => { if (!stale) setState(e instanceof ApiError && e.status === 404 ? 'none' : 'failed') })
       .finally(() => clearTimeout(timer))
     return () => {
       stale = true
@@ -268,10 +276,10 @@ function Photo({ photo, empty }: { photo: EvidencePhoto | null; empty: string })
     }
   }, [url])
 
-  if (!url) return <span className="evidence-photo empty">{empty}</span>
-  if (failed) return <span className="evidence-photo empty">사진을 못 받았어요</span>
+  if (!url || state === 'none') return <span className="evidence-photo empty">{empty}</span>
+  if (state === 'failed') return <span className="evidence-photo empty">사진을 못 받았어요</span>
   if (!src) return <span className="evidence-photo loading" aria-label="사진 불러오는 중" />
-  return <a href={src} target="_blank" rel="noreferrer" className="evidence-photo"><img src={src} alt={photo?.kind === 'CHECK_IN' ? '신고자 입실 사진' : '앞 사람 퇴실 사진'} /></a>
+  return <a href={src} target="_blank" rel="noreferrer" className="evidence-photo"><img src={src} alt={alt} /></a>
 }
 
 /** 강제 퇴실 (FR-RPT-104 퇴출, core #73). 예약 번호 + 사유(선택, 200자). 사유는 학생 알림에 그대로 보인다 */
