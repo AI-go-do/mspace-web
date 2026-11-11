@@ -117,8 +117,8 @@ export function listenOnce(
   let ended = false
   let silence: ReturnType<typeof setTimeout> | undefined
   let stopWait: ReturnType<typeof setTimeout> | undefined
-  /** 지금까지 들린 말 전체 */
-  const heard = () => joinHeard([committed, current])
+  /** 지금까지 들린 말 전체. 판마다 들린 말은 서로 다른 말이라 겹침을 지우지 않고 그대로 잇는다 */
+  const heard = () => [committed, current].filter(Boolean).join(' ')
   /** 지금까지 들린 말로 끝낸다(조용해짐·최대 길이·멈춤 버튼) */
   const finish = () => {
     if (stopping) return

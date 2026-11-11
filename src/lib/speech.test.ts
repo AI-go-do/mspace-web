@@ -115,6 +115,18 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('다시 켠 판에서 같은 말을 또 해도 지우지 않는다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '2시', final: true }])
+    r.onend!()
+    r.say([{ t: '2시', final: true }])
+    vi.advanceTimersByTime(SILENCE_MS)
+    expect(h.onFinal).toHaveBeenCalledWith('2시 2시')
+  })
+
   it('조용해진 뒤 브라우저가 끝내면 다시 켜지 않고 보낸다', () => {
     vi.useFakeTimers()
     const h = handlers()
