@@ -131,7 +131,7 @@ interface Shot { reservationId: number; phase: TidyPhase; label: string; when: s
  * 펼친 줄의 비교 사진 두 장.
  * - 퇴실 직후 줄: 같은 방 바로 앞 예약의 퇴실 직후 사진 ↔ 이번 퇴실 직후 사진.
  *   AI가 비교에 쓰는 입실 직전 사진은 젯슨 안에만 두고 지운다(Q-22). 관리자는 서버에 남은 퇴실 사진(10차·core #115)만 보므로
- *   큰 이름은 "입실 전"(재웅 11/11), 아래에 "앞 팀 퇴실 사진"이라고 무슨 사진인지 적는다
+ *   큰 이름은 "입실 전"(재웅 11/11), 아래에 그 사진이 찍힌 시각을 적는다(바로 앞 예약인지는 정리 확인 목록만으로 알 수 없다)
  * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
  */
 export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
@@ -141,11 +141,12 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
       { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: '' },
     ]
   }
-  // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째가 바로 앞 예약
+  // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째. 카메라 결과가 없는 예약은 목록에 없어
+  // 바로 앞 예약이 아닐 수 있으므로 "앞 팀"이라 단정하지 않고 찍힌 시각을 적는다. core가 입실 직전 사진(ENTRY, Q-27)을 주면 그걸로 바꾼다
   const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
     && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: '앞 팀 퇴실 사진' } : null,
+    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `${stamp(before.observedAt)} 이 방 카메라` } : null,
     { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: '' },
   ]
 }
