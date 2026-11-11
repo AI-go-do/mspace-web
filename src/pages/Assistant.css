@@ -4,7 +4,13 @@
   min-height: calc(100dvh - 84px);
   padding: 16px 16px 0;
 }
-.chat-head { display: flex; align-items: center; gap: 12px; padding: 8px 0 12px; }
+/* 머리글은 대화가 길어져도 위에 붙어 있게 (11/11 재웅). 아래 대화가 비치지 않게 바탕을 칠한다 */
+.chat-head {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  margin: -16px -16px 0; padding: calc(16px + 8px + env(safe-area-inset-top)) 16px 12px;
+  background: var(--gray);
+}
 .chat-head h1 { margin: 0; font-size: 20px; }
 .chat-head p { margin: 2px 0 0; font-size: 13px; }
 .chat-reset {

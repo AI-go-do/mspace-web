@@ -61,53 +61,140 @@ export interface ListenHandlers {
   onEnd(): void
 }
 
-/** 한 번 말하고 끝나는 듣기. 멈추는 함수를 돌려준다. 음성 인식이 없거나 시작하지 못하면 null */
-export function listenOnce(h: ListenHandlers, ctor: RecognitionCtor | null = recognitionCtor()): (() => void) | null {
+/**
+ * 말을 멈춘 뒤 이만큼 조용하면 다 말한 것으로 보고 보낸다.
+ * 브라우저 기본(continuous=false)은 1초도 안 되는 쉼에서 끊어 "내일… 오후 2시"가 "내일"만 가는 일이 있었다(11/11 재웅).
+ */
+export const SILENCE_MS = 2200
+/** 한 번 듣기의 최대 길이. 넘으면 지금까지 들린 말로 끝낸다(켜 둔 채 잊지 않게) */
+export const MAX_LISTEN_MS = 30_000
+/** 브라우저가 스스로 듣기를 끝냈을 때 다시 켜는 최대 횟수 */
+export const MAX_RESTARTS = 6
+/** 멈춘 뒤 onend를 기다리는 최대 시간 */
+const STOP_WAIT_MS = 1500
+
+/**
+ * 들린 조각을 한 문장으로 잇는다. 안드로이드 크롬은 이어 듣기에서 앞 조각을 다음 조각에 또 넣어 주기도 해서
+ * ("내일" → "내일 오후 2시"), 앞 글로 시작하는 조각은 바꿔 끼운다. 그 밖의 조각은 같은 말이어도 그대로 잇는다("2시 2시").
+ */
+export function joinHeard(parts: string[]): string {
+  let acc = ''
+  for (const raw of parts) {
+    const t = raw.trim()
+    if (!t) continue
+    if (!acc || t.startsWith(acc)) acc = t
+    else acc = `${acc} ${t}`
+  }
+  return acc.replace(/\s+/g, ' ')
+}
+
+/**
+ * 한 번 말하고 끝나는 듣기. 멈추는 함수를 돌려준다. 음성 인식이 없거나 시작하지 못하면 null.
+ * 잠깐 쉬어도 끊지 않고, SILENCE_MS 동안 새 말이 없거나 멈춤 버튼을 누르면 그때까지 들린 말을 한 번 보낸다.
+ * 브라우저가 쉼에서 스스로 끝내면(모바일 크롬·사파리) 다시 켜서 이어 듣는다.
+ */
+export function listenOnce(
+  h: ListenHandlers,
+  ctor: RecognitionCtor | null = recognitionCtor(),
+  opts: { silenceMs?: number; maxMs?: number } = {},
+): (() => void) | null {
   if (!ctor) return null
+  const silenceMs = opts.silenceMs ?? SILENCE_MS
+  const maxMs = opts.maxMs ?? MAX_LISTEN_MS
   const r = new ctor()
   r.lang = 'ko-KR'
   r.interimResults = true
-  r.continuous = false
+  r.continuous = true
   r.maxAlternatives = 1
-  let finalText = ''
-  let sent = false
+  /** 앞서 브라우저가 끝낸 판들에서 들린 말 */
+  let committed = ''
+  /** 이번 판에서 들린 말(확정 + 아직 바뀔 수 있는 말) */
+  let current = ''
+  let lastHeard = 0
+  let restarts = 0
+  let failed = false
+  let stopping = false
   let ended = false
+  let silence: ReturnType<typeof setTimeout> | undefined
+  let stopWait: ReturnType<typeof setTimeout> | undefined
+  /** 지금까지 들린 말 전체. 판마다 들린 말은 서로 다른 말이라 겹침을 지우지 않고 그대로 잇는다 */
+  const heard = () => [committed, current].filter(Boolean).join(' ')
+  /** 지금까지 들린 말로 끝낸다(조용해짐·최대 길이·멈춤 버튼) */
+  const finish = () => {
+    if (stopping) return
+    stopping = true
+    clearTimeout(silence)
+    // stop() 뒤에 onend가 오지 않는 브라우저에서도 듣기를 끝낸다. 마지막 결과가 아직 안 왔을 수 있어
+    // 보내지는 않는다(입력 칸에 들린 글이 남아 학생이 고쳐 보내면 된다)
+    stopWait = setTimeout(giveUp, STOP_WAIT_MS)
+    try { r.stop() } catch { /* 이미 끝남 */ }
+  }
+  /** 멈춘 뒤 onend가 안 오면 보내지 않고 듣기만 끝낸다 */
+  const giveUp = () => {
+    if (ended) return
+    ended = true
+    clearTimeout(silence)
+    clearTimeout(limit)
+    try { r.abort() } catch { /* 이미 끝남 */ }
+    h.onEnd()
+  }
+  const limit = setTimeout(finish, maxMs)
   r.onresult = (e) => {
+    if (ended) return
+    const finals: string[] = []
     let interim = ''
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+    // 이번 판의 결과 전체로 다시 만든다(resultIndex부터 이어 붙이면 브라우저마다 겹치거나 빠진다)
+    for (let i = 0; i < e.results.length; i++) {
       const res = e.results[i]
       const t = res[0]?.transcript ?? ''
-      if (res.isFinal) finalText += t
+      if (res.isFinal) finals.push(t)
       else interim += t
     }
-    h.onInterim((finalText + interim).trim())
+    current = joinHeard([...finals, interim])
+    h.onInterim(heard())
+    if (!heard()) return
+    lastHeard = Date.now()
+    clearTimeout(silence)
+    if (!stopping) silence = setTimeout(finish, silenceMs)
   }
   r.onerror = (e) => {
+    if (ended) return
+    // 다시 켠 뒤 조용해서 난 no-speech는 실패가 아니다(앞에서 들린 말을 보낸다)
+    if (e.error === 'no-speech' && heard()) return
     // 사용자가 멈춘 것(aborted)은 오류로 알리지 않는다
     if (e.error !== 'aborted') h.onError(speechErrorLine(e.error))
-    sent = true
+    failed = true
   }
   r.onend = () => {
     if (ended) return
-    ended = true
-    const text = finalText.trim()
-    if (!sent && text) {
-      sent = true
-      h.onFinal(text)
+    // 브라우저가 짧은 쉼에서 스스로 끝냈다: 이어서 다시 듣는다
+    if (!stopping && !failed && heard() && Date.now() - lastHeard < silenceMs && restarts < MAX_RESTARTS) {
+      committed = heard()
+      current = ''
+      restarts += 1
+      try {
+        r.start()
+        return
+      } catch { /* 다시 켜지 못하면 지금까지 들린 말로 끝낸다 */ }
     }
+    ended = true
+    clearTimeout(silence)
+    clearTimeout(limit)
+    clearTimeout(stopWait)
+    const text = heard()
+    if (!failed && text) h.onFinal(text)
     h.onEnd()
   }
   try {
     r.start()
   } catch {
+    clearTimeout(limit)
     h.onError(speechErrorLine('start-failed'))
     h.onEnd()
     return null
   }
   // 멈춤 버튼: 지금까지 들린 말로 끝낸다(stop은 onend 전에 마지막 결과를 준다)
-  return () => {
-    try { r.stop() } catch { /* 이미 끝남 */ }
-  }
+  return finish
 }
 
 /** 음성 인식 오류 코드 → 학생에게 보여 줄 한 줄 */

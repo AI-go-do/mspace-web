@@ -60,6 +60,7 @@ export default function Assistant() {
   // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
   const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
+  const head = useRef<HTMLElement>(null)
   // 내 팀(FR-AGT-105). "팀 A랑"이 들어간 말을 보낼 때 그 팀원을 확인 카드에 미리 채우려고 미리 받아 둔다(api/teams가 기억)
   function refreshTeams(owner: number | null) {
     getTeams(owner).catch(() => { /* 팀 없이 */ })
@@ -269,8 +270,31 @@ export default function Assistant() {
     return () => clearInterval(t)
   }, [chat.pending])
 
+  // 새 말이 붙으면 아래로 내린다. 처음 열 때는 바로, 그 뒤는 부드럽게(한 번에 툭 뛰지 않게, 11/11 재웅).
+  // 답이 길면 답 첫 줄이 위 머리글 밑에 보이는 데까지만 내린다(끝까지 내리면 답 앞부분을 놓친다).
+  // 답에 확인 카드(링크·친구 고르기 카드 말고)가 붙었으면 카드 위끝을 맞춘다([확인] 버튼이 화면 밖으로 밀리지 않게)
+  const scrolledOnce = useRef(false)
   useEffect(() => {
-    listEnd.current?.scrollIntoView?.({ block: 'end' })
+    const end = listEnd.current
+    if (!end || typeof window.scrollTo !== 'function') return
+    const first = !scrolledOnce.current
+    scrolledOnce.current = true
+    const doc = document.scrollingElement ?? document.documentElement
+    let top = doc.scrollHeight - window.innerHeight
+    const lastMsg = chat.messages[chat.messages.length - 1]
+    if (!first && !chat.pending && lastMsg?.role === 'assistant') {
+      const bots = end.parentElement?.querySelectorAll('.bubble.bot')
+      const bubble = bots?.[bots.length - 1]
+      let anchor: Element | undefined = bubble
+      for (let el = bubble?.nextElementSibling; el && el !== end && !el.classList.contains('bubble'); el = el.nextElementSibling) {
+        if (el.classList.contains('confirm-card')) { anchor = el; break }
+      }
+      const headH = head.current?.getBoundingClientRect().height ?? 0
+      if (anchor) top = Math.min(top, window.scrollY + anchor.getBoundingClientRect().top - headH - 12)
+    }
+    if (Math.abs(top - window.scrollY) < 2) return
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: Math.max(0, top), behavior: first || calm ? 'auto' : 'smooth' })
   }, [chat.messages.length, chat.pending])
 
   const busy = chat.pending !== null
@@ -374,7 +398,7 @@ export default function Assistant() {
 
   return (
     <main className="chat-page">
-      <header className="chat-head">
+      <header className="chat-head" ref={head}>
         <Odi size={40} />
         <div>
           <h1>오디</h1>
@@ -412,7 +436,7 @@ export default function Assistant() {
       <div className="chat-dock">
       {(listening || voiceNote) && (
         <p className={`voice-note ${voiceNote ? 'err' : ''}`} role="status">
-          {voiceNote || '듣고 있어요… 말이 끝나면 바로 보내요. 이름·학번은 말하지 마세요.'}
+          {voiceNote || '듣고 있어요… 다 말하고 잠깐 기다리면 보내요. 이름·학번은 말하지 마세요.'}
         </p>
       )}
       {suggestions.length > 0 && (
@@ -914,7 +938,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
 
   const closed = state.kind === 'closed' || expired
   return (
-    <div className="bot-card">
+    <div className="bot-card confirm-card">
       <p className="card-label">확인이 필요해요</p>
       <strong className="card-summary">{c.summary}</strong>
       {c.notes.map((n) => <p key={n} className="muted card-note">{n}</p>)}
