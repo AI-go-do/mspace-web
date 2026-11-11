@@ -7,8 +7,7 @@ import {
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
-import { IconButton } from '../components/IconAction'
-import Odi from '../components/Odi'
+import { Icon, IconButton } from '../components/IconAction'
 import { AuthPhoto, Skeleton } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
@@ -150,63 +149,94 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
   ]
 }
 
+/** 오디가 한 일 하나: doing은 하는 중 글, done은 끝난 글. later면 아직 안 한 일(예정) */
+export interface TidyAction { doing: string; done: string; later?: boolean }
+
 /**
- * 비교 사진 아래 오디(AI) 판단. "오디 판단" 탭 기록 줄(.jl-item)과 같은 모양: 판단 한 줄 + 근거 + 처리, 오른쪽에 확신도.
+ * 비교 사진 옆 방 카메라 AI 판단(재웅 11/11: 오디가 아니라 젯슨 안 카메라 모델이 판단하니 이름도 그렇게): 판단 한 줄 + 근거 + 한 일.
+ * 판단은 젯슨 카메라 모델(FR-DEV-105), 알림·경고는 그 결과를 받은 core가 같은 처리 안에서 바로 보낸다(core TidyCheckService:
+ * 퇴실 직후 LEFT_ITEMS → 대표자·참여자 LEFT_ITEM 알림, 3시간 뒤에도 남음 → 신고 + 대표자 경고). 그래서 결과 줄이 있으면 보낸 것으로 쓴다.
  * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
  */
-export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; then: string; warn: boolean } {
+export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
   const n = row.items.length
   if (row.phase === 'RECHECK') {
     return clean
-      ? { verdict: '3시간 뒤 비었어요', why: '퇴실 직후 본 물품이 없어졌어요', then: '경고 없음', warn: false }
-      : { verdict: '3시간 뒤에도 두고 간 물품이 있어요', why: '퇴실 직후 본 물품이 그대로 있어요',
-          then: row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '대표자 경고', warn: true }
+      ? { verdict: '3시간 뒤 비었어요', why: '퇴실 직후 본 물품이 없어졌어요', warn: false,
+          actions: [{ doing: '경고할지 따져 보는 중', done: '경고 없이 끝냈어요' }] }
+      : { verdict: '3시간 뒤에도 두고 간 물품이 있어요', why: '퇴실 직후 본 물품이 그대로 있어요', warn: true,
+          actions: [
+            { doing: '신고 만드는 중', done: row.reportId !== null ? `신고 #${row.reportId} 만들었어요` : '신고 만들었어요' },
+            { doing: '대표자에게 경고 보내는 중', done: '대표자에게 경고 보냈어요' },
+          ] }
   }
   return clean
-    ? { verdict: '깨끗해요', why: '앞 팀 사진과 달라진 곳이 없어요', then: '할 일 없음', warn: false }
-    : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `앞 팀 사진엔 없던 물품 ${n}개` : '앞 팀 사진엔 없던 물품',
-        then: rechecked ? '학생에게 알림 · 3시간 뒤 다시 확인함' : '학생에게 알림 · 3시간 뒤 다시 확인', warn: true }
+    ? { verdict: '깨끗해요', why: '앞 팀 사진과 달라진 곳이 없어요', warn: false,
+        actions: [{ doing: '다음 팀 기준 사진으로 저장하는 중', done: '다음 팀 기준 사진으로 저장했어요' }] }
+    : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `앞 팀 사진엔 없던 물품 ${n}개` : '앞 팀 사진엔 없던 물품', warn: true,
+        actions: [
+          { doing: '학생에게 알림 보내는 중', done: '대표자·참여자에게 알림 보냈어요' },
+          rechecked
+            ? { doing: '3시간 뒤 다시 보는 중', done: '3시간 뒤 다시 확인했어요' }
+            : { doing: '3시간 뒤 다시 확인 예약하는 중', done: '3시간 뒤 다시 확인할게요', later: true },
+        ] }
 }
 
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
- * AI 답변처럼 보이는 판단 상자(재웅 11/11 "진짜 AI스럽게"): 빛나는 테두리, "비교하는 중" 반짝 글 → 판단이 한 글자씩 써지고
- * → 근거·처리가 떠오른다. 움직임 줄이기를 켠 사람에게는 처음부터 다 보인다
+ * AI 답변처럼 보이는 판단 상자(재웅 11/11 "진짜 AI스럽게", "알림 보내는 중 → 완료!"):
+ * 빛나는 테두리, "비교하는 중" 반짝 글 → 판단이 한 글자씩 → 근거 → 한 일이 하나씩 "보내는 중(돌기)" → "✓ 보냈어요".
+ * 움직임 줄이기를 켠 사람에게는 처음부터 다 끝난 모습
+ * rechecked: 같은 예약의 3시간 뒤 다시 확인 줄이 이미 있는지
  */
-/** rechecked: 같은 예약의 3시간 뒤 다시 확인 줄이 이미 있는지(퇴실 직후 줄의 "처리"를 끝난 일로 쓴다) */
 function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
   const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
-  const [typed, setTyped] = useState(() => (reducedMotion() ? r.verdict.length : -1))
+  const total = r.verdict.length
+  // step: -1 생각 중, 0..total 판단 쓰는 중, 그 뒤 한 일마다 2칸(하는 중 → 끝)
+  const last = total + r.actions.length * 2
+  const [step, setStep] = useState(() => (reducedMotion() ? last : -1))
   useEffect(() => {
     if (reducedMotion()) return
-    let n = -1
-    let tick: ReturnType<typeof setInterval> | undefined
-    const start = setTimeout(() => {
-      tick = setInterval(() => { n += 1; setTyped(n); if (n >= r.verdict.length) clearInterval(tick) }, 45)
-    }, 1300)
-    return () => { clearTimeout(start); clearInterval(tick) }
-  }, [r.verdict])
-  const thinking = typed < 0
-  const done = typed >= r.verdict.length
+    const timers: ReturnType<typeof setTimeout>[] = []
+    let t = 1300
+    for (let i = 0; i <= total; i++) { const k = i; timers.push(setTimeout(() => setStep(k), t)); t += 45 }
+    t += 350
+    for (let a = 0; a < r.actions.length; a++) {
+      const k = total + a * 2 + 1
+      timers.push(setTimeout(() => setStep(k), t)); t += 1100
+      timers.push(setTimeout(() => setStep(k + 1), t)); t += 250
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [total, r.actions.length])
+  const thinking = step < 0
+  const written = step >= total
+  const allDone = step >= last
   return (
-    <div className={`tidy-ai${r.warn ? ' t-warn' : ''}${thinking ? ' thinking' : ''}${done ? ' done' : ''}`} aria-live="polite">
+    <div className={`tidy-ai${r.warn ? ' t-warn' : ''}${thinking ? ' thinking' : ''}${allDone ? ' done' : ''}`} aria-live="polite">
       <div className="tidy-ai-head">
-        <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
-        <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
-        {top !== null && done && <span className="tidy-ai-sure" title="오디 확신도">확신 {Math.round(top * 100)}%</span>}
+        <span className="tidy-ai-odi"><Icon name="camera" /></span>
+        <span className="tidy-ai-name">방 카메라 AI <i aria-hidden="true">✦</i></span>
+        {top !== null && written && <span className="tidy-ai-sure" title="카메라 모델 확신도">확신 {Math.round(top * 100)}%</span>}
       </div>
       {thinking
         ? <p className="tidy-ai-think">사진 두 장을 비교하는 중<span className="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
-        : <p className="tidy-ai-verdict">{r.verdict.slice(0, typed)}{!done && <span className="caret" aria-hidden="true" />}</p>}
-      {done && (
-        <dl className="tidy-ai-why">
-          <div><dt>근거</dt><dd>{r.why}</dd></div>
-          <div><dt>처리</dt><dd>{r.then}</dd></div>
-        </dl>
+        : <p className="tidy-ai-verdict">{r.verdict.slice(0, Math.max(step, 0))}{!written && <span className="caret" aria-hidden="true" />}</p>}
+      {written && <p className="tidy-ai-reason"><b>근거</b> {r.why}</p>}
+      {written && (
+        <ul className="tidy-ai-acts">
+          {r.actions.map((a, i) => {
+            const at = total + i * 2 + 1
+            if (step < at) return null
+            const finished = step > at
+            const cls = !finished ? 'doing' : a.later ? 'later' : 'ok'
+            return <li key={i} className={cls}><span className="mark" aria-hidden="true" />{finished ? a.done : a.doing}</li>
+          })}
+        </ul>
       )}
+      {allDone && <p className="tidy-ai-fin">완료! 관리자가 할 일은 없어요</p>}
     </div>
   )
 }
