@@ -39,8 +39,8 @@ export interface EvidencePhoto {
 
 /** 방 카메라(젯슨) 정리 확인 결과 (FR-DEV-105, core #110). 사진은 남기지 않고 결과·물건 이름만 */
 export interface TidyResult {
-  /** CLEAN 깨끗함 · NEEDS_CLEANING 치워야 함(core가 어질러짐 신고를 자동으로 만든다) */
-  result: 'CLEAN' | 'NEEDS_CLEANING' | (string & {})
+  /** CLEAN 깨끗함 · LEFT_ITEMS 물건 남음(11/10부터, core #112) · NEEDS_CLEANING 치워야 함(11/10 전 기록) */
+  result: 'CLEAN' | 'LEFT_ITEMS' | 'NEEDS_CLEANING' | (string & {})
   /** 본 물건 이름 전부(모델 이름 그대로) */
   items: string[]
   /** 두고 간 귀중품: BAG·PHONE·EARBUDS·LAPTOP */
@@ -48,7 +48,7 @@ export interface TidyResult {
   observedAt: string
 }
 
-export const TIDY_LABEL: Record<string, string> = { CLEAN: '깨끗함', NEEDS_CLEANING: '치워야 함' }
+export const TIDY_LABEL: Record<string, string> = { CLEAN: '깨끗함', LEFT_ITEMS: '물건 남음', NEEDS_CLEANING: '치워야 함' }
 export const LEFT_ITEM_LABEL: Record<string, string> = { BAG: '가방', PHONE: '휴대폰', EARBUDS: '이어폰', LAPTOP: '노트북' }
 
 /** "깨끗함" / "치워야 함 · 두고 간 것: 가방·노트북" */
@@ -166,13 +166,21 @@ export interface Penalties {
 
 // ---- 카메라 정리 확인 목록 (core #110) ----
 
-/** GET /api/tidy-checks 한 줄. 퇴실한 예약 하나에 하나 */
-export interface TidyCheckRow extends TidyResult {
+/** 카메라가 본 물건 하나. name은 모델 영어 이름 그대로, confidence는 0–1(11/10 전 기록은 null) */
+export interface SeenItem { name: string; confidence: number | null }
+
+/**
+ * GET /api/tidy-checks 한 줄. 예약 하나에 퇴실 직후(FIRST)·3시간 뒤 다시 확인(RECHECK)이 따로 한 줄씩(core #112).
+ * 새 기록의 leftItems는 늘 빈 배열이고, 남은 물건은 items에 확신도와 같이 온다
+ */
+export interface TidyCheckRow extends Omit<TidyResult, 'items'> {
+  phase: TidyPhase
+  items: SeenItem[]
   reservationId: number
   roomId: number
   roomName: string
   endedAt: string | null
-  /** 치워야 함이면 core가 만든 어질러짐 신고 번호 */
+  /** 다시 확인에도 물건이 남아 core가 만든 어질러짐 신고 번호(대표자 경고). 11/10 전 기록은 치워야 함 자동 신고 */
   reportId: number | null
 }
 
@@ -189,13 +197,22 @@ export function tidyPhotoUrl(reservationId: number, phase: TidyPhase): string {
   return `/api/reservations/${reservationId}/tidy-photos/${phase}`
 }
 
-/** 정리 확인 숫자: 치워야 함 · 깨끗함 · 귀중품을 두고 간 퇴실 */
-export function tidyCounts(rows: Pick<TidyCheckRow, 'result' | 'leftItems'>[]): { dirty: number; clean: number; left: number } {
+/** 정리 확인 숫자(퇴실 직후 줄 기준): 물건 남음 · 깨끗함, 그리고 3시간 뒤에도 남아 경고로 이어진 수 */
+export function tidyCounts(rows: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId'>[]): { left: number; clean: number; warned: number } {
+  const first = rows.filter((r) => r.phase !== 'RECHECK')
   return {
-    dirty: rows.filter((r) => r.result === 'NEEDS_CLEANING').length,
-    clean: rows.filter((r) => r.result === 'CLEAN').length,
-    left: rows.filter((r) => r.leftItems.length > 0).length,
+    left: first.filter((r) => r.result !== 'CLEAN' || r.leftItems.length > 0).length,
+    clean: first.filter((r) => r.result === 'CLEAN' && r.leftItems.length === 0).length,
+    warned: rows.filter((r) => r.phase === 'RECHECK' && r.reportId !== null).length,
   }
+}
+
+/** 남은 물건 글: "umbrella 93% · cup" (확신도 높은 순) */
+export function seenItemsLabel(items: SeenItem[]): string {
+  return [...items]
+    .sort((a, b) => (b.confidence ?? -1) - (a.confidence ?? -1))
+    .map((i) => (i.confidence === null ? i.name : `${i.name} ${Math.round(i.confidence * 100)}%`))
+    .join(' · ')
 }
 
 /** 최근 days일(1–365, 기본 30) 경고와 그 사이 끝났거나 진행 중인 정지. 관리자 화면이라 학번·이름이 그대로 온다 */

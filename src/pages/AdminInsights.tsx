@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, LEFT_ITEM_LABEL, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, tidyPhotoUrl, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsLabel, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -120,14 +120,43 @@ export function AdminPenalties() {
   )
 }
 
+/** 줄 하나를 가리키는 키. 예약 하나에 퇴실 직후·다시 확인 두 줄이 있을 수 있다 */
+const rowKey = (r: Pick<TidyCheckRow, 'reservationId' | 'phase'>) => `${r.reservationId}-${r.phase}`
+
+/** 비교 사진 한 칸: 어느 예약의 어느 단계 사진인지와 아래 글 */
+interface Shot { reservationId: number; phase: TidyPhase; label: string; when: string }
+
 /**
- * 방 카메라 정리 확인 목록 (FR-DEV-105·FR-WEB-101, core #110). 퇴실 뒤 젯슨이 본 결과를 최근 순으로.
- * 치워야 함이면 자동 신고 번호가 같이 온다. 카메라 그림을 누르면 그 줄 아래에 빈 방 사진(core #115)을 펼친다.
- * 사진은 누른 줄만 받는다(7일이면 수백 장이라 한꺼번에 받지 않음). 다시 확인 사진은 두고 간 물건이 있을 때만
+ * 펼친 줄의 비교 사진 두 장.
+ * - 퇴실 직후 줄: 같은 방 바로 앞 예약의 퇴실 직후 사진(= 이번 팀 입실 전 모습) ↔ 이번 퇴실 직후 사진.
+ *   입실 직전 빈 방 사진은 젯슨 안에만 두고 지워서(Q-22) 서버에 없다. 그 사이 방에 사람이 없었으니 앞 팀 퇴실 사진으로 대신한다
+ * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
+ */
+export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
+  if (r.phase === 'RECHECK') {
+    const first = rows.find((x) => x.reservationId === r.reservationId && x.phase === 'FIRST')
+    return [
+      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후', when: first ? stamp(first.observedAt) : '' },
+      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: stamp(r.observedAt) },
+    ]
+  }
+  // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째가 바로 앞 예약
+  const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
+    && Date.parse(x.observedAt) < Date.parse(r.observedAt))
+  return [
+    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `앞 팀 퇴실 ${stamp(before.observedAt)}` } : null,
+    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: stamp(r.observedAt) },
+  ]
+}
+
+/**
+ * 방 카메라 정리 확인 목록 (FR-DEV-105·FR-WEB-101, core #110·#112). 퇴실 뒤 젯슨이 본 결과를 최근 순으로.
+ * 예약 하나에 퇴실 직후·3시간 뒤 다시 확인이 따로 한 줄씩. 다시 확인에도 남으면 core가 대표자 경고(신고 번호가 붙음).
+ * 카메라 그림을 누르면 줄 아래에 비교 사진 두 장(core #115)을 펼친다. 사진은 누른 줄만 받는다(7일이면 수백 장)
  */
 export function AdminTidyChecks() {
   const [days, setDays] = useState(7)
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
   const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -155,46 +184,56 @@ export function AdminTidyChecks() {
       {rows && counts && (
         <>
           <div className="stat-tiles three">
-            <Tile hero label="치워야 함" value={counts.dirty} />
+            <Tile hero label="물건 남음" value={counts.left} />
             <Tile label="깨끗함" value={counts.clean} i={1} />
-            <Tile label="귀중품 두고 감" value={counts.left} i={2} />
+            <Tile label="3시간 뒤 경고" value={counts.warned} i={2} />
           </div>
           <section className="card admin-sec">
             <h2>퇴실 뒤 카메라가 본 것</h2>
             {rows.length === 0 && <p className="adm-small">이 기간에 받은 결과가 없어요.</p>}
             <ul className="pen-list">
-              {rows.map((r) => (
-                <li key={r.reservationId} className={`pen-row tidy-row ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
-                  <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
-                  <span className="pen-what">
-                    <span className={`pen-tag ${r.result === 'NEEDS_CLEANING' ? 'on' : ''}`}>
-                      {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 신고 #${r.reportId}` : ''}
+              {rows.map((r) => {
+                const key = rowKey(r)
+                const isOpen = open === key
+                const on = r.result !== 'CLEAN'
+                const pair = isOpen ? tidyPair(rows, r) : null
+                return (
+                  <li key={key} className={`pen-row tidy-row ${on ? 'on' : ''}`}>
+                    <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
+                    <span className="pen-what">
+                      <span className="tidy-tags">
+                        <span className="pen-tag">{r.phase === 'RECHECK' ? '3시간 뒤' : '퇴실 직후'}</span>
+                        <span className={`pen-tag ${on ? 'on' : ''}`}>
+                          {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
+                        </span>
+                      </span>
+                      {r.items.length > 0 && <span>{seenItemsLabel(r.items)}</span>}
+                      {r.leftItems.length > 0 && <span>두고 간 것: {r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join('·')}</span>}
+                      <span className="muted">{r.endedAt ? `${stamp(r.endedAt)} 퇴실 · ` : ''}{stamp(r.observedAt)} 확인</span>
                     </span>
-                    {r.leftItems.length > 0 && <span>두고 간 것: {r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join('·')}</span>}
-                    <span className="muted">{r.endedAt ? `${stamp(r.endedAt)} 퇴실 · ` : ''}{stamp(r.observedAt)} 확인</span>
-                  </span>
-                  <IconButton
-                    icon={open === r.reservationId ? 'close' : 'camera'}
-                    label={open === r.reservationId ? '사진 닫기' : '방 사진 보기'}
-                    aria-expanded={open === r.reservationId}
-                    onClick={() => setOpen(open === r.reservationId ? null : r.reservationId)}
-                  />
-                  {open === r.reservationId && (
-                    <div className="tidy-photos">
-                      <figure className="evidence-cell">
-                        <AuthPhoto url={tidyPhotoUrl(r.reservationId, 'FIRST')} empty="사진 없음" alt={`${r.roomName} 퇴실 뒤 사진`} />
-                        <figcaption><b>퇴실 뒤</b><span className="muted">{stamp(r.observedAt)}</span></figcaption>
-                      </figure>
-                      {r.leftItems.length > 0 && (
-                        <figure className="evidence-cell">
-                          <AuthPhoto url={tidyPhotoUrl(r.reservationId, 'RECHECK')} empty="아직 다시 안 봄" alt={`${r.roomName} 다시 확인 사진`} />
-                          <figcaption><b>다시 확인</b><span className="muted">3시간 뒤</span></figcaption>
-                        </figure>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
+                    <IconButton
+                      icon={isOpen ? 'close' : 'camera'}
+                      label={isOpen ? '사진 닫기' : '비교 사진 보기'}
+                      aria-expanded={isOpen}
+                      onClick={() => setOpen(isOpen ? null : key)}
+                    />
+                    {pair && (
+                      <div className="tidy-photos"><div className="evidence-grid">
+                        {pair.map((shot, i) => (
+                          <figure key={i} className="evidence-cell">
+                            <AuthPhoto
+                              url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
+                              empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
+                              alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
+                            />
+                            <figcaption><b>{shot?.label ?? '입실 전'}</b><span className="muted">{shot?.when ?? '이 기간에 앞 팀 기록 없음'}</span></figcaption>
+                          </figure>
+                        ))}
+                      </div></div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           </section>
         </>

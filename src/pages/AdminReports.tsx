@@ -222,11 +222,11 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
           </figure>
         ) : (
           <figure className="evidence-cell">
-            {/* 방 카메라 자동 신고: 퇴실 뒤 카메라가 찍은 빈 방 사진(core #115, 사람 0명일 때만 젯슨이 보냄) */}
-            <AuthPhoto url={ev.previous ? tidyPhotoUrl(ev.previous.reservationId, 'FIRST') : null} empty="카메라 사진 없음" alt="퇴실 뒤 방 카메라 사진" />
+            {/* 방 카메라 자동 신고는 3시간 뒤 다시 확인에도 물건이 남아 생긴다(core #112). 그때 찍은 빈 방 사진(core #115) */}
+            <AuthPhoto url={ev.previous ? tidyPhotoUrl(ev.previous.reservationId, 'RECHECK') : null} empty="카메라 사진 없음" alt="3시간 뒤 방 카메라 사진" />
             <figcaption>
-              <b>방 카메라</b>
-              <span className="muted">{ev.previous?.tidyCheck ? `${seoulClock(new Date(ev.previous.tidyCheck.observedAt))} 찍음` : '자동 신고'}</span>
+              <b>방 카메라 3시간 뒤</b>
+              <span className="muted">자동 신고</span>
             </figcaption>
           </figure>
         )}
