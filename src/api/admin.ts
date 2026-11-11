@@ -82,7 +82,8 @@ export function getEvidence(reportId: number, signal?: AbortSignal, member?: num
 
 /** 증거 사진 받기. 화면에는 object URL로 띄운다(부른 쪽이 다 쓰면 revoke) */
 export function getPhotoBlob(url: string, signal?: AbortSignal, member?: number | null): Promise<Blob> {
-  return api(url, { signal, member, as: 'blob', headers: { Accept: 'image/*' } })
+  // 오류 답(404 PHOTO_NOT_FOUND 등)은 JSON이라 같이 받아야 한다. image/*만 보내면 서버가 406으로 바꿔 '없음'을 '실패'로 보게 된다
+  return api(url, { signal, member, as: 'blob', headers: { Accept: 'image/*, application/json' } })
 }
 
 /** 강제 퇴실 사유 최대 글자 수 (core ForceCheckoutService) */

@@ -469,6 +469,10 @@
 .tidy-ai-acts .ok .mark::before { content: '✓'; }
 .tidy-ai-acts .later .mark { border: 2px dashed var(--ai-c); }
 .tidy-ai-acts .later { color: var(--navy-70, #6b7487); }
+/* 사진이 안 들어온 줄: 주황 느낌표 (재웅 11/11 "사진 못 받았는데 모델 판단 완료는 이상해") */
+.tidy-ai-acts .nophoto .mark { background: #e8a33a; }
+.tidy-ai-acts .nophoto .mark::before { content: '!'; }
+.tidy-ai-acts .nophoto { color: #8a5a00; }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 @keyframes ai-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @keyframes ai-border { to { background-position: 0 0, 300% 0; } }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tidyReason } from './AdminInsights'
+import { NO_PHOTO, tidyReason } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -24,5 +24,12 @@ describe('정리 확인 판단 글', () => {
     const r = tidyReason({ result: 'NEEDS_CLEANING', leftItems: [], items: [], phase: 'FIRST', reportId: 12 })
     expect(r.verdict).toBe('치워야 해요')
     expect(r.actions.map((a) => a.done)).toEqual(['신고 #12 만들었어요'])
+  })
+})
+
+describe('사진 없을 때 글', () => {
+  it('없음과 실패를 다르게 말하고, 모델 판단 완료라고 하지 않는다', () => {
+    expect(NO_PHOTO.none.done).not.toContain('판단 완료')
+    expect(NO_PHOTO.failed.done).not.toBe(NO_PHOTO.none.done)
   })
 })
