@@ -252,7 +252,10 @@ function Photo({ photo, empty }: { photo: EvidencePhoto | null; empty: string })
  * Bearer가 필요한 사진을 받아 object URL로 띄운다. 화면을 떠나면 URL을 버린다.
  * 404(사진이 아직 안 왔거나 30일 지나 지워짐)는 empty 글로, 그 밖의 실패는 "못 받았어요"로
  */
-export function AuthPhoto({ url, empty, alt }: { url: string | null; empty: string; alt: string }) {
+/** 사진 받은 상태: loading 받는 중 · ok 받음 · none 없음(주소 없음·404) · failed 그 밖의 실패 */
+export type PhotoState = 'loading' | 'ok' | 'none' | 'failed'
+
+export function AuthPhoto({ url, empty, alt, onState }: { url: string | null; empty: string; alt: string; onState?: (s: PhotoState) => void }) {
   const [src, setSrc] = useState<string | null>(null)
   const [state, setState] = useState<'ok' | 'none' | 'failed'>('ok')
 
@@ -277,6 +280,9 @@ export function AuthPhoto({ url, empty, alt }: { url: string | null; empty: stri
       setSrc(null)
     }
   }, [url])
+
+  const shown: PhotoState = !url || state === 'none' ? 'none' : state === 'failed' ? 'failed' : src ? 'ok' : 'loading'
+  useEffect(() => { onState?.(shown) }, [shown, onState])
 
   if (!url || state === 'none') return <span className="evidence-photo empty">{empty}</span>
   if (state === 'failed') return <span className="evidence-photo empty">사진을 못 받았어요</span>

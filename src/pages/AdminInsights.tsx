@@ -9,7 +9,7 @@ import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
 import { IconButton } from '../components/IconAction'
 import Odi from '../components/Odi'
-import { AuthPhoto, Skeleton } from './AdminReports'
+import { AuthPhoto, Skeleton, type PhotoState } from './AdminReports'
 
 const REQUEST_TIMEOUT_MS = 15_000
 const RANGES = [7, 30, 90]
@@ -196,6 +196,12 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
         ] }
 }
 
+/** 이 줄 사진이 없을 때 첫 줄·근거 글: none 서버에 사진이 없음 · failed 받다가 실패 */
+export const NO_PHOTO = {
+  none: { done: '사진 없이 결과만 받았어요', why: '카메라 사진이 안 들어와 눈으로 비교할 수 없어요' },
+  failed: { done: '사진을 못 불러왔어요', why: '결과는 받았지만 사진은 다시 열어 봐야 해요' },
+} as const
+
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
@@ -204,8 +210,10 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
  * 움직임 줄이기를 켠 사람에게는 처음부터 다 끝난 모습
  * rechecked: 같은 예약의 3시간 뒤 다시 확인 줄이 이미 있는지
  */
-function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
+function TidyJudgement({ row, rechecked, photo = 'ok' }: { row: TidyCheckRow; rechecked: boolean; photo?: PhotoState }) {
   const r = tidyReason(row, rechecked)
+  // 사진이 안 들어왔으면 모델이 "사진을 봤다"고 하지 않는다(재웅 11/11). 결과 글자는 젯슨이 따로 보내 와서 판단·한 일은 그대로 둔다
+  const noPhoto = photo === 'none' || photo === 'failed'
   const top = seenItemsSummary(row.items).top
   // 첫 줄은 젯슨 카메라 모델 판단, 그 뒤는 core가 한 일. 줄마다 2칸(하는 중 → 끝)
   const steps: TidyAction[] = [{ doing: 'YOLOv8s 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
@@ -236,17 +244,17 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
           const at = i * 2 + 1
           if (step < at) return null
           const finished = step > at
-          const cls = !finished ? 'doing' : a.later ? 'later' : 'ok'
+          const cls = !finished ? 'doing' : i === 0 && noPhoto ? 'nophoto' : a.later ? 'later' : 'ok'
           return (
             <li key={i} className={cls}>
               <span className="mark" aria-hidden="true" />
-              <span className="txt">{finished ? a.done : a.doing}
-                {i === 0 && finished && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
+              <span className="txt">{finished ? (i === 0 && noPhoto ? NO_PHOTO[photo as 'none' | 'failed'].done : a.done) : a.doing}
+                {i === 0 && finished && !noPhoto && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
               </span>
               {i === 0 && finished && (
                 <div className="tidy-ai-result">
                   <b className="tidy-ai-verdict">{r.verdict}</b>
-                  <span className="tidy-ai-reason">{r.why}</span>
+                  <span className="tidy-ai-reason">{noPhoto ? NO_PHOTO[photo as 'none' | 'failed'].why : r.why}</span>
                 </div>
               )}
             </li>
@@ -254,6 +262,26 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
         })}
       </ol>
     </div>
+  )
+}
+
+/** 펼친 줄: 비교 사진 두 장 + 오디 AI 상자. 이 줄 자기 사진(오른쪽)을 받았는지를 상자에도 알려 준다 */
+function TidyPhotos({ row, pair, rechecked }: { row: TidyCheckRow; pair: [Shot | null, Shot]; rechecked: boolean }) {
+  const [photo, setPhoto] = useState<PhotoState>('loading')
+  return (
+    <div className="tidy-photos"><div className="evidence-grid">
+      {pair.map((shot, i) => (
+        <figure key={i} className="evidence-cell">
+          <AuthPhoto
+            url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
+            empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
+            alt={`${row.roomName} ${shot?.label ?? '입실 전'} 사진`}
+            onState={i === 1 ? setPhoto : undefined}
+          />
+          <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
+        </figure>
+      ))}
+    </div><TidyJudgement row={row} rechecked={rechecked} photo={photo} /></div>
   )
 }
 
@@ -324,18 +352,7 @@ export function AdminTidyChecks() {
                       onClick={() => setOpen(isOpen ? null : key)}
                     />
                     {pair && (
-                      <div className="tidy-photos"><div className="evidence-grid">
-                        {pair.map((shot, i) => (
-                          <figure key={i} className="evidence-cell">
-                            <AuthPhoto
-                              url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
-                              empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
-                              alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
-                            />
-                            <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
-                          </figure>
-                        ))}
-                      </div><TidyJudgement row={r} rechecked={r.phase === 'FIRST' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK')} /></div>
+                      <TidyPhotos row={r} pair={pair} rechecked={r.phase === 'FIRST' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK')} />
                     )}
                   </li>
                 )
