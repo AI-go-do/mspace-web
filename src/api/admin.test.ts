@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, stillInRoom, tidyCounts, tidySummary } from './admin'
+import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -82,6 +82,12 @@ describe('카메라 정리 확인 (core #110)', () => {
       { phase: 'FIRST', result: 'NEEDS_CLEANING', leftItems: [], reportId: 3 },
     ]
     expect(tidyCounts(rows)).toEqual({ left: 3, clean: 1, warned: 1 })
+  })
+
+  it('AI 판단 줄은 같은 물건을 묶고 가장 높은 확신도만 낸다', () => {
+    expect(seenItemsSummary([{ name: 'cup', confidence: 0.71 }, { name: 'cup', confidence: 0.88 }, { name: 'backpack', confidence: 0.6 }, { name: 'stapler', confidence: null }]))
+      .toEqual({ text: '컵 2개 · 가방 · stapler', top: 0.88 })
+    expect(seenItemsSummary([])).toEqual({ text: '', top: null })
   })
 
   it('남은 물건은 확신도 높은 순으로, 확신도 없으면 이름만', () => {

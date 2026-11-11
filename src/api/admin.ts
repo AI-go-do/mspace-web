@@ -207,6 +207,24 @@ export function tidyCounts(rows: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIt
   }
 }
 
+/** 카메라 모델(80종) 영어 이름 → 화면 이름. 없는 이름은 그대로 */
+export const SEEN_ITEM_LABEL: Record<string, string> = {
+  cup: '컵', bottle: '병', backpack: '가방', handbag: '가방', suitcase: '가방', laptop: '노트북', 'cell phone': '휴대폰',
+  umbrella: '우산', book: '책', keyboard: '키보드', mouse: '마우스', 'wine glass': '잔', bowl: '그릇', unknown: '모르는 물건',
+}
+
+/** AI 판단 한 줄용: 같은 물건은 묶어 "컵 3개 · 가방"처럼, 확신도는 가장 높은 값 하나만 따로 */
+export function seenItemsSummary(items: SeenItem[]): { text: string; top: number | null } {
+  const counts = new Map<string, number>()
+  for (const i of items) {
+    const name = SEEN_ITEM_LABEL[i.name] ?? i.name
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  const text = [...counts].map(([n, c]) => (c > 1 ? `${n} ${c}개` : n)).join(' · ')
+  const known = items.map((i) => i.confidence).filter((c): c is number => c !== null)
+  return { text, top: known.length ? Math.max(...known) : null }
+}
+
 /** 남은 물건 글: "umbrella 93% · cup" (확신도 높은 순) */
 export function seenItemsLabel(items: SeenItem[]): string {
   return [...items]

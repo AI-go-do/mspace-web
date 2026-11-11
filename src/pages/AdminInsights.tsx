@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, LEFT_ITEM_LABEL, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsLabel, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -135,19 +135,41 @@ interface Shot { reservationId: number; phase: TidyPhase; label: string; when: s
  */
 export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
   if (r.phase === 'RECHECK') {
-    const first = rows.find((x) => x.reservationId === r.reservationId && x.phase === 'FIRST')
     return [
-      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후', when: first ? stamp(first.observedAt) : '' },
-      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: stamp(r.observedAt) },
+      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후', when: '' },
+      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: '' },
     ]
   }
   // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째가 바로 앞 예약
   const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
     && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `앞 팀 퇴실 사진 · ${stamp(before.observedAt)}` } : null,
-    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: stamp(r.observedAt) },
+    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: '앞 팀 퇴실 사진' } : null,
+    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: '' },
   ]
+}
+
+/**
+ * 비교 사진 아래 AI 판단 한 줄(재웅 11/11 "AI 모델 판단하면서 써 줘"). 젯슨 모델이 무엇을 보고 어떻게 정했고,
+ * 그래서 core가 무엇을 했는지(알림 / 대표자 경고)를 보통 크기 글로
+ */
+function TidyJudgement({ row }: { row: TidyCheckRow }) {
+  const clean = row.result === 'CLEAN' && row.leftItems.length === 0
+  const seen = seenItemsSummary(row.items)
+  const left = row.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join(' · ')
+  const what = seen.text || left
+  const verdict = clean ? '깨끗함' : row.phase === 'RECHECK' ? '3시간 뒤에도 남음' : (TIDY_LABEL[row.result] ?? row.result)
+  const then = clean ? null
+    : row.phase === 'RECHECK' ? (row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '경고 없음')
+    : '알림 보냄 · 3시간 뒤 다시 확인'
+  return (
+    <div className={`tidy-judge ${clean ? '' : 'on'}`}>
+      <span className="tidy-judge-head">AI 판단</span>
+      <b>{verdict}</b>
+      {what && <span>{what}{seen.top !== null ? ` · 확신 ${Math.round(seen.top * 100)}%` : ''}</span>}
+      {then && <span className="tidy-judge-then">→ {then}</span>}
+    </div>
+  )
 }
 
 /**
@@ -208,9 +230,10 @@ export function AdminTidyChecks() {
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>
                       </span>
-                      {r.items.length > 0 && <span>{seenItemsLabel(r.items)}</span>}
-                      {r.leftItems.length > 0 && <span>두고 간 것: {r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join('·')}</span>}
-                      <span className="muted">{r.endedAt ? `${stamp(r.endedAt)} 퇴실 · ` : ''}{stamp(r.observedAt)} 확인</span>
+                      {(r.items.length > 0 || r.leftItems.length > 0) && (
+                        <span className="tidy-what">{seenItemsSummary(r.items).text || r.leftItems.map((x) => LEFT_ITEM_LABEL[x] ?? x).join(' · ')}</span>
+                      )}
+                      <span className="muted">{stamp(r.endedAt ?? r.observedAt)} 퇴실</span>
                     </span>
                     <IconButton
                       icon={isOpen ? 'close' : 'camera'}
@@ -227,10 +250,10 @@ export function AdminTidyChecks() {
                               empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
                               alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
                             />
-                            <figcaption><b>{shot?.label ?? '입실 전'}</b><span className="muted">{shot?.when ?? '이 기간에 앞 팀 기록 없음'}</span></figcaption>
+                            <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
                           </figure>
                         ))}
-                      </div></div>
+                      </div><TidyJudgement row={r} /></div>
                     )}
                   </li>
                 )
