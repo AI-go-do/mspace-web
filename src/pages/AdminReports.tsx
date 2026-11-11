@@ -198,6 +198,7 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
 
   if (error) return <p role="alert" className="adm-msg err">증거를 못 불러왔어요. {error}</p>
   if (!ev) return <div className="evidence"><div className="evidence-grid"><span className="evidence-photo loading" aria-label="증거 불러오는 중" /><span className="evidence-photo loading" /></div></div>
+  const legacyCam = ev.previous?.tidyCheck?.result === 'NEEDS_CLEANING'
   return (
     <div className="evidence">
       <div className="evidence-grid">
@@ -222,10 +223,11 @@ function EvidencePanel({ reportId, onForceCheckout }: { reportId: number; onForc
           </figure>
         ) : (
           <figure className="evidence-cell">
-            {/* 방 카메라 자동 신고는 3시간 뒤 다시 확인에도 물건이 남아 생긴다(core #112). 그때 찍은 빈 방 사진(core #115) */}
-            <AuthPhoto url={ev.previous ? tidyPhotoUrl(ev.previous.reservationId, 'RECHECK') : null} empty="카메라 사진 없음" alt="3시간 뒤 방 카메라 사진" />
+            {/* 방 카메라 자동 신고는 3시간 뒤 다시 확인에도 물건이 남아 생긴다(core #112). 그때 찍은 빈 방 사진(core #115).
+                11/10 전 기록(NEEDS_CLEANING)은 퇴실 직후 확인에서 바로 신고됐으니 그 사진 */}
+            <AuthPhoto url={ev.previous ? tidyPhotoUrl(ev.previous.reservationId, legacyCam ? 'FIRST' : 'RECHECK') : null} empty="카메라 사진 없음" alt={legacyCam ? '퇴실 직후 방 카메라 사진' : '3시간 뒤 방 카메라 사진'} />
             <figcaption>
-              <b>방 카메라 3시간 뒤</b>
+              <b>{legacyCam ? '방 카메라 퇴실 직후' : '방 카메라 3시간 뒤'}</b>
               <span className="muted">자동 신고</span>
             </figcaption>
           </figure>

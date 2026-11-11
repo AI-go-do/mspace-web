@@ -162,17 +162,24 @@ export interface TidyAction { doing: string; done: string; later?: boolean }
 export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
   const n = row.items.length
+  // 11/10 전 기록(NEEDS_CLEANING): 그때 core는 퇴실 직후 한 번만 보고 바로 신고했고 3시간 뒤 다시 확인이 없었다(core #110)
+  if (row.result === 'NEEDS_CLEANING') {
+    const acts: TidyAction[] = []
+    if (row.leftItems.length > 0) acts.push({ doing: '학생에게 알림 보내는 중', done: '대표자·참여자에게 알림 보냈어요' })
+    if (row.reportId !== null) acts.push({ doing: '신고 만드는 중', done: `신고 #${row.reportId} 만들었어요` })
+    return { verdict: '치워야 해요', why: '정리가 안 된 채로 퇴실했어요', warn: true, actions: acts }
+  }
   if (row.phase === 'RECHECK') {
     return clean
       ? { verdict: '3시간 뒤 비었어요', why: '퇴실 직후 본 물품이 없어졌어요', warn: false,
           actions: [{ doing: '경고할지 따져 보는 중', done: '경고 없이 끝냈어요' }] }
       : row.reportId === null
-        // 남았지만 확신도가 경고 기준 아래면 core가 신고·경고를 만들지 않는다(FR-DEV-105 0.8)
+        // 남았는데 신고가 없으면 core 설정(경고 기준·카메라 경고 끔)상 경고하지 않은 것. 이유는 설정마다 달라 말하지 않는다
         ? { verdict: '3시간 뒤에도 두고 간 물품이 있어요', why: '퇴실 직후 본 물품이 그대로 있어요', warn: true,
-            actions: [{ doing: '경고할지 따져 보는 중', done: '확신이 기준 아래라 경고는 안 했어요' }] }
+            actions: [{ doing: '경고할지 따져 보는 중', done: '경고는 안 했어요' }] }
         : { verdict: '3시간 뒤에도 두고 간 물품이 있어요', why: '퇴실 직후 본 물품이 그대로 있어요', warn: true,
           actions: [
-            { doing: '신고 만드는 중', done: row.reportId !== null ? `신고 #${row.reportId} 만들었어요` : '신고 만들었어요' },
+            { doing: '신고 만드는 중', done: `신고 #${row.reportId} 만들었어요` },
             { doing: '대표자에게 경고 보내는 중', done: '대표자에게 경고 보냈어요' },
           ] }
   }

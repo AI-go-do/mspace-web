@@ -6,7 +6,7 @@ const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cu
 describe('정리 확인 판단 글', () => {
   it('3시간 뒤에 남았어도 신고가 없으면 경고 보냈다고 하지 않는다', () => {
     const r = tidyReason({ ...base, phase: 'RECHECK', reportId: null })
-    expect(r.actions.map((a) => a.done)).toEqual(['확신이 기준 아래라 경고는 안 했어요'])
+    expect(r.actions.map((a) => a.done)).toEqual(['경고는 안 했어요'])
   })
 
   it('3시간 뒤 신고가 있으면 신고 번호와 대표자 경고', () => {
@@ -18,5 +18,11 @@ describe('정리 확인 판단 글', () => {
     expect(tidyReason({ ...base, phase: 'FIRST', reportId: null }).actions.map((a) => a.done))
       .toEqual(['대표자·참여자에게 알림 보냈어요', '3시간 뒤 다시 확인할게요'])
     expect(tidyReason({ ...base, phase: 'FIRST', reportId: null }, true).actions[1].done).toBe('3시간 뒤 다시 확인했어요')
+  })
+
+  it('11/10 전 NEEDS_CLEANING 기록은 3시간 뒤 확인을 약속하지 않는다', () => {
+    const r = tidyReason({ result: 'NEEDS_CLEANING', leftItems: [], items: [], phase: 'FIRST', reportId: 12 })
+    expect(r.verdict).toBe('치워야 해요')
+    expect(r.actions.map((a) => a.done)).toEqual(['신고 #12 만들었어요'])
   })
 })
