@@ -32,7 +32,7 @@ afterEach(() => { vi.useRealTimers() })
 describe('조각 잇기', () => {
   it('안드로이드처럼 앞 조각을 또 넣어 줘도 한 번만 잇는다', () => {
     expect(joinHeard(['내일', '내일 오후 2시', '빈 방'])).toBe('내일 오후 2시 빈 방')
-    expect(joinHeard(['내일 오후', ' 2시 ', '2시'])).toBe('내일 오후 2시')
+    expect(joinHeard(['내일 오후', ' 2시 ', ' 2시'])).toBe('내일 오후 2시 2시') // 따로 들린 같은 말은 지우지 않는다
     expect(joinHeard(['', '  '])).toBe('')
   })
 })

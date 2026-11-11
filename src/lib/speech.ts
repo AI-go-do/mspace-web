@@ -75,7 +75,7 @@ const STOP_WAIT_MS = 1500
 
 /**
  * 들린 조각을 한 문장으로 잇는다. 안드로이드 크롬은 이어 듣기에서 앞 조각을 다음 조각에 또 넣어 주기도 해서
- * ("내일" → "내일 오후 2시"), 앞 글로 시작하는 조각은 바꿔 끼우고 이미 있는 조각은 건너뛴다.
+ * ("내일" → "내일 오후 2시"), 앞 글로 시작하는 조각은 바꿔 끼운다. 그 밖의 조각은 같은 말이어도 그대로 잇는다("2시 2시").
  */
 export function joinHeard(parts: string[]): string {
   let acc = ''
@@ -83,7 +83,7 @@ export function joinHeard(parts: string[]): string {
     const t = raw.trim()
     if (!t) continue
     if (!acc || t.startsWith(acc)) acc = t
-    else if (!acc.endsWith(t)) acc = `${acc} ${t}`
+    else acc = `${acc} ${t}`
   }
   return acc.replace(/\s+/g, ' ')
 }
@@ -117,7 +117,9 @@ export function listenOnce(
   let ended = false
   let silence: ReturnType<typeof setTimeout> | undefined
   let stopWait: ReturnType<typeof setTimeout> | undefined
+  /** 지금까지 들린 말 전체 */
   const heard = () => joinHeard([committed, current])
+  /** 지금까지 들린 말로 끝낸다(조용해짐·최대 길이·멈춤 버튼) */
   const finish = () => {
     if (stopping) return
     stopping = true
@@ -127,6 +129,7 @@ export function listenOnce(
     stopWait = setTimeout(giveUp, STOP_WAIT_MS)
     try { r.stop() } catch { /* 이미 끝남 */ }
   }
+  /** 멈춘 뒤 onend가 안 오면 보내지 않고 듣기만 끝낸다 */
   const giveUp = () => {
     if (ended) return
     ended = true
