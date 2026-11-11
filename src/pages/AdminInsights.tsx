@@ -151,45 +151,61 @@ export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, S
 }
 
 /**
- * 비교 사진 아래 오디(AI) 판단 카드(재웅 11/11 "AI 모델 판단하면서 써 줘", "AI스럽게, 애니메이션도").
- * 오디 얼굴 + 판단 + 확신 막대가 차오르고, 한 일이 순서대로 하나씩 켜진다. 아직 안 한 일(3시간 뒤 다시 확인)은 깜빡인다.
- * 움직임 줄이기를 켠 사람에게는 .adm 공통 규칙으로 움직임이 꺼진다
+ * 비교 사진 아래 오디(AI) 판단. "오디 판단" 탭 기록 줄(.jl-item)과 같은 모양: 판단 한 줄 + 근거 + 처리, 오른쪽에 확신도.
+ * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
  */
-export function tidySteps(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId'>): { text: string; pending?: boolean }[] {
+export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>): { verdict: string; why: string; then: string; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
+  const n = row.items.length
   if (row.phase === 'RECHECK') {
-    return [{ text: '퇴실 직후와 비교' }, { text: clean ? '이제 비었어요' : '아직 있어요' },
-      { text: row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '경고 없음' }]
+    return clean
+      ? { verdict: '3시간 뒤 비었어요', why: '퇴실 직후 본 물품이 없어졌어요', then: '경고 없음', warn: false }
+      : { verdict: '3시간 뒤에도 두고 간 물품이 있어요', why: '퇴실 직후 본 물품이 그대로 있어요',
+          then: row.reportId !== null ? `대표자 경고 · 신고 #${row.reportId}` : '대표자 경고', warn: true }
   }
   return clean
-    ? [{ text: '앞 팀 사진과 비교' }, { text: '깨끗해요' }, { text: '할 일 없음' }]
-    : [{ text: '앞 팀 사진과 비교' }, { text: '학생에게 알림' }, { text: '3시간 뒤 다시 확인', pending: true }]
+    ? { verdict: '깨끗해요', why: '앞 팀 사진과 달라진 곳이 없어요', then: '할 일 없음', warn: false }
+    : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `앞 팀 사진엔 없던 물품 ${n}개` : '앞 팀 사진엔 없던 물품',
+        then: '학생에게 알림 · 3시간 뒤 다시 확인', warn: true }
 }
 
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * AI 답변처럼 보이는 판단 상자(재웅 11/11 "진짜 AI스럽게"): 빛나는 테두리, "비교하는 중" 반짝 글 → 판단이 한 글자씩 써지고
+ * → 근거·처리가 떠오른다. 움직임 줄이기를 켠 사람에게는 처음부터 다 보인다
+ */
 function TidyJudgement({ row }: { row: TidyCheckRow }) {
-  const clean = row.result === 'CLEAN' && row.leftItems.length === 0
-  // 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만). 모델 이름은 확신도에만 쓴다
-  const seen = seenItemsSummary(row.items)
-  const verdict = clean ? '깨끗해요' : row.phase === 'RECHECK' ? '3시간 뒤에도 두고 간 물품이 있어요' : '두고 간 물품이 있어요'
-  const pct = seen.top !== null ? Math.round(seen.top * 100) : null
+  const r = tidyReason(row)
+  const top = seenItemsSummary(row.items).top
+  const [typed, setTyped] = useState(() => (reducedMotion() ? r.verdict.length : -1))
+  useEffect(() => {
+    if (reducedMotion()) return
+    let n = -1
+    let tick: ReturnType<typeof setInterval> | undefined
+    const start = setTimeout(() => {
+      tick = setInterval(() => { n += 1; setTyped(n); if (n >= r.verdict.length) clearInterval(tick) }, 45)
+    }, 1300)
+    return () => { clearTimeout(start); clearInterval(tick) }
+  }, [r.verdict])
+  const thinking = typed < 0
+  const done = typed >= r.verdict.length
   return (
-    <div className={`tidy-judge ${clean ? '' : 'on'}`}>
-      <span className="tidy-judge-odi"><Odi size={34} label="오디" /></span>
-      <div className="tidy-judge-body">
-        <span className="tidy-judge-head">오디가 봤어요</span>
-        <span className="tidy-judge-verdict"><b>{verdict}</b></span>
-        {pct !== null && (
-          <span className="tidy-judge-conf" aria-label={`확신 ${pct}%`}>
-            <span className="tidy-judge-bar"><span style={{ '--w': `${pct}%` } as CSSProperties} /></span>
-            <span className="tidy-judge-pct">{pct}%</span>
-          </span>
-        )}
-        <ol className="tidy-judge-steps">
-          {tidySteps(row).map((st, i) => (
-            <li key={i} className={st.pending ? 'pending' : ''} style={{ '--i': i } as CSSProperties}>{st.text}</li>
-          ))}
-        </ol>
+    <div className={`tidy-ai${r.warn ? ' t-warn' : ''}${thinking ? ' thinking' : ''}${done ? ' done' : ''}`} aria-live="polite">
+      <div className="tidy-ai-head">
+        <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
+        <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
+        {top !== null && done && <span className="tidy-ai-sure" title="오디 확신도">확신 {Math.round(top * 100)}%</span>}
       </div>
+      {thinking
+        ? <p className="tidy-ai-think">사진 두 장을 비교하는 중<span className="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
+        : <p className="tidy-ai-verdict">{r.verdict.slice(0, typed)}{!done && <span className="caret" aria-hidden="true" />}</p>}
+      {done && (
+        <dl className="tidy-ai-why">
+          <div><dt>근거</dt><dd>{r.why}</dd></div>
+          <div><dt>처리</dt><dd>{r.then}</dd></div>
+        </dl>
+      )}
     </div>
   )
 }
