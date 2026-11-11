@@ -122,12 +122,22 @@ export function listenOnce(
     if (stopping) return
     stopping = true
     clearTimeout(silence)
-    // stop() 뒤에 onend가 오지 않는 브라우저에서도 듣기를 끝낸다(ended 확인이 두 번 보내기를 막는다)
-    stopWait = setTimeout(() => r.onend?.(), STOP_WAIT_MS)
+    // stop() 뒤에 onend가 오지 않는 브라우저에서도 듣기를 끝낸다. 마지막 결과가 아직 안 왔을 수 있어
+    // 보내지는 않는다(입력 칸에 들린 글이 남아 학생이 고쳐 보내면 된다)
+    stopWait = setTimeout(giveUp, STOP_WAIT_MS)
     try { r.stop() } catch { /* 이미 끝남 */ }
+  }
+  const giveUp = () => {
+    if (ended) return
+    ended = true
+    clearTimeout(silence)
+    clearTimeout(limit)
+    try { r.abort() } catch { /* 이미 끝남 */ }
+    h.onEnd()
   }
   const limit = setTimeout(finish, maxMs)
   r.onresult = (e) => {
+    if (ended) return
     const finals: string[] = []
     let interim = ''
     // 이번 판의 결과 전체로 다시 만든다(resultIndex부터 이어 붙이면 브라우저마다 겹치거나 빠진다)
@@ -145,6 +155,7 @@ export function listenOnce(
     if (!stopping) silence = setTimeout(finish, silenceMs)
   }
   r.onerror = (e) => {
+    if (ended) return
     // 다시 켠 뒤 조용해서 난 no-speech는 실패가 아니다(앞에서 들린 말을 보낸다)
     if (e.error === 'no-speech' && heard()) return
     // 사용자가 멈춘 것(aborted)은 오류로 알리지 않는다

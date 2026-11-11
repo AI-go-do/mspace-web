@@ -141,20 +141,26 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onFinal).toHaveBeenCalledWith(Array.from({ length: MAX_RESTARTS + 1 }, (_, i) => `말${i}`).join(' '))
   })
 
-  it('멈춘 뒤 브라우저가 onend를 안 줘도 잠시 뒤 끝내고 한 번만 보낸다', () => {
+  it('멈춘 뒤 브라우저가 onend를 안 주면 잠시 뒤 듣기만 끝내고, 덜 된 말은 보내지 않는다', () => {
     vi.useFakeTimers()
     const h = handlers()
     const stop = listenOnce(h, FakeRecognition)!
     const r = FakeRecognition.last!
     r.stop = () => { /* onend를 주지 않는 브라우저 */ }
-    r.say([{ t: '지금 빈 방', final: true }])
+    r.abort = () => { /* 이것도 아무 일 없음 */ }
+    r.say([{ t: '지금 빈', final: false }])
     stop()
     expect(h.onEnd).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1500)
-    expect(h.onFinal).toHaveBeenCalledTimes(1)
     expect(h.onEnd).toHaveBeenCalledTimes(1)
-    r.onend!() // 늦게 와도 두 번 보내지 않는다
-    expect(h.onFinal).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).not.toHaveBeenCalled()
+    // 마지막 결과·onend가 늦게 와도 보내지 않고 입력 칸 글도 바꾸지 않는다
+    const interimCalls = h.onInterim.mock.calls.length
+    r.say([{ t: '지금 빈 방', final: true }])
+    r.onend!()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onInterim).toHaveBeenCalledTimes(interimCalls)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
   it('한참 말해도 최대 길이가 되면 그때까지 들린 말로 끝낸다', () => {
