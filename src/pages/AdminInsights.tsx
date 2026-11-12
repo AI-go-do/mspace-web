@@ -294,8 +294,9 @@ function TidyJudgement({ row, recheck, score }: { row: TidyCheckRow; recheck: Ti
           </li>
         ))}
       </ol>
-      <p className="tidy-ai-score" title={m.live ? '젯슨이 시험 사진으로 채점해 올린 최신 값' : '젯슨 채점 결과가 아직 서버에 없어 기록해 둔 값'}>
-        모델 시험 정확도 <b>{m.pct}</b> · {m.cases}쌍 · 사진당 {m.seconds}초 · <span className="muted">{m.when}</span>
+      {/* 사진당 시간·잰 날짜는 화면에서 뺐다(11/12 팀 의견). 언제 잰 값인지는 마우스를 올리면 보인다 */}
+      <p className="tidy-ai-score" title={`${m.when} · 사진당 ${m.seconds}초${m.live ? '' : ' (젯슨 채점 결과가 아직 서버에 없어 기록해 둔 값)'}`}>
+        모델 시험 정확도 <b>{m.pct}</b> · {m.cases}쌍
       </p>
     </div>
   )
