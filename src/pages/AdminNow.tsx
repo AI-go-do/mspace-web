@@ -261,7 +261,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
         {replay.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">{which(replay)}녹화 재생</span>}
-        {sim.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">{which(sim)}시뮬레이션</span>}
+        {sim.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서 실측 수준에 맞춘 가상 센서 값이에요. 사람이 있는지는 실제 예약·입실을 따르고, 오디가 켠 기기가 값에 반영돼요">{which(sim)}가상 센서</span>}
         {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>

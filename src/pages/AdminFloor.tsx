@@ -95,7 +95,7 @@ function TileValue({ view, metric }: { view: RoomView; metric: TileMetric }) {
  */
 /** 관제 칸에 더 얹는 실시간 정보(climate가 있을 때만): 인원·입실 시각·기기·오디 판단·열린 판단 수 */
 export interface TileLive {
-  /** climate가 아는 재실(시뮬레이션 방은 시뮬레이터 값). null이면 칸의 재실 센서 값 */
+  /** climate가 아는 재실(가상 센서 방은 core 실제 예약·입실). null이면 칸의 재실 센서 값 */
   occupied: boolean | null
   people: number | null
   since: string | null

@@ -59,7 +59,7 @@ export function overlayClimate(env: RoomsEnvironment, rooms: ClimateRoom[], seri
         humidityPct: c.metrics.HUMIDITY?.value ?? r.humidityPct,
         series: series2,
         forecast: fc.length ? fc.map((p) => ({ at: p.at, ppm: Math.round(p.value) })) : r.forecast,
-        // 시뮬레이션 방은 재실도 시뮬레이터 값(인원·입실과 칸의 "있음/없음"이 서로 다르지 않게)
+        // 가상 센서(SIM) 방은 climate가 받은 재실(core 실제 예약·입실)을 그대로 써서 칸의 "있음/없음"과 입실 시각이 서로 다르지 않게
         ...(c.source === 'SIM' && c.occupied !== null ? { presence: c.occupied ? 'OCCUPIED' as const : 'EMPTY' as const } : {}),
       }
     }),
