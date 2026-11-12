@@ -9,12 +9,14 @@ const dec = (steps: Decision['steps'], open = true): Decision => ({
 const s = (key: Decision['steps'][number]['key'], status: Decision['steps'][number]['status'], text: string) => ({ key, status, text, at: AT })
 
 describe('odiView', () => {
-  it('아직 안 연 단계는 "하는 중"으로 크게, 점은 연 만큼만 찬다', () => {
+  it('여는 중에도 끝난 단계를 "하는 중"으로 보이지 않는다: 점은 연 만큼만, 크게는 연 단계 중 마지막', () => {
     const d = dec([s('DETECT', 'DONE', 'CO2 1649ppm'), s('PREDICT', 'DONE', '30분 뒤 1823ppm'), s('NOTIFY', 'SKIPPED', '30분 안 같은 알림')])
     const v = odiView(d, 1)
-    expect(v.dots.map((x) => x.state)).toEqual(['ok', 'doing', 'wait', 'wait', 'wait'])
-    expect(v.head).toMatchObject({ label: '예측', busy: true })
-    expect(v.why).toBe('CO2 1649ppm')
+    expect(v.dots.map((x) => x.state)).toEqual(['ok', 'wait', 'wait', 'wait', 'wait'])
+    expect(v.head).toMatchObject({ label: '탐지', text: 'CO2 1649ppm', busy: false, at: AT })
+    const w = odiView(d, 2)
+    expect(w.head).toMatchObject({ label: '예측', text: '30분 뒤 1823ppm', busy: false })
+    expect(w.why).toBe('CO2 1649ppm')
   })
 
   it('다 열고 끝나면 마지막 단계와 왜·한 일', () => {

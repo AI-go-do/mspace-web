@@ -24,24 +24,25 @@ export interface OdiView {
 
 const STATE: Record<Decision['steps'][number]['status'], DotState> = { DONE: 'ok', RUNNING: 'doing', SKIPPED: 'skip', FAILED: 'fail' }
 
-/** 판단 하나 + 지금까지 연 단계 수 → 칸에 그릴 것 */
+/**
+ * 판단 하나 + 지금까지 연 단계 수 → 칸에 그릴 것.
+ * 여는 순서(애니메이션)는 점이 차는 것만이고, "하는 중"은 서버가 RUNNING이라고 한 단계에만 붙인다
+ */
 export function odiView(d: Decision, shown: number): OdiView {
-  const n = Math.min(d.steps.length, shown)
+  const n = Math.max(1, Math.min(d.steps.length, shown))
   const opened = d.steps.slice(0, n)
-  const next = n < d.steps.length ? d.steps[n] : null
   const running = opened.find((s) => s.status === 'RUNNING') ?? null
   const dots = ORDER.map((key) => {
     const s = opened.find((x) => x.key === key)
-    return { key, label: STEP[key], state: s ? STATE[s.status] : next?.key === key ? 'doing' as const : 'wait' as const }
+    return { key, label: STEP[key], state: s ? STATE[s.status] : 'wait' as const }
   })
   const last = [...opened].reverse().find((s) => s.status !== 'SKIPPED') ?? opened[opened.length - 1] ?? null
-  const head = next ? { label: STEP[next.key], text: THINK[next.key], busy: true, at: null }
-    : running ? { label: STEP[running.key], text: running.text, busy: true, at: null }
+  const head = running ? { label: STEP[running.key], text: running.text, busy: true, at: null }
     : last ? { label: STEP[last.key], text: last.text, busy: false, at: last.at }
     : { label: STEP.DETECT, text: THINK.DETECT, busy: true, at: null }
   const detect = opened.find((s) => s.key === 'DETECT')
   const control = opened.find((s) => s.key === 'CONTROL' && s.status === 'DONE')
-  const headKey = next?.key ?? running?.key ?? last?.key
+  const headKey = running?.key ?? last?.key
   return {
     dots, head,
     why: detect && headKey !== 'DETECT' ? detect.text : null,
@@ -66,7 +67,7 @@ export function RoomOdi({ decision }: { decision: Decision | null }) {
   }
   const v = odiView(decision, shown(decision.id))
   return (
-    <span className={`ro ${v.busy ? 'busy' : 'done'}`} aria-label={`오디 AI ${v.head.label} ${v.head.text}`}>
+    <span className={`ro ${v.busy ? 'busy' : 'done'}`} role="status" aria-label={`오디 AI ${v.head.label} ${v.head.text}`}>
       <span className="ro-top">
         <span className="ro-face"><Odi size={30} label="" /></span>
         <b className="ro-name">오디 AI <i aria-hidden="true">✦</i></b>
