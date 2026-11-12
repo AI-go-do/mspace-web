@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { ApiError, currentMemberId } from '../api/client'
+import { getLatestModelScore, type ModelScore } from '../api/modelScores'
 import {
   adminErrorMessage, alertEffectLabel, getDailyReport, reportTotals, sumOf, writerLabel, type DailyReport, MAX_WITHDRAW_REASON, withdrawWarning, type Warning, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, itemPercents, tidyCounts, pct,
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhoto, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
@@ -189,7 +190,8 @@ export interface Shot { url: string; label: string; when: string; student?: bool
 
 /** 펼친 줄의 두 칸 이름: 왼쪽은 퇴실 직후 줄이면 "입실 전", 다시 확인 줄이면 "퇴실 직후" */
 export const beforeLabel = (r: Pick<TidyCheckRow, 'phase'>) => (r.phase === 'RECHECK' ? '퇴실 직후' : '입실 전')
-export const afterLabel = (r: Pick<TidyCheckRow, 'phase'>) => (r.phase === 'RECHECK' ? '3시간 뒤' : '퇴실 뒤')
+export const afterLabel = (r: Pick<TidyCheckRow, 'phase'>, re: Reentry = NO_REENTRY) =>
+  (r.phase === 'RECHECK' ? (re.reentered ? '재입장 뒤' : '3시간 뒤') : '퇴실 뒤')
 
 /** core가 준 사진 한 장 → 칸. 없으면 null("사진을 못 받았어요") */
 function shotOf(p: TidyPhoto | null | undefined, label: string): Shot | null {
@@ -204,21 +206,47 @@ function shotOf(p: TidyPhoto | null | undefined, label: string): Shot | null {
  * - core #125가 before·after를 주면 그대로(카메라 → 없으면 학생 사진 → 둘 다 없으면 빈칸)
  * - 예전 core(칸 없음): 같은 예약의 카메라 사진. 퇴실 직후 줄은 입실 직전(ENTRY) ↔ 퇴실 직후, 다시 확인 줄은 퇴실 직후 ↔ 3시간 뒤
  */
-export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase' | 'before' | 'after'>): [Shot | null, Shot | null] {
+export function tidyPair(
+  r: Pick<TidyCheckRow, 'reservationId' | 'phase' | 'before' | 'after'>,
+  re: Reentry = NO_REENTRY,
+  recheck: Pick<TidyCheckRow, 'after'> | null = null,
+): [Shot | null, Shot | null] {
+  const again = re.reentered ? '재입장 뒤' : '3시간 뒤'
+  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅·팀) 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다. 다시 확인 줄은 이 줄에 합친다(mergedIntoFirst)
+  const swap = r.phase === 'FIRST' && re.reentered && re.rechecked
   if (r.before !== undefined || r.after !== undefined) {
-    return [shotOf(r.before, beforeLabel(r)), shotOf(r.after, afterLabel(r))]
+    const after = swap && recheck?.after !== undefined ? shotOf(recheck.after, again) : shotOf(r.after, afterLabel(r, re))
+    return [shotOf(r.before, beforeLabel(r)), after]
   }
   if (r.phase === 'RECHECK') {
     return [
       { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 직후', when: '' },
-      { url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: '3시간 뒤', when: '' },
+      { url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: again, when: '' },
     ]
   }
   return [
     { url: tidyPhotoUrl(r.reservationId, 'ENTRY'), label: '입실 전', when: '' },
-    { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 뒤', when: '' },
+    swap
+      ? { url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: again, when: '' }
+      : { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 뒤', when: '' },
   ]
 }
+
+/**
+ * 찾으러 다시 들어와 다시 찍은 줄(RECHECK)은 따로 보이지 않고 같은 예약의 퇴실 직후 줄에 합친다(11/12 재웅·팀).
+ * 그 줄의 사진 자리와 오디 AI 상자가 재입장 뒤 결과까지 다 보여 준다
+ */
+export function mergedIntoFirst(r: Pick<TidyCheckRow, 'reservationId' | 'phase' | 'reportId'>, rows: readonly Pick<TidyCheckRow, 'reservationId' | 'phase' | 'retrievedAt'>[]): boolean {
+  // 신고(경고)가 붙은 다시 확인 줄은 숨기지 않는다. 경고 수와 보이는 기록이 어긋나지 않게
+  return r.phase === 'RECHECK' && r.reportId === null && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'FIRST' && !!x.retrievedAt)
+}
+
+/** 다시 찍은 사진에서 물품이 없어졌나(가져감). 태그·판단 상자·주의 색이 모두 이 기준 하나를 쓴다 */
+export const tidyTaken = (r: Pick<TidyCheckRow, 'result' | 'leftItems'>) => r.result === 'CLEAN' && r.leftItems.length === 0
+
+/** 찾으러 다시 들어왔나(10분 QR, retrievedAt) · 그 뒤 다시 찍었나(RECHECK 줄 있음) */
+export interface Reentry { reentered: boolean; rechecked: boolean }
+const NO_REENTRY: Reentry = { reentered: false, rechecked: false }
 
 /** 오디가 한 일 하나: doing은 하는 중 글, done은 끝난 글. later면 아직 안 한 일(예정) */
 export interface TidyAction { doing: string; done: string; later?: boolean }
@@ -229,7 +257,7 @@ export interface TidyAction { doing: string; done: string; later?: boolean }
  * 퇴실 직후 LEFT_ITEMS → 대표자·참여자 LEFT_ITEM 알림, 3시간 뒤에도 남음 → 신고 + 대표자 경고). 그래서 결과 줄이 있으면 보낸 것으로 쓴다.
  * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
  */
-export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
+export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false, reentered = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
   const n = row.items.length
   // 11/10 전 기록(NEEDS_CLEANING): 그때 core는 퇴실 직후 한 번만 보고 바로 신고했고 3시간 뒤 다시 확인이 없었다(core #110)
@@ -238,6 +266,12 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
     if (row.leftItems.length > 0) acts.push({ doing: '학생에게 알림 보내는 중', done: '대표자·참여자에게 알림 보냈어요' })
     if (row.reportId !== null) acts.push({ doing: '신고 만드는 중', done: `신고 #${row.reportId} 만들었어요` })
     return { verdict: '치워야 해요', why: '정리가 안 된 채로 퇴실했어요', warn: true, actions: acts }
+  }
+  if (row.phase === 'RECHECK' && reentered) {
+    // 찾으러 다시 들어온 뒤 다시 찍은 결과. 3시간 규칙과 따로 본다
+    return clean
+      ? { verdict: '가져갔어요', why: '재입장 뒤 퇴실 직후 본 물품이 없어졌어요', warn: false, actions: [] }
+      : { verdict: '아직 남은 물품이 있어요', why: '재입장 뒤에도 퇴실 직후 본 물품이 그대로 있어요', warn: true, actions: [] }
   }
   if (row.phase === 'RECHECK') {
     return clean
@@ -277,13 +311,34 @@ function gap(fromIso: string, toIso: string): string {
 }
 
 /**
- * 방 카메라 모델 시험 점수. 지금은 device README 실험 기록(7판, 11/11)에서 옮긴 값이고,
- * core가 모델 점수를 내려 주면(요청 예정) 그 값으로 바꾼다
+ * 방 카메라 모델 시험 점수를 화면 글로. core가 젯슨 채점 결과를 내려 주면(GET /api/admin/model-scores) 그 값,
+ * 아직 없으면 device README 실험 기록(7판, 11/11)에서 옮긴 값을 쓰고 "언제 잰 값"을 같이 적는다
  */
-export const CAMERA_MODEL_SCORE = { model: 'YOLOv8s', accuracy: 76.6, cases: 47, secondsPerPhoto: 3.0, measuredOn: '11/11' }
+export const CAMERA_MODEL_SCORE: ModelScore = {
+  kind: 'TIDY', model: 'yolov8s', accuracy: 0.766, cases: 47, medianSeconds: 3.0, measuredAt: '2026-11-11T21:00:00+09:00',
+}
+
+export interface ModelScoreView { model: string; pct: string; cases: number; seconds: string; when: string; live: boolean }
+
+export function modelScoreView(live: ModelScore | null): ModelScoreView {
+  const s = live ?? CAMERA_MODEL_SCORE
+  const d = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }).formatToParts(new Date(s.measuredAt))
+  const md = `${d.find((p) => p.type === 'month')?.value}/${d.find((p) => p.type === 'day')?.value}`
+  return {
+    model: s.model.replace(/^yolo/i, 'YOLO'),
+    pct: `${(Math.round(s.accuracy * 1000) / 10).toFixed(1)}%`,
+    cases: s.cases,
+    seconds: `${Math.round(s.medianSeconds * 10) / 10}`,
+    when: live ? `${md} 젯슨 채점` : `${md} 기록`,
+    live: live !== null,
+  }
+}
+
+/** 찾으러 들어가는 QR이 살아 있는 시간(core mspace.tidy.retrieve-pass-minutes 기본 10분). 이게 끝나면 다시 찍는다 */
+const RETRIEVE_PASS_MS = 10 * 60_000
 
 /** 판단 상자 한 줄: 언제 · 무엇. at이 없으면 시각을 모르는 일(지어내지 않는다) */
-interface TidyStep { at: string | null; text: string; note?: string; later?: boolean }
+interface TidyStep { at: string | null; text: string; note?: string; later?: boolean; got?: boolean }
 
 /** 기록에 있는 시각만으로 판단 상자 줄을 만든다 (정해 둔 시간으로 움직이지 않는다) */
 export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actions: TidyAction[], now: number = Date.now()): TidyStep[] {
@@ -295,7 +350,21 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
     note: row.endedAt ? `퇴실 ${gap(row.endedAt, row.observedAt)} 뒤` : undefined,
   })
   for (const a of actions) {
-    if (a.later) {
+    if (a.later && row.retrievedAt) {
+      // 찾으러 들어왔다(10분 QR): 3시간을 기다리지 않고, QR 10분이 끝나면 젯슨이 다시 찍어 가져갔는지 본다(11/12 재웅)
+      steps.push({ at: row.retrievedAt, text: '찾으러 들어왔어요', note: 'QR' })
+      if (recheck) {
+        // 다시 찍은 시각: 사진이 있으면 찍힌 시각(core #125 after.takenAt), 없으면 판단 시각(11/12 지영·core #130)
+        const shotAt = recheck.after?.takenAt ?? recheck.observedAt
+        steps.push({ at: shotAt, text: '젯슨이 다시 찍어 확인', note: `들어온 지 ${gap(row.retrievedAt, shotAt)} 뒤` })
+        steps.push({ at: null, text: tidyTaken(recheck) ? '두고 간 물품 가져갔어요' : '아직 남은 물품이 있어요', got: tidyTaken(recheck) })
+      } else {
+        const due = Date.parse(row.retrievedAt) + RETRIEVE_PASS_MS
+        // 10분이 지났는데 기록이 없으면 예정이라고 하지 않는다(3시간 쪽과 같은 규칙)
+        if (due > now) steps.push({ at: null, text: '10분 뒤 다시 찍어 확인', note: `${clock(new Date(due).toISOString()).slice(0, 5)}쯤`, later: true })
+        else steps.push({ at: null, text: '다시 확인 기록 없음' })
+      }
+    } else if (a.later) {
       // 3시간 뒤 다시 확인: 이미 했으면 그 시각, 아직 3시간이 안 지났으면 예정(퇴실 + 3시간쯤).
       // 3시간이 지났는데 기록이 없으면(다음 팀이 들어와 core가 건너뜀 등) 예정이라고 하지 않는다
       const due = row.endedAt ? Date.parse(row.endedAt) + 3 * 3600_000 : null
@@ -312,15 +381,27 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  * 물품별 확신도·모델 시험 정확도를 그대로 보여 준다. 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
-function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheckRow | null }) {
-  const r = tidyReason(row, recheck !== null)
+/**
+ * 퇴실 직후 줄의 사진 자리가 재입장 뒤 사진으로 바뀌었을 때(tidyPair), 판단 상자가 보이는 사진과 어긋나지 않게 맞춘다.
+ * - basis: 첫 판단(확신도)은 화면에 없는 퇴실 직후 사진으로 한 것이라고 밝힌다
+ * - warn: 가져간 게 확인되면 상자를 주의 색으로 칠하지 않는다
+ */
+export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<TidyCheckRow, 'result' | 'leftItems'> | null, reentered: boolean, warn: boolean): { basis: string | null; warn: boolean } {
+  const swapped = row.phase === 'FIRST' && reentered && recheck !== null
+  if (!swapped) return { basis: null, warn }
+  return { basis: '퇴실 직후 사진 기준', warn: warn && !tidyTaken(recheck) }
+}
+
+function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
+  const r = tidyReason(row, recheck !== null, reentered)
+  const box = tidyBoxState(row, recheck, reentered, r.warn)
   const top = seenItemsSummary(row.items).top
   const pcts = itemPercents(row.items)
   const steps = tidySteps(row, recheck, r.actions)
   const judge = steps.findIndex((s) => s.text.startsWith('젯슨'))
-  const m = CAMERA_MODEL_SCORE
+  const m = score
   return (
-    <div className={`tidy-ai done${r.warn ? ' t-warn' : ''}`}>
+    <div className={`tidy-ai done${box.warn ? ' t-warn' : ''}`}>
       <div className="tidy-ai-head">
         <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
         <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
@@ -328,7 +409,7 @@ function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheck
       </div>
       <ol className="tidy-ai-acts tidy-ai-timeline">
         {steps.map((s, i) => (
-          <li key={i} className={s.later ? 'later' : 'ok'}>
+          <li key={i} className={`${s.later ? 'later' : 'ok'}${s.got ? ' got' : ''}`}>
             <span className="mark" aria-hidden="true" />
             <span className="txt">
               {s.at && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
@@ -339,7 +420,7 @@ function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheck
             {i === judge && (
               <div className="tidy-ai-result">
                 <b className="tidy-ai-verdict">{r.verdict}</b>
-                <span className="tidy-ai-reason">{r.why}</span>
+                <span className="tidy-ai-reason">{r.why}{box.basis && ` · ${box.basis}`}</span>
                 {pcts.length > 0 && (
                   <span className="tidy-ai-pcts" aria-label={`물품별 확신도 ${pcts.map((p) => `${p}%`).join(', ')}`}>
                     {pcts.map((p, k) => <em key={k} className="tidy-ai-sure">{p}%</em>)}
@@ -350,8 +431,9 @@ function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheck
           </li>
         ))}
       </ol>
-      <p className="tidy-ai-score" title={`device 실험 기록 ${m.measuredOn}, 사진 ${m.cases}쌍`}>
-        모델 시험 정확도 <b>{m.accuracy}%</b> · {m.cases}쌍 · 사진당 {m.secondsPerPhoto}초
+      {/* 쌍 수·사진당 시간·잰 날짜는 화면에서 뺐다(11/12 팀 의견·재웅). 마우스를 올리면 보인다 */}
+      <p className="tidy-ai-score" title={`${m.when} · 시험 ${m.cases}쌍 · 사진당 ${m.seconds}초${m.live ? '' : ' (젯슨 채점 결과가 아직 서버에 없어 기록해 둔 값)'}`}>
+        모델 시험 정확도 <b>{m.pct}</b>
       </p>
     </div>
   )
@@ -364,9 +446,22 @@ function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheck
  */
 export function AdminTidyChecks() {
   const [days, setDays] = useState(7)
-  const [open, setOpen] = useState<string | null>(null)
+  // 펼친 줄들. 여러 줄을 같이 펼쳐 비교할 수 있다(11/12 재웅). 기간을 바꿔도 남은 줄 key만 쓰여 문제없다
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const toggle = (key: string) => setOpen((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next })
   const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 모델 시험 점수: 못 받아도(core API 전·오류) 목록은 그대로, 기록해 둔 값으로 보여 준다
+  const [liveScore, setLiveScore] = useState<ModelScore | null>(null)
+  const score = useMemo(() => modelScoreView(liveScore), [liveScore])
+
+  useEffect(() => {
+    const memberId = currentMemberId()
+    if (memberId === null) return
+    const ctrl = new AbortController()
+    getLatestModelScore('TIDY', ctrl.signal, memberId).then(setLiveScore).catch(() => setLiveScore(null))
+    return () => ctrl.abort()
+  }, [])
 
   useEffect(() => {
     const memberId = currentMemberId()
@@ -400,17 +495,22 @@ export function AdminTidyChecks() {
             <h2>퇴실 뒤 카메라가 본 것</h2>
             {rows.length === 0 && <p className="adm-small">이 기간에 받은 결과가 없어요.</p>}
             <ul className="pen-list">
-              {rows.map((r) => {
+              {rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => {
                 const key = rowKey(r)
-                const isOpen = open === key
+                const isOpen = open.has(key)
                 const on = r.result !== 'CLEAN'
-                const pair = isOpen ? tidyPair(r) : null
+                const firstOf = r.phase === 'FIRST' ? r : rows.find((x) => x.reservationId === r.reservationId && x.phase === 'FIRST')
+                const recheckOf = r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null
+                const re: Reentry = { reentered: !!firstOf?.retrievedAt, rechecked: r.phase === 'RECHECK' || recheckOf !== null }
+                const pair = isOpen ? tidyPair(r, re, recheckOf) : null
                 return (
                   <li key={key} className={`pen-row tidy-row ${on ? 'on' : ''}`}>
                     <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
                     <span className="pen-what">
                       <span className="tidy-tags">
-                        <span className="pen-tag">{r.phase === 'RECHECK' ? '3시간 뒤' : '퇴실 직후'}</span>
+                        <span className="pen-tag">{r.phase === 'RECHECK' ? (re.reentered ? '재입장 뒤' : '3시간 뒤') : '퇴실 직후'}</span>
+                        {r.phase === 'FIRST' && re.reentered && <span className="pen-tag reentry">재입장</span>}
+                        {recheckOf && re.reentered && tidyTaken(recheckOf) && <span className="pen-tag got">가져감</span>}
                         <span className={`pen-tag ${on ? 'on' : ''}`}>
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>
@@ -421,12 +521,12 @@ export function AdminTidyChecks() {
                       icon={isOpen ? 'close' : 'camera'}
                       label={isOpen ? '사진 닫기' : '비교 사진 보기'}
                       aria-expanded={isOpen}
-                      onClick={() => setOpen(isOpen ? null : key)}
+                      onClick={() => toggle(key)}
                     />
                     {pair && (
                       <div className="tidy-photos"><div className="evidence-grid">
                         {pair.map((shot, i) => {
-                          const label = shot?.label ?? (i === 0 ? beforeLabel(r) : afterLabel(r))
+                          const label = shot?.label ?? (i === 0 ? beforeLabel(r) : afterLabel(r, re))
                           return (
                             <figure key={i} className={`evidence-cell${shot?.student ? ' student' : ''}`}>
                               <AuthPhoto url={shot?.url ?? null} empty="사진을 못 받았어요" alt={`${r.roomName} ${label} 사진`} />
@@ -438,7 +538,7 @@ export function AdminTidyChecks() {
                             </figure>
                           )
                         })}
-                      </div><TidyJudgement row={r} recheck={r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null} /></div>
+                      </div><TidyJudgement row={r} recheck={recheckOf} score={score} reentered={re.reentered} /></div>
                     )}
                   </li>
                 )

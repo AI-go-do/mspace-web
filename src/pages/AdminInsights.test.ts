@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tidyPair, tidyReason, tidySteps } from './AdminInsights'
+import { mergedIntoFirst, modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps, tidyTaken } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -74,5 +74,116 @@ describe('오디 AI 판단 상자 줄 (기록에 있는 시각만)', () => {
   it('3시간이 지났는데 다시 확인 기록이 없으면 예정이라고 하지 않는다', () => {
     const s = tidySteps(row, null, acts, Date.parse('2026-11-12T15:00:00+09:00'))
     expect(s[3]).toEqual({ at: null, text: '다시 확인 기록 없음' })
+  })
+})
+
+describe('모델 시험 정확도 글', () => {
+  it('젯슨 채점 값이 오면 그 값과 잰 날짜를 쓴다', () => {
+    const v = modelScoreView({ kind: 'TIDY', model: 'yolov8m', accuracy: 0.8723, cases: 60, medianSeconds: 2.46, measuredAt: '2026-11-12T13:00:00+09:00' })
+    expect(v).toMatchObject({ model: 'YOLOv8m', pct: '87.2%', cases: 60, seconds: '2.5', when: '11/12 젯슨 채점', live: true })
+  })
+
+  it('아직 없으면 기록해 둔 값을 "기록"이라고 밝힌다', () => {
+    expect(modelScoreView(null)).toMatchObject({ model: 'YOLOv8s', pct: '76.6%', cases: 47, when: '11/11 기록', live: false })
+  })
+})
+
+describe('찾으러 들어온 뒤 다시 확인', () => {
+  const first = {
+    reservationId: 41, roomId: 1, roomName: '창작실 1', phase: 'FIRST' as const, result: 'LEFT_ITEMS',
+    items: [{ name: 'cup', confidence: 0.57 }], leftItems: [], reportId: null,
+    endedAt: '2026-11-12T13:01:18+09:00', observedAt: '2026-11-12T13:01:21+09:00', retrievedAt: '2026-11-12T13:19:18+09:00',
+  }
+
+  it('QR로 들어오고 아직 다시 안 찍었으면 10분 뒤 예정을 보여 준다', () => {
+    const s = tidySteps(first, null, tidyReason(first).actions, Date.parse('2026-11-12T13:20:00+09:00'))
+    expect(s.map((x) => x.text)).toContain('찾으러 들어왔어요')
+    expect(s.at(-1)).toMatchObject({ text: '10분 뒤 다시 찍어 확인', note: '13:29쯤', later: true })
+  })
+
+  it('다시 찍어 비었으면 가져갔다고 끝낸다', () => {
+    const recheck = { ...first, phase: 'RECHECK' as const, result: 'CLEAN', items: [], observedAt: '2026-11-12T13:29:28+09:00' }
+    const s = tidySteps(first, recheck, tidyReason(first, true).actions)
+    expect(s.at(-2)).toMatchObject({ text: '젯슨이 다시 찍어 확인', note: '들어온 지 10분 뒤' })
+    expect(s.at(-1)).toMatchObject({ text: '두고 간 물품 가져갔어요', got: true })
+  })
+
+  it('QR로 안 들어왔으면 지금처럼 3시간 뒤 다시 확인', () => {
+    const plain = { ...first, retrievedAt: null }
+    const s = tidySteps(plain, null, tidyReason(plain).actions, Date.parse('2026-11-12T13:20:00+09:00'))
+    expect(s.at(-1)?.text).toBe('3시간 뒤 다시 확인')
+  })
+})
+
+describe('재입장 뒤 사진', () => {
+  it('찾으러 들어와 다시 찍었으면 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다', () => {
+    const [before, after] = tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: true })
+    expect(before?.url).toBe('/api/reservations/7/tidy-photos/ENTRY')
+    expect(after).toMatchObject({ url: '/api/reservations/7/tidy-photos/RECHECK', label: '재입장 뒤' })
+  })
+
+  it('core가 사진 칸을 주면 재입장 뒤 자리는 다시 확인 줄의 사진', () => {
+    const recheck = { after: { source: 'CAMERA', takenAt: '2026-11-12T13:12:00+09:00', url: '/api/reservations/7/tidy-photos/RECHECK' } }
+    const [, after] = tidyPair({ reservationId: 7, phase: 'FIRST', before: null, after: null }, { reentered: true, rechecked: true }, recheck)
+    expect(after).toMatchObject({ url: '/api/reservations/7/tidy-photos/RECHECK', label: '재입장 뒤', student: false })
+  })
+
+  it('들어왔지만 아직 안 찍었으면 퇴실 뒤 사진 그대로', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: false })[1]).toMatchObject({ url: '/api/reservations/7/tidy-photos/FIRST', label: '퇴실 뒤' })
+  })
+
+  it('다시 확인 줄도 재입장이면 3시간 뒤라고 하지 않는다', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'RECHECK' }, { reentered: true, rechecked: true })[1]?.label).toBe('재입장 뒤')
+    const r = tidyReason({ phase: 'RECHECK', result: 'CLEAN', leftItems: [], items: [], reportId: null }, false, true)
+    expect(r.verdict).toBe('가져갔어요')
+  })
+
+  it('사진이 재입장 뒤로 바뀌면 첫 판단은 퇴실 직후 사진 기준이라고 밝히고, 가져갔으면 주의 색을 끈다', () => {
+    const taken = tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, true, true)
+    expect(taken).toEqual({ basis: '퇴실 직후 사진 기준', warn: false })
+    const still = tidyBoxState({ phase: 'FIRST' }, { result: 'LEFT_ITEMS', leftItems: [] }, true, true)
+    expect(still).toEqual({ basis: '퇴실 직후 사진 기준', warn: true })
+    expect(tidyBoxState({ phase: 'FIRST' }, null, true, true)).toEqual({ basis: null, warn: true })
+    expect(tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, false, true)).toEqual({ basis: null, warn: true })
+  })
+
+  it('재입장 뒤 다시 확인 줄은 퇴실 직후 줄에 합쳐 따로 보이지 않는다', () => {
+    const rows = [
+      { reservationId: 7, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00', reportId: null },
+      { reservationId: 7, phase: 'RECHECK' as const, retrievedAt: null, reportId: null },
+      { reservationId: 8, phase: 'FIRST' as const, retrievedAt: null, reportId: null },
+      { reservationId: 8, phase: 'RECHECK' as const, retrievedAt: null, reportId: null },
+      { reservationId: 9, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00', reportId: null },
+      { reservationId: 9, phase: 'RECHECK' as const, retrievedAt: null, reportId: 56 },
+    ]
+    // 신고가 붙은 다시 확인 줄(9)은 합치지 않고 그대로 보인다
+    expect(rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => `${r.reservationId}-${r.phase}`)).toEqual(['7-FIRST', '8-FIRST', '8-RECHECK', '9-FIRST', '9-RECHECK'])
+  })
+
+  it('CLEAN이어도 남은 물품이 있으면 가져갔다고 하지 않는다', () => {
+    expect(tidyTaken({ result: 'CLEAN', leftItems: [] })).toBe(true)
+    expect(tidyTaken({ result: 'CLEAN', leftItems: ['cup'] })).toBe(false)
+  })
+
+  it('QR 10분이 지났는데 다시 찍은 기록이 없으면 예정이라고 하지 않는다', () => {
+    const first = {
+      reservationId: 41, roomId: 1, roomName: '창작실 1', phase: 'FIRST' as const, result: 'LEFT_ITEMS',
+      items: [{ name: 'cup', confidence: 0.57 }], leftItems: [], reportId: null,
+      endedAt: '2026-11-12T13:01:18+09:00', observedAt: '2026-11-12T13:01:21+09:00', retrievedAt: '2026-11-12T13:19:18+09:00',
+    }
+    const s = tidySteps(first, null, tidyReason(first).actions, Date.parse('2026-11-12T15:00:00+09:00'))
+    expect(s.at(-1)).toMatchObject({ text: '다시 확인 기록 없음' })
+    expect(s.at(-1)?.later).toBeFalsy()
+  })
+})
+
+describe('재입장 뒤 다시 찍은 시각 (core #130)', () => {
+  it('다시 확인 줄에 사진이 있으면 그 찍힌 시각으로 "들어온 지 N분 뒤"', () => {
+    const first = { reservationId: 9, roomId: 1, roomName: '1번 방', phase: 'FIRST' as const, result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.9 }],
+      observedAt: '2026-11-12T11:02:00+09:00', endedAt: '2026-11-12T11:01:00+09:00', reportId: null, retrievedAt: '2026-11-12T12:00:00+09:00' }
+    const recheck = { ...first, phase: 'RECHECK' as const, result: 'CLEAN' as const, items: [], observedAt: '2026-11-12T12:13:00+09:00', retrievedAt: null,
+      after: { source: 'CAMERA', takenAt: '2026-11-12T12:11:00+09:00', url: '/api/reservations/9/tidy-photos/RECHECK' } }
+    const s = tidySteps(first, recheck, tidyReason(first, true).actions)
+    expect(s.find((x) => x.text === '젯슨이 다시 찍어 확인')).toMatchObject({ at: '2026-11-12T12:11:00+09:00', note: '들어온 지 11분 뒤' })
   })
 })

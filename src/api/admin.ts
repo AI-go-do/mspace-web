@@ -216,6 +216,11 @@ export interface TidyCheckRow extends Omit<TidyResult, 'items'> {
   before?: TidyPhoto | null
   /** 이 단계 사진: 방 카메라(퇴실 직후·3시간 뒤), 퇴실 직후인데 카메라가 못 찍었으면 학생 퇴실 사진. 둘 다 없으면 null */
   after?: TidyPhoto | null
+  /**
+   * (core #130) 두고 간 물건을 찾으러 10분 QR로 들어온 시각. 이 뒤 젯슨이 방이 비면 바로 다시 찍어(RECHECK) 가져갔는지 본다.
+   * core가 아직 안 주면 빠진다
+   */
+  retrievedAt?: string | null
 }
 
 /** 정리 확인 줄의 사진 하나. url은 로그인 토큰이 필요해 Blob으로 받는다(AuthPhoto). source STUDENT = 카메라 대신 학생이 올린 사진 */
