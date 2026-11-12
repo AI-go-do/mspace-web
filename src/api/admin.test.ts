@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
+import { adminErrorMessage, getTidyChecks, itemPercents, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -112,5 +112,11 @@ describe('카메라 정리 확인 (core #110)', () => {
     const rows = await getTidyChecks(365)
     expect(calls[0]).toContain('/api/tidy-checks?days=92')
     expect(rows[0].roomName).toBe('창작실 2')
+  })
+})
+
+describe('물품별 확신도', () => {
+  it('높은 순 %로, 확신도 없는 물품은 뺀다', () => {
+    expect(itemPercents([{ name: 'cup', confidence: 0.714 }, { name: 'unknown', confidence: null }, { name: 'cell phone', confidence: 0.82 }])).toEqual([82, 71])
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
+  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, itemPercents, tidyCounts, pct,
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhotoPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
@@ -201,6 +201,7 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
 function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boolean }) {
   const r = tidyReason(row, rechecked)
   const top = seenItemsSummary(row.items).top
+  const pcts = itemPercents(row.items)
   // 첫 줄은 젯슨 카메라 모델 판단, 그 뒤는 core가 한 일. 줄마다 2칸(하는 중 → 끝)
   const steps: TidyAction[] = [{ doing: 'YOLOv8s 모델이 사진 보는 중', done: '모델 판단 완료' }, ...r.actions]
   const last = steps.length * 2
@@ -241,6 +242,11 @@ function TidyJudgement({ row, rechecked }: { row: TidyCheckRow; rechecked: boole
                 <div className="tidy-ai-result">
                   <b className="tidy-ai-verdict">{r.verdict}</b>
                   <span className="tidy-ai-reason">{r.why}</span>
+                  {pcts.length > 0 && (
+                    <span className="tidy-ai-pcts" aria-label={`물품별 확신도 ${pcts.map((p) => `${p}%`).join(', ')}`}>
+                      {pcts.map((p, k) => <em key={k} className="tidy-ai-sure">{p}%</em>)}
+                    </span>
+                  )}
                 </div>
               )}
             </li>

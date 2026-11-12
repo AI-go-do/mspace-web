@@ -228,6 +228,15 @@ export function seenItemsSummary(items: SeenItem[]): { text: string; top: number
   return { text, top: known.length ? Math.max(...known) : null }
 }
 
+/** 물품마다 모델 확신도(%) 높은 순. 확신도 없는 물품은 뺀다. 화면엔 물건 이름 대신 "두고 간 물품"이라 숫자만 쓴다 */
+export function itemPercents(items: SeenItem[]): number[] {
+  return items
+    .map((i) => i.confidence)
+    .filter((c): c is number => c !== null)
+    .map((c) => Math.round(c * 100))
+    .sort((a, b) => b - a)
+}
+
 /** 남은 물건 글: "umbrella 93% · cup" (확신도 높은 순) */
 export function seenItemsLabel(items: SeenItem[]): string {
   return [...items]
