@@ -36,4 +36,19 @@ describe('overlayClimate', () => {
   it('climate에 없는 방은 그대로 둔다', () => {
     expect(overlayClimate(env, [climate], {}).rooms[1]).toBe(env.rooms[1])
   })
+
+  it('가상 센서 방은 젯슨이 꺼져(core 끊김) 있어도 climate 값이 살아 있으면 끊김이 아니다', () => {
+    const dead: RoomsEnvironment = { ...env, rooms: [{ ...room(1), offline: true, presence: 'UNKNOWN', lastSignalAt: '2026-11-12T08:42:00Z' }] }
+    const sim = { ...climate, source: 'SIM', offline: false, occupied: null, envAt: '2026-11-12T11:10:00Z' } as unknown as ClimateRoom
+    const r = overlayClimate(dead, [sim], {}).rooms[0]
+    expect(r.offline).toBe(false)
+    expect(r.lastSignalAt).toBe('2026-11-12T11:10:00Z')
+    expect(r.presence).toBe('UNKNOWN') // 재실은 climate도 모르면 그대로 모름
+  })
+
+  it('실제 센서(REAL) 방은 core 끊김을 그대로 둔다', () => {
+    const dead: RoomsEnvironment = { ...env, rooms: [{ ...room(1), offline: true }] }
+    const real = { ...climate, source: 'REAL', offline: false } as unknown as ClimateRoom
+    expect(overlayClimate(dead, [real], {}).rooms[0].offline).toBe(true)
+  })
 })
