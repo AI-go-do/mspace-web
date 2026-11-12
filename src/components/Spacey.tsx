@@ -1,8 +1,9 @@
-/** 마스코트 "스페이시"(7.6). 로그인·입실 번호·비서 3곳에만 쓴다. 부리 노랑(#F2B705)이 4색 규칙의 유일한 예외 */
-export default function Spacey({ size = 104, ring = '#FFFFFF', label = 'M-space 마스코트 스페이시' }: { size?: number; ring?: string; label?: string }) {
+/** 마스코트 새(7.6). 11/12부터 비서 "오디"의 얼굴도 이 그림(Odi.tsx). 부리 노랑(#F2B705)이 4색 규칙의 유일한 예외 */
+export default function Spacey({ size = 104, ring = '#FFFFFF', label = '오디' }: { size?: number; ring?: string; label?: string }) {
   const brand = '#0A4DA2'
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={label}>
+    <svg width={size} height={size} viewBox="0 0 100 100" role={label ? 'img' : undefined}
+      aria-label={label || undefined} aria-hidden={label ? undefined : true}>
       <circle cx="50" cy="15" r="7" fill="none" stroke={ring} strokeWidth="8" />
       <circle cx="50" cy="15" r="7" fill="none" stroke={brand} strokeWidth="4" />
       <path d="M50 22 V32 M50 27 H56" fill="none" stroke={brand} strokeWidth="4" strokeLinecap="round" />
