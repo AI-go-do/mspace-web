@@ -233,8 +233,11 @@ export function getTidyChecks(days: number, signal?: AbortSignal, member?: numbe
 /** 정리 확인 단계: FIRST 퇴실 직후 · RECHECK 두고 간 물건 다시 확인 */
 export type TidyPhase = 'FIRST' | 'RECHECK'
 
+/** 정리 확인 사진 단계: 정리 확인 단계 + ENTRY 입실 직전 빈 방 (core #119, Q-27) */
+export type TidyPhotoPhase = TidyPhase | 'ENTRY'
+
 /** 방 카메라가 올린 빈 방 사진 (core #115). 대표자·참여자·관리자만, 없으면 404 PHOTO_NOT_FOUND. Bearer가 필요해 Blob으로 받는다 */
-export function tidyPhotoUrl(reservationId: number, phase: TidyPhase): string {
+export function tidyPhotoUrl(reservationId: number, phase: TidyPhotoPhase): string {
   return `/api/reservations/${reservationId}/tidy-photos/${phase}`
 }
 
@@ -264,6 +267,15 @@ export function seenItemsSummary(items: SeenItem[]): { text: string; top: number
   const text = [...counts].map(([n, c]) => (c > 1 ? `${n} ${c}개` : n)).join(' · ')
   const known = items.map((i) => i.confidence).filter((c): c is number => c !== null)
   return { text, top: known.length ? Math.max(...known) : null }
+}
+
+/** 물품마다 모델 확신도(%) 높은 순. 확신도 없는 물품은 뺀다. 화면엔 물건 이름 대신 "두고 간 물품"이라 숫자만 쓴다 */
+export function itemPercents(items: SeenItem[]): number[] {
+  return items
+    .map((i) => i.confidence)
+    .filter((c): c is number => c !== null)
+    .map((c) => Math.round(c * 100))
+    .sort((a, b) => b - a)
 }
 
 /** 남은 물건 글: "umbrella 93% · cup" (확신도 높은 순) */

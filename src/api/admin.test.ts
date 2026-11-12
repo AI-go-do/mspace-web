@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { adminErrorMessage, getTidyChecks, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
+import { adminErrorMessage, getTidyChecks, itemPercents, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -122,5 +122,11 @@ describe('하루 운영 요약 숫자 (core #122)', () => {
     expect(sumOf(undefined)).toBe(0)
     expect(writerLabel('gemini:gemini-2.5-flash')).toBe('Gemini')
     expect(writerLabel('template:fallback')).toBe('정해진 틀 (AI 실패)')
+  })
+})
+
+describe('물품별 확신도', () => {
+  it('높은 순 %로, 확신도 없는 물품은 뺀다', () => {
+    expect(itemPercents([{ name: 'cup', confidence: 0.714 }, { name: 'unknown', confidence: null }, { name: 'cell phone', confidence: 0.82 }])).toEqual([82, 71])
   })
 })

@@ -1,6 +1,6 @@
 .odi { position: relative; display: inline-flex; flex: none; }
-.odi > svg { display: block; border-radius: 50%; box-shadow: 0 6px 16px -6px rgba(10, 77, 162, 0.55); }
-/* 주황 숫자 배지(시안). 흰 테두리로 파란 동그라미와 떼어 보인다 */
+.odi > svg { display: block; overflow: visible; filter: drop-shadow(0 4px 6px rgba(10, 77, 162, 0.25)); }
+/* 주황 숫자 배지(시안). 흰 테두리로 새 그림과 떼어 보인다 */
 .odi-badge {
   position: absolute; top: -5px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px;
   border-radius: 10px; background: #E8590C; color: #FFFFFF; box-shadow: 0 0 0 2px var(--white);
