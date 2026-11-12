@@ -56,7 +56,7 @@ function TraineeCard({ t, i }: { t: Trainee; i: number }) {
   )
 }
 
-/** 자동 처리 한 줄 (core #136). 학생에게 알림을 보냈으면 몇 명, 관리자용(센서 고장·예약 없는 사용)은 기록만 */
+/** 자동 처리 한 줄 (core #140). 학생에게 알림을 보냈으면 몇 명, 관리자용(센서 고장·예약 없는 사용)은 기록만 */
 function OpsRow({ a, i }: { a: OpsAction; i: number }) {
   return (
     <li style={{ '--k': i } as CSSProperties}>
@@ -106,7 +106,7 @@ export function AdminApprentice() {
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   const [shown, setShown] = useState(PAGE)
-  /** 오늘 자동 처리. core #136 전(404)이면 null로 두고 칸을 숨긴다 */
+  /** 오늘 자동 처리. core #140 전(404)이면 null로 두고 칸을 숨긴다 */
   const [ops, setOps] = useState<OpsAction[] | null>(null)
   /** 자동 처리 목록만 못 받았을 때(404 말고). 신고 쪽 error와 따로 둔다 */
   const [opsError, setOpsError] = useState<string | null>(null)

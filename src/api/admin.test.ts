@@ -131,7 +131,7 @@ describe('물품별 확신도', () => {
   })
 })
 
-describe('opsSummary (core #136 자동 처리)', () => {
+describe('opsSummary (core #140·#142 자동 처리)', () => {
   it('건수 많은 것부터, 0은 빼고 한글 이름으로', async () => {
     const { opsSummary } = await import('./admin')
     expect(opsSummary({ OVERTIME: 1, VENT_SOON: 3, ROOM_HOT: 0, NEW_KIND: 2 })).toBe('미리 환기 3 · NEW_KIND 2 · 시간 넘김 1')

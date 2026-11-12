@@ -394,7 +394,7 @@ export interface DailyFacts {
   appeals: Record<string, number>
   /** 장치 고장 종류 → 건수 */
   deviceFaults: Record<string, number>
-  /** AI 자동 처리 종류(OpsActionKind) → 건수 (core #136). 예전 core는 칸이 없다 */
+  /** AI 자동 처리 종류(OpsActionKind) → 건수 (core #142). 예전 core는 칸이 없다 */
   aiActions?: Record<string, number>
 }
 
@@ -429,11 +429,11 @@ export function writerLabel(writer: string): string {
   return '정해진 틀'
 }
 
-// ---- AI 자동 처리 기록 (core #136) ----
+// ---- AI 자동 처리 기록 (core #140) ----
 
 export type OpsActionKind = 'VENT_SOON' | 'ROOM_HOT' | 'SENSOR_DOWN' | 'OVERTIME' | 'UNBOOKED' | (string & {})
 
-/** 자동 처리 이름 (core #136과 같은 말) */
+/** 자동 처리 이름 (core #140과 같은 말) */
 export const OPS_KIND_LABEL: Record<string, string> = {
   VENT_SOON: '미리 환기', ROOM_HOT: '예약 전 더움', SENSOR_DOWN: '센서 고장', OVERTIME: '시간 넘김', UNBOOKED: '예약 없는 사용',
 }
