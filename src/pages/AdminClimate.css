@@ -6,6 +6,8 @@
 .cl-live.s-retrying i, .cl-live.s-connecting i { background: var(--yellow); }
 
 .cl-derived { font-size: 12px; font-weight: 700; color: var(--navy-70); }
+.cl-why { padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.cl-derived-why { font-size: 12px; font-weight: 600; color: var(--navy-70); }
 
 /* 오디 AI 카드(재웅 11/12 17:09): 정리 확인 오디 AI 상자(.tidy-ai)와 같은 모양, 보라 테두리 */
 .cl-feed { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; padding: 0; list-style: none; }
