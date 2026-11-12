@@ -16,7 +16,7 @@
 .ap-step span:not(.ap-step-no) { display: block; margin-top: 2px; color: var(--navy-70); line-height: 1.5; }
 .ap-step-no {
   flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 17px; font-weight: 900;
-  animation: pop 0.5s var(--ease-spring) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.2s);
+  animation: calm-in 0.5s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.2s);
 }
 .ap-step.l1 .ap-step-no { background: var(--gray); color: var(--navy); }
 .ap-step.l2 .ap-step-no { background: color-mix(in srgb, var(--sky) 40%, var(--white)); color: var(--blue); }
