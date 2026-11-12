@@ -28,6 +28,11 @@ describe('overlayClimate', () => {
     expect(r.forecast).toEqual([{ at: '2026-11-12T16:08:00+09:00', ppm: 861 }])
   })
 
+  it('core CO2가 더 새것이면 core 값을 둔다', () => {
+    const old = { roomId: 1, metrics: { CO2: { value: 999, at: '2026-11-12T06:59:00Z' } } } as unknown as ClimateRoom
+    expect(overlayClimate(env, [old], {}).rooms[0].co2).toEqual({ ppm: 600, at: '2026-11-12T07:00:00Z' })
+  })
+
   it('climate에 없는 방은 그대로 둔다', () => {
     expect(overlayClimate(env, [climate], {}).rooms[1]).toBe(env.rooms[1])
   })

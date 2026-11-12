@@ -53,7 +53,8 @@ export function overlayClimate(env: RoomsEnvironment, rooms: ClimateRoom[], seri
       const fc = per.CO2?.forecast ?? []
       return {
         ...r,
-        co2: co2?.value != null && co2.at ? { ppm: Math.round(co2.value), at: co2.at } : r.co2,
+        // core 값이 더 새것이면 core 값을 둔다
+        co2: co2?.value != null && co2.at && (!r.co2 || Date.parse(co2.at) >= Date.parse(r.co2.at)) ? { ppm: Math.round(co2.value), at: co2.at } : r.co2,
         temperatureC: c.metrics.TEMPERATURE?.value ?? r.temperatureC,
         humidityPct: c.metrics.HUMIDITY?.value ?? r.humidityPct,
         series: series2,

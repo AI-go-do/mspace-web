@@ -154,8 +154,11 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
 
   // 공기 값은 climate가 밀어 주는 대로 바로 얹는다(시연 값일 때는 안 씀). climate가 없는 서버면 core 값 그대로
   const climate = useClimateLive(!sample)
-  const shown = useMemo(() => (data && !sample && climate.rooms ? overlayClimate(data, climate.rooms, climate.series) : data),
-    [data, sample, climate.rooms, climate.series])
+  const climateOn = !sample && !climate.missing && !!climate.rooms
+  const shown = useMemo(() => (data && climateOn && climate.rooms ? overlayClimate(data, climate.rooms, climate.series) : data),
+    [data, climateOn, climate.rooms, climate.series])
+  // 실제 센서가 없어 실습실 값으로 만든 방(DERIVED)은 화면에 "추정"으로 밝힌다
+  const derived = climateOn ? (climate.rooms ?? []).filter((r) => r.source === 'DERIVED').map((r) => r.roomId) : []
 
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
@@ -169,7 +172,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
   // 가짜(시연) 값으로는 실제 기기에 명령을 보내지 않아요. 가짜 기기일 때만 자동 제어를 보여 줘요
-  useClimateAuto(views, now, auto && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
+  useClimateAuto(views, now, auto && !error && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
@@ -236,7 +239,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       <div className="ctl-bar">
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
-        {!sample && climate.rooms && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
+        {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
+        {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
             {fast ? <>빨리 감는 중 · 시연 시각 <b>{now ? seoulClock(now) : '–'}</b></> : '빨리 감기 ×60'}
@@ -266,7 +270,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length + climate.decisions.filter((d) => d.open).length : '–'}</b></h2>
           {!sample && <ClimateFeed decisions={climate.decisions} onOpen={setOpenRoom} />}
           {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} sample={sample} checks={reads} />}
-          {known && issues.length === 0 && unknownRooms === 0 && (
+          {known && issues.length === 0 && unknownRooms === 0 && !climate.decisions.some((d) => d.open) && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 오디가 지켜보고 있어요.</p>
           )}
           {known && issues.length === 0 && unknownRooms > 0 && (

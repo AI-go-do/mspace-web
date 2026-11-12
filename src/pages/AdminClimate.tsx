@@ -167,6 +167,7 @@ export function ClimateFeed({ decisions, onOpen, max = 4 }: { decisions: Decisio
                 <li key={s.key} className={STATUS_CLASS[s.status]}>
                   <i aria-hidden="true" />
                   <span><b>{STEP[s.key]}</b> {s.key === 'DETECT' && s.status === 'DONE' ? GROUP[d.group] : s.text}</span>
+                  {s.at && s.status !== 'SKIPPED' && <small className="cl-at">{clock(s.at).slice(0, 5)}</small>}
                   {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
                 </li>
               ))}
