@@ -51,4 +51,22 @@ describe('overlayClimate', () => {
     const real = { ...climate, source: 'REAL', offline: false } as unknown as ClimateRoom
     expect(overlayClimate(dead, [real], {}).rooms[0].offline).toBe(true)
   })
+
+  it('가상 손님 방은 core 예약 대신 손님을 예약처럼 넣고(번호 0), 다음 예약은 뺀다', () => {
+    const booked = { ...room(2), current: { reservationId: 7, startAt: '2026-11-12T05:00:00Z', endAt: '2026-11-12T06:00:00Z', people: 3 }, next: { startAt: '2026-11-12T09:00:00Z', people: 4 } } as RoomEnvironment
+    const guest = { roomId: 2, metrics: {}, source: 'SIM', virtual: true, occupied: true, offline: false, envAt: null, people: 5,
+      occupiedSince: '2026-11-12T15:40:00+09:00', occupiedUntil: '2026-11-12T17:10:00+09:00' } as unknown as ClimateRoom
+    const r = overlayClimate({ ...env, rooms: [booked] }, [guest], {}).rooms[0]
+    expect(r.current).toEqual({ reservationId: 0, startAt: '2026-11-12T15:40:00+09:00', endAt: '2026-11-12T17:10:00+09:00', people: 5 })
+    expect(r.next).toBeNull()
+    // 손님이 나가면 예약도 없음
+    const left = overlayClimate({ ...env, rooms: [booked] }, [{ ...guest, occupied: false, occupiedUntil: null } as ClimateRoom], {}).rooms[0]
+    expect(left.current).toBeNull()
+  })
+
+  it('실제 방(virtual 아님)은 core 예약을 그대로 둔다', () => {
+    const booked = { ...room(1), current: { reservationId: 7, startAt: '2026-11-12T05:00:00Z', endAt: '2026-11-12T06:00:00Z', people: 3 } } as RoomEnvironment
+    const real = { ...climate, source: 'SIM', virtual: false, occupied: true } as unknown as ClimateRoom
+    expect(overlayClimate({ ...env, rooms: [booked] }, [real], {}).rooms[0].current?.reservationId).toBe(7)
+  })
 })

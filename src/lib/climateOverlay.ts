@@ -1,5 +1,5 @@
 import type { ClimateRoom, MetricKey, Series } from '../api/climate'
-import type { EnvPoint, RoomsEnvironment } from '../api/environment'
+import type { EnvPoint, RoomEnvironment, RoomsEnvironment } from '../api/environment'
 
 /**
  * core 방 환경(재실·조도·문·예약)에 climate 공기 값(CO2·온도·습도·예측)을 얹는다 (재웅 11/12 "디자인은 기존 그대로").
@@ -10,6 +10,12 @@ import type { EnvPoint, RoomsEnvironment } from '../api/environment'
  * climate에 없는 방은 그대로 둔다
  */
 type SeriesMap = Record<number, Partial<Record<MetricKey, Series>>>
+
+/** 가상 방 손님을 core 예약 모양으로(번호 0 = 가상). 빈 방이면 null */
+export function virtualBooking(c: ClimateRoom): RoomEnvironment['current'] {
+  if (!c.occupied || !c.occupiedSince || !c.occupiedUntil) return null
+  return { reservationId: 0, startAt: c.occupiedSince, endAt: c.occupiedUntil, people: c.people ?? 0 }
+}
 
 const minuteOf = (iso: string) => Math.floor(Date.parse(iso) / 60_000)
 
@@ -65,6 +71,9 @@ export function overlayClimate(env: RoomsEnvironment, rooms: ClimateRoom[], seri
         // 가상 센서·녹화 재생 방의 공기 값은 방 장치(젯슨)가 아니라 climate가 만든다. 젯슨이 꺼져 있어도 공기 값은 살아 있으니
         // 칸 전체를 "신호 끊김"(빨강)으로 칠하지 않고 climate의 끊김을 쓴다(재웅 11/12 20:10 "모든 데가 다 빨간데"). 재실·조도는 여전히 "모름"
         ...(c.source === 'SIM' || c.source === 'REPLAY' ? { offline: c.offline, lastSignalAt: c.envAt ?? r.lastSignalAt } : {}),
+        // 가상 손님 방(2~5번, climate virtual)은 core 예약을 쓰지 않는다. 손님을 예약처럼 넣어(번호 0) '시간 넘김'·'입실 안 함'·
+        // '예약 없이 사용?' 같은 core 예약 판단이 손님과 어긋나지 않게 한다. 다음 예약도 뺀다
+        ...(c.virtual ? { current: virtualBooking(c), next: null } : {}),
       }
     }),
   }

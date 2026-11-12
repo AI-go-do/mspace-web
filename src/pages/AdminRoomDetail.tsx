@@ -68,7 +68,8 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
     { key: 'light', label: '조도', value: view.light === null ? null : String(view.light), unit: '%', hot: flags.lightLeftOn, has: view.sensors.has('light') },
   ]
   const hasDoorNote = view.sensors.has('door') ? ' 아래 하늘색 띠는 문이 열려 있던 때예요.' : ''
-  const canCheckout = !!view.current && view.presence === 'OCCUPIED'
+  // 가상 손님(예약 번호 0)은 core 예약이 아니라 강제 퇴실을 띄우지 않는다
+  const canCheckout = !!view.current && view.presence === 'OCCUPIED' && view.current.reservationId !== 0
   const inspection = flags.offline || flags.stuck
   const notes: Record<MetricKey, string> = {
     co2: `점선은 ${ENV_RULES.forecastMinutes}분 예측(${view.forecastFrom === 'model' ? 'Jetson' : '최근 추세'}), 옅은 범위는 그만큼 틀릴 수 있다는 뜻이에요.`,
@@ -138,7 +139,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
             <h3 id="rd-facts">예약·장치</h3>
             <dl className="rd-facts">
               <dt>지금 예약</dt>
-              <dd>{view.current ? `${timeRange(view.current.startAt, view.current.endAt)} · ${view.current.people}명 · #${view.current.reservationId}` : '없음'}</dd>
+              <dd>{view.current ? `${timeRange(view.current.startAt, view.current.endAt)} · ${view.current.people}명 · ${view.current.reservationId === 0 ? '가상 손님' : `#${view.current.reservationId}`}` : '없음'}</dd>
               <dt>다음 예약</dt>
               <dd>{view.nextAt ? seoulClock(new Date(view.nextAt)) : '없음'}</dd>
               <dt>재실</dt>

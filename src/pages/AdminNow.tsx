@@ -212,15 +212,18 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   const keyOf = (roomId: number, title: string) => `${roomId}:${title.replace(/\d+/g, '#')}`
   const issueKeys = issues.map(({ v, list }) => keyOf(v.roomId, list[0].title)).join('|')
   const prevKeys = useRef<Set<string>>(new Set())
+  // climate 값이 오기 전 첫 조회는 core 값만이라 가상 센서 방이 모두 "신호 끊김"으로 보인다. 그때 기록을 쌓으면
+  // 화면을 열 때마다 "센서 경고 멈춤" 다섯 줄이 남아서, climate가 왔거나(없으면 없다고 안 뒤) 기록을 시작한다
+  const climateSettled = sample || climate.missing || !!climate.rooms
   useEffect(() => {
-    if (!now) return
+    if (!now || !climateSettled) return
     const add = issues.filter(({ v, list }) => list[0].auto && !prevKeys.current.has(keyOf(v.roomId, list[0].title)))
       .map(({ v, list }) => ({ key: keyOf(v.roomId, list[0].title), at: now, room: v.name, title: list[0].title, auto: list[0].auto! }))
     prevKeys.current = new Set(issues.map(({ v, list }) => keyOf(v.roomId, list[0].title)))
     if (add.length) setHistory((h) => [...add, ...h].slice(0, 30))
     // issues는 issueKeys가 바뀔 때만 다시 본다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueKeys])
+  }, [issueKeys, climateSettled])
 
   // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
   const avg = useMemo(() => overview(views).avg, [views])
@@ -231,7 +234,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     const r = climateOn ? climate.rooms?.find((x) => x.roomId === roomId) : undefined
     if (!r) return undefined
     return {
-      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupied ? r.occupiedSince ?? null : null, devices: r.appliances,
+      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupied ? r.occupiedSince ?? null : null,
+      until: r.occupied ? r.occupiedUntil ?? null : null, virtual: r.virtual === true, devices: r.appliances,
       decision: climate.decisions.find((d) => d.roomId === roomId) ?? null, open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
     }
   }
