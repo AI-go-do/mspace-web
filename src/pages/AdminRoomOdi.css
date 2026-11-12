@@ -1,0 +1,59 @@
+/*
+ * 방 칸 안 "오디 AI가 이 방에서 하는 일". 보라 연한 바탕 한 칸에 점 다섯(탐지·예측·알림·제어·다시 확인)과 지금 단계 한 줄을 크게.
+ * 판단 중이면 테두리가 돌고 얼굴이 숨쉬고, 끝나면 조용히. 움직임 줄이기를 켠 사람은 색만
+ */
+.adm .ro {
+  --ro: #6a4ee0; --ai-c: #6a4ee0; position: relative; z-index: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px 11px;
+  border-radius: 14px; pointer-events: none; color: var(--navy);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ro) 9%, var(--white)), color-mix(in srgb, var(--blue) 6%, var(--white)));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ro) 28%, transparent);
+}
+.adm .ro.idle { background: var(--gray); box-shadow: none; }
+.adm .ro.busy { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ro) 60%, transparent); }
+.adm .ro-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.adm .ro-face { flex: none; display: inline-flex; border-radius: 50%; }
+.adm .ro-name { font-size: 14px; font-weight: 900; color: var(--ro); white-space: nowrap; }
+.adm .ro-name i { font-style: normal; }
+.adm .ro-state { flex: none; margin-left: auto; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 800; white-space: nowrap; background: var(--white); color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.adm .ro.busy .ro-state { background: var(--ro); color: var(--white); }
+
+/* 점 다섯: 사이 선은 끝난 만큼 보라로 */
+.adm .ro-dots { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 4px; padding: 0; list-style: none; }
+.adm .ro-dots li { position: relative; display: grid; justify-items: center; gap: 3px; }
+.adm .ro-dots li + li::before { content: ''; position: absolute; top: 8px; right: 50%; width: 100%; height: 2px; background: color-mix(in srgb, var(--navy) 14%, transparent); z-index: -1; }
+.adm .ro-dots li.d-ok + li::before, .adm .ro-dots li.d-skip + li::before { background: var(--ro); }
+.adm .ro-dots i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--white); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--navy) 18%, transparent); }
+.adm .ro-dots .d-ok i { background: var(--ro); box-shadow: none; }
+.adm .ro-dots .d-ok i::before { content: ''; width: 7px; height: 4px; margin-top: -2px; border: 2px solid var(--white); border-top: 0; border-right: 0; transform: rotate(-45deg); }
+.adm .ro-dots .d-doing i { box-shadow: inset 0 0 0 2.5px color-mix(in srgb, var(--ro) 25%, transparent); border: 2.5px solid transparent; border-top-color: var(--ro); }
+.adm .ro-dots .d-skip i { box-shadow: none; border: 2px dashed color-mix(in srgb, var(--navy) 30%, transparent); }
+.adm .ro-dots .d-fail i { background: #d9534f; box-shadow: none; }
+.adm .ro-dots small { font-size: 10.5px; font-weight: 800; color: var(--navy-70); white-space: nowrap; }
+.adm .ro-dots .d-ok small, .adm .ro-dots .d-doing small { color: var(--ro); }
+
+/* 지금 단계 한 줄(크게) + 왜·한 일 */
+.adm .ro-now { display: block; font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--navy); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.adm .ro-now b { margin-right: 6px; color: var(--ro); font-weight: 900; }
+.adm .ro-now.busy {
+  background: linear-gradient(90deg, var(--navy) 0%, var(--navy) 35%, var(--ro) 50%, var(--navy) 65%, var(--navy) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.adm .ro-now .cl-dots i { background: var(--ro); }
+.adm .ro.idle .ro-now { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--navy-70); }
+.adm .ro-scan { position: relative; flex: none; width: 34px; height: 4px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--navy) 10%, transparent); }
+.adm .ro-scan::after { content: ''; position: absolute; inset: 0; width: 40%; border-radius: 4px; background: color-mix(in srgb, var(--ro) 55%, transparent); }
+.adm .ro-why { display: flex; gap: 14px; font-size: 12px; color: var(--navy-70); min-width: 0; }
+.adm .ro-why span { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .ro-why em { margin-right: 6px; font-style: normal; font-weight: 900; color: var(--ro); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .adm .ro.busy { animation: ro-glow 1.8s ease-in-out infinite !important; }
+  .adm .ro.busy .ro-face { animation: ai-pulse 1s ease-out infinite !important; }
+  .adm .ro-dots .d-doing i { animation: ai-spin 0.8s linear infinite !important; }
+  .adm .ro-dots .d-ok i { animation: ai-pop 0.35s var(--ease-out) !important; }
+  .adm .ro-now { animation: rise-in 0.3s var(--ease-out) backwards !important; }
+  .adm .ro-now.busy { animation: rise-in 0.3s var(--ease-out) backwards, ai-shimmer 1.4s linear infinite !important; }
+  .adm .ro-scan::after { animation: ro-scan 2.4s ease-in-out infinite alternate !important; }
+}
+@keyframes ro-glow { 0%, 100% { box-shadow: inset 0 0 0 2px color-mix(in srgb, #6a4ee0 60%, transparent), 0 0 0 0 transparent; } 50% { box-shadow: inset 0 0 0 2px #6a4ee0, 0 0 0 4px color-mix(in srgb, #6a4ee0 16%, transparent); } }
+@keyframes ro-scan { from { transform: translateX(0); } to { transform: translateX(150%); } }

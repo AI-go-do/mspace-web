@@ -1,0 +1,43 @@
+/* 관리자 "지금" 탭의 공기 실시간 표시와 오디 판단 줄. 단계 줄은 정리 확인 상자(.ca-steps) 모양을 쓰고, 이 칸은 경고 상자가 아니라 파란색 */
+.cl-live { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--navy-70); }
+.cl-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--taken); }
+.cl-live.s-live { color: #16865a; }
+.cl-live.s-live i { background: #16865a; }
+.cl-live.s-retrying i, .cl-live.s-connecting i { background: var(--yellow); }
+
+.cl-derived { font-size: 12px; font-weight: 700; color: var(--navy-70); }
+
+/* 오디 AI 카드(재웅 11/12 17:09): 정리 확인 오디 AI 상자(.tidy-ai)와 같은 모양, 보라 테두리 */
+.cl-feed { display: flex; flex-direction: column; gap: 12px; margin: 0 0 12px; padding: 0; list-style: none; }
+.cl-card { margin-top: 0; }
+.cl-card-head { width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cl-card-head:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 8px; }
+.cl-step { margin-right: 6px; font-weight: 900; }
+.cl-card .tidy-ai-acts .skip { color: var(--navy-70); }
+.cl-card .tidy-ai-acts .skip .mark { border: 2px dashed var(--taken); background: none; }
+.cl-card .tidy-ai-acts .fail .mark { background: #d9534f; }
+.cl-card .tidy-ai-acts .fail .mark::before { content: '!'; }
+
+/* 새 판단: 다음 단계 자리에 "하는 중…" 줄(점 셋이 차례로 뜀), 연 단계는 아래에서 살짝 올라옴 */
+.cl-think .txt { color: var(--navy-70); }
+.cl-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.cl-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+
+/* 작은 그래프: 관리자 화면은 그리는 움직임을 끄므로 점선 길이(pathLength) 대신 그냥 선으로. non-scaling-stroke와 같이 쓰면 크롬에서 선이 군데군데 끊겨 보인다 */
+.adm .ctl-tile:not(.tn-off) .sp-line { stroke-dasharray: none; }
+
+/* 실시간 점은 움직임을 켠다. 움직임 줄이기를 켠 사람은 그대로 끈다 */
+@media (prefers-reduced-motion: no-preference) {
+  .adm .cl-live.s-live i { animation: cl-ping 1.6s ease-out infinite !important; }
+  .adm .cl-card { animation: rise-in 0.35s var(--ease-out) backwards, ai-border 6s linear infinite !important; }
+  .adm .cl-card.thinking .tidy-ai-odi { animation: ai-pulse 1s ease-out infinite !important; }
+  .adm .cl-card .tidy-ai-acts .doing .mark { animation: ai-spin 0.8s linear infinite !important; }
+  .adm .cl-card .tidy-ai-acts .doing .txt { animation: ai-shimmer 1.4s linear infinite !important; }
+  .adm .cl-card .tidy-ai-acts .ok .mark { animation: ai-pop 0.35s var(--ease-out) !important; }
+  .adm .cl-card .tidy-ai-acts li.cl-new, .adm .cl-card .tidy-ai-acts li.cl-think { animation: rise-in 0.3s var(--ease-out) backwards !important; }
+  .adm .cl-dots i { animation: cl-dot 1s ease-in-out infinite !important; }
+  .adm .cl-dots i:nth-child(2) { animation-delay: 0.15s !important; }
+  .adm .cl-dots i:nth-child(3) { animation-delay: 0.3s !important; }
+}
+@keyframes cl-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-3px); opacity: 1; } }
+@keyframes cl-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #16865a 50%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }

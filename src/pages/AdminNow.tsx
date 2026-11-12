@@ -14,6 +14,8 @@ import type { TodoCounts } from './AdminTodo'
 import { RoomTile, TILE_METRICS, type TileMetric } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
+import { ClimateFeed, useClimateLive } from './AdminClimate'
+import { overlayClimate } from '../lib/climateOverlay'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { Judge, Steps, STEP_MS } from '../components/OdiSteps'
@@ -22,6 +24,8 @@ import { useClimateRules } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
 import './AdminNow.css'
+import './AdminLive.css'
+import './AdminWall.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
 
@@ -150,19 +154,38 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     }
   }, [fast])
 
+  // 공기 값은 climate가 밀어 주는 대로 바로 얹는다(시연 값일 때는 안 씀). climate가 없는 서버면 core 값 그대로
+  const climate = useClimateLive(!sample)
+  const climateOn = !sample && !climate.missing && !!climate.rooms
+  const shown = useMemo(() => (data && climateOn && climate.rooms ? overlayClimate(data, climate.rooms, climate.series) : data),
+    [data, climateOn, climate.rooms, climate.series])
+  // 실제 센서가 없어 실습실 값으로 만든 방(DERIVED)은 화면에 "추정"으로 밝힌다
+  const derived = climateOn ? (climate.rooms ?? []).filter((r) => r.source === 'DERIVED').map((r) => r.roomId) : []
+  const roomsBy = (src: string) => (climateOn ? (climate.rooms ?? []).filter((r) => r.source === src).map((r) => r.roomId) : [])
+  const replay = roomsBy('REPLAY')
+  const sim = roomsBy('SIM')
+  // 방 전부면 낱말만, 일부면 방 번호도
+  const which = (ids: number[]) => (ids.length >= ADMIN_ROOMS.length ? '' : `${ids.join('·')}번 `)
+
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
-    if (!data) return []
-    const now = new Date(data.now)
-    return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
-  }, [data])
+    if (!shown) return []
+    const now = new Date(shown.now)
+    return shown.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
+  }, [shown])
 
-  const now = useMemo(() => (data ? new Date(data.now) : null), [data])
+  const now = useMemo(() => (shown ? new Date(shown.now) : null), [shown])
   const { auto } = useAppliances()
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
   // 가짜(시연) 값으로는 실제 기기에 명령을 보내지 않아요. 가짜 기기일 때만 자동 제어를 보여 줘요
-  useClimateAuto(views, now, auto && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
+  // 녹화·시뮬레이션·추정 값인 방은 이 화면의 자동 제어에서 뺀다(지난 값·가짜 값으로 실제 기기를 움직이지 않게. 그 방 기기는 climate가 맡음)
+  const notLiveKey = [...replay, ...sim, ...derived].join(',')
+  const autoViews = useMemo(() => {
+    const skip = new Set(notLiveKey.split(',').filter(Boolean).map(Number))
+    return views.filter((v) => !skip.has(v.roomId))
+  }, [views, notLiveKey])
+  useClimateAuto(autoViews, now, auto && !error && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
@@ -200,17 +223,24 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
   const avg = useMemo(() => overview(views).avg, [views])
 
-  const tile = (v: RoomView, i: number, big = false) => {
+  // 관제 칸에 얹을 climate 실시간 정보(인원·입실·기기·오디 제어). climate가 없으면 칸은 예전 그대로
+  const nowMs = now ? now.getTime() : 0
+  const liveOf = (roomId: number) => {
+    const r = climateOn ? climate.rooms?.find((x) => x.roomId === roomId) : undefined
+    if (!r) return undefined
+    return {
+      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupiedSince ?? null, devices: r.appliances,
+      decision: climate.decisions.find((d) => d.roomId === roomId) ?? null, open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
+    }
+  }
+  const tile = (v: RoomView, i: number) => {
     const list = adviceOf(v)
     return (
-      <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
+      <RoomTile key={v.roomId} i={i} view={v} tone={cardTone(v, list)} advice={list}
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)}
-        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} />
+        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} live={liveOf(v.roomId)} />
     )
   }
-  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
-  const small = views.length === 1 ? views : views.slice(0, -1)
-  const wide = views.length > 1 ? views[views.length - 1] : null
   // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
   const known = data !== null && views.length > 0
   // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
@@ -229,6 +259,10 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       <div className="ctl-bar">
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
+        {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
+        {replay.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">{which(replay)}녹화 재생</span>}
+        {sim.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">{which(sim)}시뮬레이션</span>}
+        {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
             {fast ? <>빨리 감는 중 · 시연 시각 <b>{now ? seoulClock(now) : '–'}</b></> : '빨리 감기 ×60'}
@@ -249,15 +283,17 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
             {Object.keys(own).length > 0 && <button type="button" className="ctl-metric-reset" onClick={() => setOwn({})}>방마다 고른 것 풀기</button>}
           </div>
           <span className="ctl-scan" aria-hidden="true" />
-          {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
-          {small.map((v, i) => tile(v, i))}
-          {wide && tile(wide, views.length - 1, true)}
+          {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className="ctl-tile skel" />)}
+          {/* 방 칸은 모두 같은 크기(재웅 11/12 18:00 "카드 사이즈를 맞춰서"). 여섯째 자리에 방 1~5 한 그래프 */}
+          {views.map((v, i) => tile(v, i))}
+          {views.length > 0 && <AdminOverview views={views} compact ticks={climateOn ? climate.ticks : undefined} />}
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
-          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length : '–'}</b></h2>
+          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length + climate.decisions.filter((d) => d.open).length : '–'}</b></h2>
+          {!sample && <ClimateFeed decisions={climate.decisions} onOpen={setOpenRoom} />}
           {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} sample={sample} checks={reads} />}
-          {known && issues.length === 0 && unknownRooms === 0 && (
+          {known && issues.length === 0 && unknownRooms === 0 && !climate.decisions.some((d) => d.open) && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 오디가 지켜보고 있어요.</p>
           )}
           {known && issues.length === 0 && unknownRooms > 0 && (
@@ -278,7 +314,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           )}
         </aside>
 
-        {views.length > 0 && <AdminOverview views={views} compact />}
         {/* 방별 센서 그래프·열지도는 접어 둔다. 첫 화면은 대시보드만(11/10 재웅 "정신 사납다") */}
         {views.length > 0 && (
           <details className="ctl-more">

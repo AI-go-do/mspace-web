@@ -1,0 +1,57 @@
+/*
+ * 32인치 관제 화면(재웅 11/12 18:00 "32인치 화면에 대시보드, 크게크게"). 2560×1440(4K를 150%로 보는 경우도 같음)에서 스크롤 없이 한 화면.
+ * 1800px 이상일 때만: 방 칸 3칸 2줄(여섯째는 한 그래프), 오른쪽 오디 칸, 글자·숫자·아이콘을 멀리서도 읽히게 키운다
+ */
+@media (min-width: 1800px) {
+  .adm .admin-now.ctl { --pad: 28px; }
+  .adm .admin-now .ctl-grid { grid-template-columns: minmax(0, 1fr) 460px; gap: 20px; }
+  .adm .admin-now .ctl-floor { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 18px; }
+  .adm .admin-now .ctl-floor-head h2 { font-size: 20px; }
+
+  .adm .admin-now .ctl-tile { padding: 16px 18px; gap: 10px; border-radius: 20px; }
+  .adm .admin-now .ct-no { font-size: 34px; }
+  .adm .admin-now .ct-name { font-size: 20px; font-weight: 800; padding-top: 6px; }
+  .adm .admin-now .ct-pres, .adm .admin-now .ct-tag { font-size: 14px; }
+  .adm .admin-now .ct-co2 b { font-size: 56px; }
+  .adm .admin-now .ct-co2 b i { font-size: 18px; }
+  .adm .admin-now .ct-co2 em { font-size: 15px; }
+  /* 큰 숫자 | 작은 그래프를 옆으로: 칸 높이를 줄여 두 줄이 한 화면에 */
+  .adm .admin-now .ct-main { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); align-items: center; column-gap: 16px; }
+  .adm .admin-now .ctl-spark { height: 84px; }
+  .adm .admin-now .ctl-top .ctl-big { padding-top: 10px; padding-bottom: 10px; }
+  .adm .admin-now .cb-num, .adm .admin-now .ctl-big.lead .cb-num { font-size: 44px; }
+
+  .adm .admin-now .ct-now { gap: 8px; }
+  .adm .admin-now .ct-now .cn { padding: 5px 12px; border-radius: 12px; }
+  .adm .admin-now .ct-now .cn small { font-size: 13px; }
+  .adm .admin-now .ct-now .cn b { font-size: 20px; }
+  .adm .admin-now .ct-now .cn em { font-size: 12.5px; }
+  .adm .admin-now .ct-now .cn-people { font-size: 15px; padding: 6px 16px; }
+  .adm .admin-now .ct-now .cn-people b { font-size: 34px; }
+
+  .adm .admin-now .ct-strip { gap: 8px; }
+  .adm .admin-now .ct-strip span { padding: 7px 12px; border-radius: 10px; }
+  .adm .admin-now .ct-strip small { font-size: 13px; }
+  .adm .admin-now .ct-strip b { font-size: 19px; }
+
+  .adm .admin-now .dv-row { gap: 8px; }
+  .adm .admin-now .dv { padding: 12px 4px 9px; border-radius: 14px; gap: 3px; }
+  .adm .admin-now .dv-ic { width: 36px; height: 36px; }
+  .adm .admin-now .dv-ic svg { width: 32px; height: 32px; }
+  .adm .admin-now .dv-t { font-size: 14.5px; }
+  .adm .admin-now .dv-s { font-size: 13.5px; }
+  .adm .admin-now .dv-odi { font-size: 14px; top: 4px; right: 7px; }
+
+  .adm .admin-now .ro { padding: 12px 16px 13px; gap: 8px; border-radius: 16px; }
+  .adm .admin-now .ro-name { font-size: 17px; }
+  .adm .admin-now .ro-state { font-size: 13.5px; padding: 3px 12px; }
+  .adm .admin-now .ro-dots i { width: 22px; height: 22px; }
+  .adm .admin-now .ro-dots li + li::before { top: 10px; }
+  .adm .admin-now .ro-dots small { font-size: 12.5px; }
+  .adm .admin-now .ro-now { font-size: 19px; -webkit-line-clamp: 1; }
+  .adm .admin-now .ro.idle .ro-now { font-size: 16px; }
+  .adm .admin-now .ro-why { font-size: 14px; }
+
+  .adm .admin-now .ctl-floor > .ctl-ov { padding: 18px 20px; }
+  .adm .admin-now .ctl-side h2 { font-size: 20px; }
+}
