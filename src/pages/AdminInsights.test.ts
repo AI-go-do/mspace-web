@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tidyPair, tidyReason, tidySteps } from './AdminInsights'
+import { modelScoreView, tidyPair, tidyReason, tidySteps } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -60,5 +60,16 @@ describe('오디 AI 판단 상자 줄 (기록에 있는 시각만)', () => {
   it('3시간이 지났는데 다시 확인 기록이 없으면 예정이라고 하지 않는다', () => {
     const s = tidySteps(row, null, acts, Date.parse('2026-11-12T15:00:00+09:00'))
     expect(s[3]).toEqual({ at: null, text: '다시 확인 기록 없음' })
+  })
+})
+
+describe('모델 시험 정확도 글', () => {
+  it('젯슨 채점 값이 오면 그 값과 잰 날짜를 쓴다', () => {
+    const v = modelScoreView({ kind: 'TIDY', model: 'yolov8m', accuracy: 0.8723, cases: 60, medianSeconds: 2.46, measuredAt: '2026-11-12T13:00:00+09:00' })
+    expect(v).toMatchObject({ model: 'YOLOv8m', pct: '87.2%', cases: 60, seconds: '2.5', when: '11/12 젯슨 채점', live: true })
+  })
+
+  it('아직 없으면 기록해 둔 값을 "기록"이라고 밝힌다', () => {
+    expect(modelScoreView(null)).toMatchObject({ model: 'YOLOv8s', pct: '76.6%', cases: 47, when: '11/11 기록', live: false })
   })
 })
