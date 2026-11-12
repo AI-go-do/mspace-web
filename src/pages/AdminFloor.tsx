@@ -112,15 +112,18 @@ function hm(iso: string): string {
 
 /** 칸 맨 위 현황: 인원 · 입실 · 퇴실(남은 분) · 알림 */
 function NowLine({ view, live, alerts }: { view: RoomView; live: TileLive; alerts: number }) {
-  const used = live.occupied ?? view.presence === 'OCCUPIED'
+  // 재실을 모르면(센서 모름) 0명이 아니라 '?'
+  const used: boolean | null = live.occupied ?? (view.presence === 'UNKNOWN' ? null : view.presence === 'OCCUPIED')
   const people = live.people ?? view.current?.people ?? null
-  const inAt = view.current?.startAt ?? (used ? live.since : null)
+  // 실제로 들어온 시각이 먼저, 없으면 예약 시작(이름도 '예약'으로)
+  const sinceAt = used ? live.since : null
+  const inAt = sinceAt ?? view.current?.startAt ?? null
   const outAt = view.current?.endAt ?? null
   const left = outAt ? Math.round((Date.parse(outAt) - live.now) / 60_000) : null
   return (
     <span className="ct-now">
-      <span className={`cn cn-people ${used ? 'on' : ''}`}><b>{used ? (people ?? '?') : 0}</b>명</span>
-      <span className="cn"><small>입실</small><b>{inAt ? hm(inAt) : '–'}</b></span>
+      <span className={`cn cn-people ${used ? 'on' : ''}`}><b>{used === null ? '?' : used ? (people ?? '?') : 0}</b>명</span>
+      <span className="cn"><small>{sinceAt || !inAt ? '입실' : '예약'}</small><b>{inAt ? hm(inAt) : '–'}</b></span>
       <span className="cn"><small>퇴실</small><b>{outAt ? hm(outAt) : '–'}</b>{left !== null && left >= 0 && <em>{left}분 남음</em>}</span>
       <span className={`cn cn-alert ${alerts ? 'on' : ''}`}><small>알림</small><b>{alerts}</b></span>
     </span>

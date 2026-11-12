@@ -159,14 +159,19 @@ export function useClimateLive(enabled: boolean) {
     if (!enabled) return
     const ctrl = new AbortController()
     const { signal } = ctrl
+    // 다시 읽기가 겹치면(판단 이벤트가 잇달아 옴) 늦게 시작한 것만 반영한다. 먼저 시작한 응답이 늦게 와도 기기·재실을 옛것으로 되돌리지 않게
+    let started = 0
+    let applied = 0
     const reload = async (withSeries: boolean) => {
+      const seq = ++started
       const r = await getClimateRooms(signal)
       let fresh: SeriesMap | null = null
       if (withSeries) {
         const all = await Promise.all(r.map((x) => getClimateSeries(x.roomId, MINUTES, signal).then((m) => [x.roomId, m] as const).catch(() => null)))
         fresh = Object.fromEntries(all.filter((x): x is NonNullable<typeof x> => x !== null))
       }
-      if (signal.aborted) return
+      if (signal.aborted || seq < applied) return
+      applied = seq
       setLive((prev) => ({
         rooms: mergeRooms(prev.rooms, r),
         series: fresh ? { ...prev.series, ...mergeSeries(prev.series, fresh) } : prev.series,

@@ -35,6 +35,14 @@ describe('applyReading', () => {
     const out = applyReading([room(2)], {}, { roomId: 2, at: '2026-11-12T16:01:00+09:00', co2: 640, temperatureC: null, humidityPct: null, source: 'SIM' })
     expect(out.rooms[0].source).toBe('SIM')
   })
+
+  it('방이 들고 있는 값보다 이른 값은 버린다(방·그래프 그대로)', () => {
+    const rooms = [room(1)]
+    const s = { 1: { CO2: series('2026-11-12T16:00:00+09:00') } }
+    const out = applyReading(rooms, s, { roomId: 1, at: '2026-11-12T15:59:00+09:00', co2: 900, temperatureC: null, humidityPct: null, source: 'SIM' })
+    expect(out.rooms).toBe(rooms)
+    expect(out.series).toBe(s)
+  })
 })
 
 describe('다시 읽은 값과 합치기', () => {
