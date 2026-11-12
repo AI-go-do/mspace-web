@@ -110,7 +110,7 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   AUTO_CHECKED_OUT: '시간 끝나 퇴실',
   AWAY_RELEASED: '자리 비움으로 퇴실',
   CANCELED: '취소됨',
-  NO_SHOW: '노쇼로 풀림',
+  NO_SHOW: '노쇼됨',
 }
 
 /** 취소 마감: 서버 값(cancelableUntil)이 있으면 그것, 없으면 시작 시각 */
