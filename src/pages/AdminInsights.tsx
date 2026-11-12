@@ -141,13 +141,21 @@ export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>, re: R
       { reservationId: r.reservationId, phase: 'RECHECK', label: again },
     ]
   }
-  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅) 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다. 퇴실 직후 사진은 다시 확인 줄에 그대로 있다
+  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅·팀) 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다. 다시 확인 줄은 이 줄에 합친다(mergedIntoFirst)
   return [
     { reservationId: r.reservationId, phase: 'ENTRY', label: '입실 전' },
     re.reentered && re.rechecked
       ? { reservationId: r.reservationId, phase: 'RECHECK', label: again }
       : { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤' },
   ]
+}
+
+/**
+ * 찾으러 다시 들어와 다시 찍은 줄(RECHECK)은 따로 보이지 않고 같은 예약의 퇴실 직후 줄에 합친다(11/12 재웅·팀).
+ * 그 줄의 사진 자리와 오디 AI 상자가 재입장 뒤 결과까지 다 보여 준다
+ */
+export function mergedIntoFirst(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>, rows: readonly Pick<TidyCheckRow, 'reservationId' | 'phase' | 'retrievedAt'>[]): boolean {
+  return r.phase === 'RECHECK' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'FIRST' && !!x.retrievedAt)
 }
 
 /** 찾으러 다시 들어왔나(10분 QR, retrievedAt) · 그 뒤 다시 찍었나(RECHECK 줄 있음) */
@@ -287,7 +295,7 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  */
 /**
  * 퇴실 직후 줄의 사진 자리가 재입장 뒤 사진으로 바뀌었을 때(tidyPair), 판단 상자가 보이는 사진과 어긋나지 않게 맞춘다.
- * - basis: 첫 판단(확신도)은 퇴실 직후 사진으로 한 것이라고 밝힌다(그 사진은 다시 확인 줄에 있다)
+ * - basis: 첫 판단(확신도)은 화면에 없는 퇴실 직후 사진으로 한 것이라고 밝힌다
  * - warn: 가져간 게 확인되면 상자를 주의 색으로 칠하지 않는다
  */
 export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<TidyCheckRow, 'result' | 'leftItems'> | null, reentered: boolean, warn: boolean): { basis: string | null; warn: boolean } {
@@ -400,7 +408,7 @@ export function AdminTidyChecks() {
             <h2>퇴실 뒤 카메라가 본 것</h2>
             {rows.length === 0 && <p className="adm-small">이 기간에 받은 결과가 없어요.</p>}
             <ul className="pen-list">
-              {rows.map((r) => {
+              {rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => {
                 const key = rowKey(r)
                 const isOpen = open.has(key)
                 const on = r.result !== 'CLEAN'
@@ -415,6 +423,7 @@ export function AdminTidyChecks() {
                       <span className="tidy-tags">
                         <span className="pen-tag">{r.phase === 'RECHECK' ? (re.reentered ? '재입장 뒤' : '3시간 뒤') : '퇴실 직후'}</span>
                         {r.phase === 'FIRST' && re.reentered && <span className="pen-tag reentry">재입장</span>}
+                        {recheckOf && re.reentered && recheckOf.result === 'CLEAN' && <span className="pen-tag got">가져감</span>}
                         <span className={`pen-tag ${on ? 'on' : ''}`}>
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>

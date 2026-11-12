@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps } from './AdminInsights'
+import { mergedIntoFirst, modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -125,6 +125,16 @@ describe('재입장 뒤 사진', () => {
     expect(still).toEqual({ basis: '퇴실 직후 사진 기준', warn: true })
     expect(tidyBoxState({ phase: 'FIRST' }, null, true, true)).toEqual({ basis: null, warn: true })
     expect(tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, false, true)).toEqual({ basis: null, warn: true })
+  })
+
+  it('재입장 뒤 다시 확인 줄은 퇴실 직후 줄에 합쳐 따로 보이지 않는다', () => {
+    const rows = [
+      { reservationId: 7, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00' },
+      { reservationId: 7, phase: 'RECHECK' as const, retrievedAt: null },
+      { reservationId: 8, phase: 'FIRST' as const, retrievedAt: null },
+      { reservationId: 8, phase: 'RECHECK' as const, retrievedAt: null },
+    ]
+    expect(rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => `${r.reservationId}-${r.phase}`)).toEqual(['7-FIRST', '8-FIRST', '8-RECHECK'])
   })
 
   it('QR 10분이 지났는데 다시 찍은 기록이 없으면 예정이라고 하지 않는다', () => {

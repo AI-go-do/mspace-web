@@ -430,6 +430,7 @@
 .pen-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
 .pen-tag { align-self: flex-start; padding: 2px 9px; border-radius: 8px; background: var(--gray); font-weight: 800; color: var(--navy); }
 .pen-tag.on { background: var(--yellow); }
+.pen-tag.got { background: color-mix(in srgb, var(--ok, #16865a) 14%, var(--white)); color: var(--ok, #16865a); }
 .pen-tag.reentry { background: var(--ai-soft, #e8ecff); color: var(--ai-c, #4b5bd6); }
 /* 정리 확인 줄: 오른쪽 카메라 그림, 누르면 줄 아래로 사진 */
 .tidy-row { flex-wrap: wrap; align-items: flex-start; }
