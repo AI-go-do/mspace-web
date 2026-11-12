@@ -361,6 +361,7 @@
 .daily-ai { max-width: 720px; margin-top: 0; }
 .daily-lines { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14.5px; line-height: 1.55; color: var(--navy); }
 .daily-at { margin: 10px 0 0; }
+.daily-ops { margin: 10px 0 0; font-size: 13.5px; font-weight: 700; color: var(--navy); }
 .adm-seg button {
   position: relative; min-height: 40px; padding: 0 22px; border: 0; background: none; cursor: pointer;
   font-size: 14px; font-weight: 800; color: var(--navy-70); transition: color 0.25s;

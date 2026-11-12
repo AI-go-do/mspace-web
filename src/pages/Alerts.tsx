@@ -184,7 +184,7 @@ export default function Alerts() {
           {shown.map((n) => {
             const act = notificationAction(n)
             return (
-              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${isApology(n) ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' ? 'co2-alert' : ''} ${n.kind === LIGHT_LEFT_ON_KIND ? 'light-alert' : ''}`}>
+              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${isApology(n) ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' || n.kind === 'VENT_SOON' ? 'co2-alert' : ''} ${n.kind === LIGHT_LEFT_ON_KIND ? 'light-alert' : ''}`}>
                 <div className="alert-top">
                   {!n.read && <><i className="dot" aria-hidden="true" /><span className="sr-only">안 읽음</span></>}
                   {n.kind === LIGHT_LEFT_ON_KIND && <BulbIcon />}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { ApiError, currentMemberId } from '../api/client'
 import { getLatestModelScore, type ModelScore } from '../api/modelScores'
 import {
-  adminErrorMessage, alertEffectLabel, getDailyReport, reportTotals, sumOf, writerLabel, type DailyReport, MAX_WITHDRAW_REASON, withdrawWarning, type Warning, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
+  adminErrorMessage, alertEffectLabel, getDailyReport, opsSummary, reportTotals, sumOf, writerLabel, type DailyReport, MAX_WITHDRAW_REASON, withdrawWarning, type Warning, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhoto, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
@@ -766,6 +766,7 @@ export function AdminDailyReport() {
               </ul>
               <p className="adm-small daily-at">{stamp(data.generatedAt)}에 썼어요{f.partial ? ' · 오늘은 1시간마다 새로 써요' : ''}</p>
             </div>
+            {sumOf(f.aiActions) > 0 && <p className="daily-ops">AI 자동 처리 {sumOf(f.aiActions)}건 · {opsSummary(f.aiActions)}</p>}
             {sumOf(f.deviceFaults) > 0 && <p className="adm-small">장치 고장 {sumOf(f.deviceFaults)}건</p>}
           </section>
         </>
