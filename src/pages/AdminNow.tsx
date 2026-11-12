@@ -229,7 +229,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     const r = climateOn ? climate.rooms?.find((x) => x.roomId === roomId) : undefined
     if (!r) return undefined
     return {
-      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupiedSince ?? null, devices: r.appliances,
+      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupied ? r.occupiedSince ?? null : null, devices: r.appliances,
       decision: climate.decisions.find((d) => d.roomId === roomId) ?? null, open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
     }
   }
