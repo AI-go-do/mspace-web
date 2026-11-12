@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
+import { getLatestModelScore, type ModelScore } from '../api/modelScores'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, itemPercents, tidyCounts, pct,
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhotoPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
@@ -202,10 +203,28 @@ function gap(fromIso: string, toIso: string): string {
 }
 
 /**
- * 방 카메라 모델 시험 점수. 지금은 device README 실험 기록(7판, 11/11)에서 옮긴 값이고,
- * core가 모델 점수를 내려 주면(요청 예정) 그 값으로 바꾼다
+ * 방 카메라 모델 시험 점수를 화면 글로. core가 젯슨 채점 결과를 내려 주면(GET /api/admin/model-scores) 그 값,
+ * 아직 없으면 device README 실험 기록(7판, 11/11)에서 옮긴 값을 쓰고 "언제 잰 값"을 같이 적는다
  */
-export const CAMERA_MODEL_SCORE = { model: 'YOLOv8s', accuracy: 76.6, cases: 47, secondsPerPhoto: 3.0, measuredOn: '11/11' }
+export const CAMERA_MODEL_SCORE: ModelScore = {
+  kind: 'TIDY', model: 'yolov8s', accuracy: 0.766, cases: 47, medianSeconds: 3.0, measuredAt: '2026-11-11T21:00:00+09:00',
+}
+
+export interface ModelScoreView { model: string; pct: string; cases: number; seconds: string; when: string; live: boolean }
+
+export function modelScoreView(live: ModelScore | null): ModelScoreView {
+  const s = live ?? CAMERA_MODEL_SCORE
+  const d = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }).formatToParts(new Date(s.measuredAt))
+  const md = `${d.find((p) => p.type === 'month')?.value}/${d.find((p) => p.type === 'day')?.value}`
+  return {
+    model: s.model.replace(/^yolo/i, 'YOLO'),
+    pct: `${(Math.round(s.accuracy * 1000) / 10).toFixed(1)}%`,
+    cases: s.cases,
+    seconds: `${Math.round(s.medianSeconds * 10) / 10}`,
+    when: live ? `${md} 젯슨 채점` : `${md} 기록`,
+    live: live !== null,
+  }
+}
 
 /** 판단 상자 한 줄: 언제 · 무엇. at이 없으면 시각을 모르는 일(지어내지 않는다) */
 interface TidyStep { at: string | null; text: string; note?: string; later?: boolean }
@@ -237,13 +256,13 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  * 물품별 확신도·모델 시험 정확도를 그대로 보여 준다. 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
-function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheckRow | null }) {
+function TidyJudgement({ row, recheck, score }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView }) {
   const r = tidyReason(row, recheck !== null)
   const top = seenItemsSummary(row.items).top
   const pcts = itemPercents(row.items)
   const steps = tidySteps(row, recheck, r.actions)
   const judge = steps.findIndex((s) => s.text.startsWith('젯슨'))
-  const m = CAMERA_MODEL_SCORE
+  const m = score
   return (
     <div className={`tidy-ai done${r.warn ? ' t-warn' : ''}`}>
       <div className="tidy-ai-head">
@@ -275,8 +294,8 @@ function TidyJudgement({ row, recheck }: { row: TidyCheckRow; recheck: TidyCheck
           </li>
         ))}
       </ol>
-      <p className="tidy-ai-score" title={`device 실험 기록 ${m.measuredOn}, 사진 ${m.cases}쌍`}>
-        모델 시험 정확도 <b>{m.accuracy}%</b> · {m.cases}쌍 · 사진당 {m.secondsPerPhoto}초
+      <p className="tidy-ai-score" title={m.live ? '젯슨이 시험 사진으로 채점해 올린 최신 값' : '젯슨 채점 결과가 아직 서버에 없어 기록해 둔 값'}>
+        모델 시험 정확도 <b>{m.pct}</b> · {m.cases}쌍 · 사진당 {m.seconds}초 · <span className="muted">{m.when}</span>
       </p>
     </div>
   )
@@ -292,6 +311,17 @@ export function AdminTidyChecks() {
   const [open, setOpen] = useState<string | null>(null)
   const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 모델 시험 점수: 못 받아도(core API 전·오류) 목록은 그대로, 기록해 둔 값으로 보여 준다
+  const [liveScore, setLiveScore] = useState<ModelScore | null>(null)
+  const score = useMemo(() => modelScoreView(liveScore), [liveScore])
+
+  useEffect(() => {
+    const memberId = currentMemberId()
+    if (memberId === null) return
+    const ctrl = new AbortController()
+    getLatestModelScore('TIDY', ctrl.signal, memberId).then(setLiveScore).catch(() => setLiveScore(null))
+    return () => ctrl.abort()
+  }, [])
 
   useEffect(() => {
     const memberId = currentMemberId()
@@ -360,7 +390,7 @@ export function AdminTidyChecks() {
                             <figcaption><b>{shot.label}</b></figcaption>
                           </figure>
                         ))}
-                      </div><TidyJudgement row={r} recheck={r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null} /></div>
+                      </div><TidyJudgement row={r} recheck={r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null} score={score} /></div>
                     )}
                   </li>
                 )
