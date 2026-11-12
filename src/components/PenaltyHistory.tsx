@@ -77,7 +77,7 @@ function WarningItem({ w, i, now, fresh, onWrite }: { w: WarningRecord; i: numbe
         </ol>
       )}
 
-      {w.appeal && <AppealProgress w={w} fresh={fresh} />}
+      {w.appeal && !w.withdrawnAt && <AppealProgress w={w} fresh={fresh} />}
       {can && button && <button type="button" className="btn-primary ph-write" onClick={onWrite}>{button}</button>}
     </li>
   )
