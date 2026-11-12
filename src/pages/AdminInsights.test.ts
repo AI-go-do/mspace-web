@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tidyReason } from './AdminInsights'
+import { tidyPair, tidyReason, tidySteps } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -24,5 +24,41 @@ describe('정리 확인 판단 글', () => {
     const r = tidyReason({ result: 'NEEDS_CLEANING', leftItems: [], items: [], phase: 'FIRST', reportId: 12 })
     expect(r.verdict).toBe('치워야 해요')
     expect(r.actions.map((a) => a.done)).toEqual(['신고 #12 만들었어요'])
+  })
+})
+
+describe('정리 확인 비교 사진', () => {
+  it('퇴실 직후 줄은 같은 예약의 입실 직전 사진과 퇴실 뒤 사진을 나란히 둔다', () => {
+    const [before, after] = tidyPair({ reservationId: 7, phase: 'FIRST' })
+    expect([before.reservationId, before.phase, before.label]).toEqual([7, 'ENTRY', '입실 전'])
+    expect([after.reservationId, after.phase, after.label]).toEqual([7, 'FIRST', '퇴실 뒤'])
+  })
+
+  it('3시간 뒤 줄은 퇴실 직후와 3시간 뒤 사진', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'RECHECK' }).map((s) => s.phase)).toEqual(['FIRST', 'RECHECK'])
+  })
+})
+
+describe('오디 AI 판단 상자 줄 (기록에 있는 시각만)', () => {
+  const row = { reservationId: 41, roomId: 1, roomName: '1번 방', phase: 'FIRST' as const, result: 'LEFT_ITEMS' as const, leftItems: [],
+    items: [{ name: 'cup', confidence: 0.82 }], observedAt: '2026-11-12T11:02:10+09:00', endedAt: '2026-11-12T11:01:30+09:00', reportId: null }
+  const acts = tidyReason(row).actions
+
+  it('퇴실 → 젯슨 판단(퇴실 몇 초 뒤) → 알림 → 3시간 뒤 예정', () => {
+    const s = tidySteps(row, null, acts, Date.parse('2026-11-12T11:05:00+09:00'))
+    expect(s.map((x) => x.text)).toEqual(['퇴실', '젯슨이 판단', '대표자·참여자에게 알림 보냈어요', '3시간 뒤 다시 확인'])
+    expect(s[1]).toMatchObject({ at: row.observedAt, note: '퇴실 40초 뒤' })
+    expect(s[3]).toMatchObject({ at: null, note: '14:01쯤', later: true })
+  })
+
+  it('3시간 뒤 다시 확인을 했으면 그 실제 시각', () => {
+    const recheck = { ...row, phase: 'RECHECK' as const, observedAt: '2026-11-12T14:02:40+09:00' }
+    const s = tidySteps(row, recheck, tidyReason(row, true).actions)
+    expect(s[3]).toMatchObject({ at: recheck.observedAt, text: '3시간 뒤 다시 확인했어요' })
+  })
+
+  it('3시간이 지났는데 다시 확인 기록이 없으면 예정이라고 하지 않는다', () => {
+    const s = tidySteps(row, null, acts, Date.parse('2026-11-12T15:00:00+09:00'))
+    expect(s[3]).toEqual({ at: null, text: '다시 확인 기록 없음' })
   })
 })
