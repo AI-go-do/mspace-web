@@ -154,9 +154,13 @@ export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>, re: R
  * 찾으러 다시 들어와 다시 찍은 줄(RECHECK)은 따로 보이지 않고 같은 예약의 퇴실 직후 줄에 합친다(11/12 재웅·팀).
  * 그 줄의 사진 자리와 오디 AI 상자가 재입장 뒤 결과까지 다 보여 준다
  */
-export function mergedIntoFirst(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>, rows: readonly Pick<TidyCheckRow, 'reservationId' | 'phase' | 'retrievedAt'>[]): boolean {
-  return r.phase === 'RECHECK' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'FIRST' && !!x.retrievedAt)
+export function mergedIntoFirst(r: Pick<TidyCheckRow, 'reservationId' | 'phase' | 'reportId'>, rows: readonly Pick<TidyCheckRow, 'reservationId' | 'phase' | 'retrievedAt'>[]): boolean {
+  // 신고(경고)가 붙은 다시 확인 줄은 숨기지 않는다. 경고 수와 보이는 기록이 어긋나지 않게
+  return r.phase === 'RECHECK' && r.reportId === null && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'FIRST' && !!x.retrievedAt)
 }
+
+/** 다시 찍은 사진에서 물품이 없어졌나(가져감). 태그·판단 상자·주의 색이 모두 이 기준 하나를 쓴다 */
+export const tidyTaken = (r: Pick<TidyCheckRow, 'result' | 'leftItems'>) => r.result === 'CLEAN' && r.leftItems.length === 0
 
 /** 찾으러 다시 들어왔나(10분 QR, retrievedAt) · 그 뒤 다시 찍었나(RECHECK 줄 있음) */
 export interface Reentry { reentered: boolean; rechecked: boolean }
@@ -269,7 +273,7 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
       steps.push({ at: row.retrievedAt, text: '찾으러 들어왔어요', note: 'QR' })
       if (recheck) {
         steps.push({ at: recheck.observedAt, text: '젯슨이 다시 찍어 확인', note: `들어온 지 ${gap(row.retrievedAt, recheck.observedAt)} 뒤` })
-        steps.push({ at: null, text: recheck.result === 'CLEAN' ? '두고 간 물품 가져갔어요' : '아직 남은 물품이 있어요', got: recheck.result === 'CLEAN' })
+        steps.push({ at: null, text: tidyTaken(recheck) ? '두고 간 물품 가져갔어요' : '아직 남은 물품이 있어요', got: tidyTaken(recheck) })
       } else {
         const due = Date.parse(row.retrievedAt) + RETRIEVE_PASS_MS
         // 10분이 지났는데 기록이 없으면 예정이라고 하지 않는다(3시간 쪽과 같은 규칙)
@@ -301,8 +305,7 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
 export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<TidyCheckRow, 'result' | 'leftItems'> | null, reentered: boolean, warn: boolean): { basis: string | null; warn: boolean } {
   const swapped = row.phase === 'FIRST' && reentered && recheck !== null
   if (!swapped) return { basis: null, warn }
-  const taken = recheck.result === 'CLEAN' && recheck.leftItems.length === 0
-  return { basis: '퇴실 직후 사진 기준', warn: warn && !taken }
+  return { basis: '퇴실 직후 사진 기준', warn: warn && !tidyTaken(recheck) }
 }
 
 function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
@@ -423,7 +426,7 @@ export function AdminTidyChecks() {
                       <span className="tidy-tags">
                         <span className="pen-tag">{r.phase === 'RECHECK' ? (re.reentered ? '재입장 뒤' : '3시간 뒤') : '퇴실 직후'}</span>
                         {r.phase === 'FIRST' && re.reentered && <span className="pen-tag reentry">재입장</span>}
-                        {recheckOf && re.reentered && recheckOf.result === 'CLEAN' && <span className="pen-tag got">가져감</span>}
+                        {recheckOf && re.reentered && tidyTaken(recheckOf) && <span className="pen-tag got">가져감</span>}
                         <span className={`pen-tag ${on ? 'on' : ''}`}>
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>

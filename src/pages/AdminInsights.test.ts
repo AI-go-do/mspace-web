@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergedIntoFirst, modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps } from './AdminInsights'
+import { mergedIntoFirst, modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps, tidyTaken } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -129,12 +129,20 @@ describe('재입장 뒤 사진', () => {
 
   it('재입장 뒤 다시 확인 줄은 퇴실 직후 줄에 합쳐 따로 보이지 않는다', () => {
     const rows = [
-      { reservationId: 7, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00' },
-      { reservationId: 7, phase: 'RECHECK' as const, retrievedAt: null },
-      { reservationId: 8, phase: 'FIRST' as const, retrievedAt: null },
-      { reservationId: 8, phase: 'RECHECK' as const, retrievedAt: null },
+      { reservationId: 7, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00', reportId: null },
+      { reservationId: 7, phase: 'RECHECK' as const, retrievedAt: null, reportId: null },
+      { reservationId: 8, phase: 'FIRST' as const, retrievedAt: null, reportId: null },
+      { reservationId: 8, phase: 'RECHECK' as const, retrievedAt: null, reportId: null },
+      { reservationId: 9, phase: 'FIRST' as const, retrievedAt: '2026-11-12T13:19:18+09:00', reportId: null },
+      { reservationId: 9, phase: 'RECHECK' as const, retrievedAt: null, reportId: 56 },
     ]
-    expect(rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => `${r.reservationId}-${r.phase}`)).toEqual(['7-FIRST', '8-FIRST', '8-RECHECK'])
+    // 신고가 붙은 다시 확인 줄(9)은 합치지 않고 그대로 보인다
+    expect(rows.filter((r) => !mergedIntoFirst(r, rows)).map((r) => `${r.reservationId}-${r.phase}`)).toEqual(['7-FIRST', '8-FIRST', '8-RECHECK', '9-FIRST', '9-RECHECK'])
+  })
+
+  it('CLEAN이어도 남은 물품이 있으면 가져갔다고 하지 않는다', () => {
+    expect(tidyTaken({ result: 'CLEAN', leftItems: [] })).toBe(true)
+    expect(tidyTaken({ result: 'CLEAN', leftItems: ['cup'] })).toBe(false)
   })
 
   it('QR 10분이 지났는데 다시 찍은 기록이 없으면 예정이라고 하지 않는다', () => {
