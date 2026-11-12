@@ -182,6 +182,11 @@ export interface TidyCheckRow extends Omit<TidyResult, 'items'> {
   endedAt: string | null
   /** 다시 확인에도 물건이 남아 core가 만든 어질러짐 신고 번호(대표자 경고). 11/10 전 기록은 치워야 함 자동 신고 */
   reportId: number | null
+  /**
+   * (core 요청 중) 두고 간 물건을 찾으러 10분 QR로 들어온 시각. 이 뒤 젯슨이 방이 비면 바로 다시 찍어(RECHECK) 가져갔는지 본다.
+   * core가 아직 안 주면 빠진다
+   */
+  retrievedAt?: string | null
 }
 
 /** 최근 days일(1–92) 정리 확인 결과, 최근 순. 관리자만(학생 403 ADMIN_ONLY) */
