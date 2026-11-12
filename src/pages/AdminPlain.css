@@ -237,6 +237,12 @@
 .adm .jl-item.t-warn b { color: #8a5a00; }
 .adm .jl-item.t-off b { color: var(--alert); }
 .adm .jl-sure { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; color: var(--navy); padding-top: 2px; }
+.adm .jl-item time small { display: block; font-size: 11.5px; color: var(--navy-70); }
+.adm .jl-item.t-wait b { color: var(--navy-70); }
+.adm .jl-skel { min-height: 180px; }
+.adm .jl-sum { display: flex; gap: 8px; margin: 0 0 10px; }
+.adm .jl-sum span { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 8px; background: var(--white); font-size: 12.5px; color: var(--navy-70); }
+.adm .jl-sum b { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--navy); }
 .adm .jl-manual { margin-top: 18px; border-top: 1px solid var(--c-line); padding-top: 12px; display: block; }
 .adm .jl-manual > summary { cursor: pointer; font-size: 13px; color: var(--navy-70); min-height: 36px; display: flex; align-items: center; }
 .adm .jl-manual[open] > summary { margin-bottom: 8px; }

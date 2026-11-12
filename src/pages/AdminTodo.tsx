@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { currentMemberId } from '../api/client'
 import { onReportsChanged } from '../lib/reportsBus'
 import { useMemberId } from '../lib/useMemberId'
-import { getReports } from '../api/admin'
+import { adminErrorMessage, getReports, getTidyChecks } from '../api/admin'
+import { ADMIN_ROOMS } from '../config/adminRooms'
+import { judgeCounts, judgeRows, type JudgeRow } from '../lib/judgeLog'
 import { useApprentice } from '../api/apprentice'
 import type { Proposal } from '../lib/apprentice'
 import { InboxItem, Notice } from './AdminApprentice'
@@ -71,7 +73,8 @@ export function useTodoCounts(): TodoCounts {
 
 /**
  * 오디가 판정·처리한 기록 (10차 회의·11/10 재웅: 관리자는 보기만, 판단은 AI).
- * core에 AI 판정이 아직 없어 시연 값(?demo=1)에서만 예시를 보여 준다. 확신도·근거를 같이 남겨 발표의 "AI 판단 신뢰도" 표와 이어진다
+ * core에 쌓인 신고 판정(판정기)과 방 카메라 정리 확인을 최근 순으로 보여 준다(lib/judgeLog). 시연 값(?demo=1)이면 예시.
+ * 판정기 확신도·근거는 core가 목록에 붙이면 같이 보인다(발표의 "AI 판단 신뢰도" 표와 이어짐)
  */
 type Judgement = { at: string; room: string; what: string; verdict: string; sure: number; why: string; tone: 'warn' | 'ok' | 'off' }
 const SAMPLE_JUDGEMENTS: Judgement[] = [
@@ -82,29 +85,82 @@ const SAMPLE_JUDGEMENTS: Judgement[] = [
   { at: '10:05', room: '창작실 5', what: '경고 철회 요청', verdict: '철회 · 경고 지움', sure: 72, why: '확신도가 기준(80%)보다 낮아 "확인 불가 = 철회" 규칙', tone: 'ok' },
 ]
 
-function JudgeLog() {
-  if (!demoOn()) {
-    return (
-      <div className="adm-empty">
-        <b>오디 판정 기록이 아직 없어요</b>
-        <span>core에 AI 판정이 붙으면 신고·경고·철회 판정이 여기 쌓여요. 주소에 ?demo=1을 붙이면 예시를 볼 수 있어요.</span>
+/** 실제 판정 기록: 신고(최근 전부)와 방 카메라 정리 확인(7일). 1분마다 다시 읽는다 */
+const JUDGE_DAYS = 7
+function useJudgeRows(): { rows: JudgeRow[] | null; error: string | null } {
+  const member = useMemberId()
+  const [state, setState] = useState<{ member: number | null; rows: JudgeRow[] | null; error: string | null }>({ member: null, rows: null, error: null })
+  useEffect(() => {
+    if (member === null) return
+    let stale = false
+    let ctrl: AbortController | null = null
+    const load = () => {
+      if (stale || currentMemberId() !== member) return
+      ctrl?.abort()
+      const mine = new AbortController()
+      ctrl = mine
+      const timer = setTimeout(() => mine.abort(), 15_000)
+      Promise.all([getReports(null, mine.signal, member), getTidyChecks(JUDGE_DAYS, mine.signal, member)])
+        .then(([reports, tidy]) => {
+          if (stale || ctrl !== mine) return
+          setState({ member, rows: judgeRows(reports, tidy, roomName, new Date()), error: null })
+        })
+        .catch((e) => { if (!stale && ctrl === mine) setState((p) => ({ member, rows: p.member === member ? p.rows : null, error: adminErrorMessage(e) })) })
+        .finally(() => clearTimeout(timer))
+    }
+    load()
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load() }, POLL_MS)
+    const stop = onReportsChanged(load)
+    return () => { stale = true; clearInterval(t); ctrl?.abort(); stop() }
+  }, [member])
+  return state.member === member ? { rows: state.rows, error: state.error } : { rows: null, error: null }
+}
+
+const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `${id}번 방`
+
+function JudgeItem({ j }: { j: Pick<JudgeRow, 'day' | 'time' | 'room' | 'by' | 'what' | 'verdict' | 'sure' | 'why' | 'tone'> }) {
+  return (
+    <li className={`jl-item t-${j.tone}`}>
+      <time>{j.day && <small>{j.day}</small>}{j.time}</time>
+      <div className="jl-main">
+        <small>{j.room} · {j.what}</small>
+        <b>{j.verdict}</b>
+        <span>{j.by}{j.why ? ` · ${j.why}` : ''}</span>
       </div>
+      {j.sure !== null && <span className="jl-sure" title="확신도">{j.sure}%</span>}
+    </li>
+  )
+}
+
+function JudgeLog() {
+  const { rows, error } = useJudgeRows()
+  if (demoOn()) {
+    return (
+      <ol className="jl">
+        {SAMPLE_JUDGEMENTS.map((j) => (
+          <JudgeItem key={j.at + j.room} j={{ day: null, time: j.at, room: j.room, by: '오디', what: j.what, verdict: j.verdict, sure: j.sure, why: j.why, tone: j.tone === 'off' ? 'wait' : j.tone }} />
+        ))}
+      </ol>
     )
   }
+  if (rows === null) {
+    return error
+      ? <p role="alert" className="adm-msg err">{error}</p>
+      : <div className="jl jl-skel" aria-busy="true" aria-label="불러오는 중" />
+  }
+  const n = judgeCounts(rows)
   return (
-    <ol className="jl">
-      {SAMPLE_JUDGEMENTS.map((j) => (
-        <li key={j.at + j.room} className={`jl-item t-${j.tone}`}>
-          <time>{j.at}</time>
-          <div className="jl-main">
-            <small>{j.room} · {j.what}</small>
-            <b>{j.verdict}</b>
-            <span>근거: {j.why}</span>
-          </div>
-          <span className="jl-sure" title="오디 확신도">{j.sure}%</span>
-        </li>
-      ))}
-    </ol>
+    <>
+      <div className="jl-sum" role="group" aria-label={`최근 ${JUDGE_DAYS}일`}>
+        <span><b>{n.done}</b>판정</span>
+        <span><b>{n.warned}</b>경고·신고</span>
+        <span><b>{n.waiting}</b>판정 중</span>
+      </div>
+      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {rows.length === 0
+        ? <div className="adm-empty"><b>아직 판정한 일이 없어요</b></div>
+        : <ol className="jl">{rows.map((j) => <JudgeItem key={j.key} j={j} />)}</ol>}
+    </>
   )
 }
 
