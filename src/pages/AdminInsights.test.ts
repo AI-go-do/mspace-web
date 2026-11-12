@@ -45,7 +45,7 @@ describe('오디 AI 판단 상자 줄 (기록에 있는 시각만)', () => {
   const acts = tidyReason(row).actions
 
   it('퇴실 → 젯슨 판단(퇴실 몇 초 뒤) → 알림 → 3시간 뒤 예정', () => {
-    const s = tidySteps(row, null, acts)
+    const s = tidySteps(row, null, acts, Date.parse('2026-11-12T11:05:00+09:00'))
     expect(s.map((x) => x.text)).toEqual(['퇴실', '젯슨이 판단', '대표자·참여자에게 알림 보냈어요', '3시간 뒤 다시 확인'])
     expect(s[1]).toMatchObject({ at: row.observedAt, note: '퇴실 40초 뒤' })
     expect(s[3]).toMatchObject({ at: null, note: '14:01쯤', later: true })
@@ -55,5 +55,10 @@ describe('오디 AI 판단 상자 줄 (기록에 있는 시각만)', () => {
     const recheck = { ...row, phase: 'RECHECK' as const, observedAt: '2026-11-12T14:02:40+09:00' }
     const s = tidySteps(row, recheck, tidyReason(row, true).actions)
     expect(s[3]).toMatchObject({ at: recheck.observedAt, text: '3시간 뒤 다시 확인했어요' })
+  })
+
+  it('3시간이 지났는데 다시 확인 기록이 없으면 예정이라고 하지 않는다', () => {
+    const s = tidySteps(row, null, acts, Date.parse('2026-11-12T15:00:00+09:00'))
+    expect(s[3]).toEqual({ at: null, text: '다시 확인 기록 없음' })
   })
 })

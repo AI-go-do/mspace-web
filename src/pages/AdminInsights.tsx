@@ -211,7 +211,7 @@ export const CAMERA_MODEL_SCORE = { model: 'YOLOv8s', accuracy: 76.6, cases: 47,
 interface TidyStep { at: string | null; text: string; note?: string; later?: boolean }
 
 /** 기록에 있는 시각만으로 판단 상자 줄을 만든다 (정해 둔 시간으로 움직이지 않는다) */
-export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actions: TidyAction[]): TidyStep[] {
+export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actions: TidyAction[], now: number = Date.now()): TidyStep[] {
   const steps: TidyStep[] = []
   if (row.endedAt) steps.push({ at: row.endedAt, text: '퇴실' })
   steps.push({
@@ -221,9 +221,12 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
   })
   for (const a of actions) {
     if (a.later) {
-      // 3시간 뒤 다시 확인: 이미 했으면 그 시각, 아직이면 예정(퇴실 + 3시간쯤)
+      // 3시간 뒤 다시 확인: 이미 했으면 그 시각, 아직 3시간이 안 지났으면 예정(퇴실 + 3시간쯤).
+      // 3시간이 지났는데 기록이 없으면(다음 팀이 들어와 core가 건너뜀 등) 예정이라고 하지 않는다
+      const due = row.endedAt ? Date.parse(row.endedAt) + 3 * 3600_000 : null
       if (recheck) steps.push({ at: recheck.observedAt, text: '3시간 뒤 다시 확인했어요' })
-      else steps.push({ at: null, text: '3시간 뒤 다시 확인', note: row.endedAt ? `${clock(new Date(Date.parse(row.endedAt) + 3 * 3600_000).toISOString()).slice(0, 5)}쯤` : undefined, later: true })
+      else if (due !== null && due > now) steps.push({ at: null, text: '3시간 뒤 다시 확인', note: `${clock(new Date(due).toISOString()).slice(0, 5)}쯤`, later: true })
+      else steps.push({ at: null, text: '다시 확인 기록 없음' })
     } else steps.push({ at: null, text: a.done })
   }
   return steps
