@@ -14,6 +14,7 @@ import type { TodoCounts } from './AdminTodo'
 import { RoomTile, TILE_METRICS, type TileMetric } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
+import { AdminClimate } from './AdminClimate'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { Judge, Steps, STEP_MS } from '../components/OdiSteps'
@@ -236,6 +237,9 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         )}
       </div>
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
+
+      {/* 공기: climate가 밀어 주는 실시간 값 + 오디 판단 카드. climate가 없는 서버면 숨는다. 실제 값이라 시연(sample) 화면에서도 보인다 */}
+      <AdminClimate />
 
       <div className="ctl-grid">
         <section className="ctl-floor" aria-label="방 평면도 (누르면 자세히)">
