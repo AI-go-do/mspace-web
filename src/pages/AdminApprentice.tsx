@@ -38,7 +38,7 @@ export function InboxItem({ p, t, i = 0 }: { p: Proposal; t: Trainee; i?: number
         <div><b>AI 처리안</b><p>{p.plan}</p></div>
       </div>
       <ul className="ap-why">{p.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-      {t.locked && <p className="ap-lock">벌이 걸린 일이라 점수와 상관없이 늘 사람이 정해요</p>}
+      {t.locked && <p className="ap-lock">늘 사람이 정하는 일이라 점수와 상관없이 레벨 1이에요</p>}
       {!asking ? (
         <div className="ap-acts">
           <button type="button" className="adm-btn" onClick={() => decide(true)}>맞아요, 이대로</button>
@@ -67,7 +67,8 @@ const LEVELS = [
 /** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워지고, 레벨이 바뀌면 카드가 반짝인다 */
 function TraineeCard({ t, flash, i }: { t: Trainee; flash: 'up' | 'down' | null; i: number }) {
   const filled = t.locked ? 0 : t.level >= t.maxLevel ? STREAK_TO_LEVEL_UP : t.streak
-  const rate = t.total ? Math.round((t.right / t.total) * 100) : null
+  // 소수 한 자리(98.9%·98.2%처럼 측정 점수를 그대로)
+  const rate = t.total ? Math.round((t.right / t.total) * 1000) / 10 : null
   return (
     <li className={`card ap-rec ${flash ? `fx-${flash}` : ''} ${t.locked ? 'locked' : ''}`} style={{ '--k': i } as CSSProperties}>
       <div className="ap-rec-top">
@@ -82,6 +83,7 @@ function TraineeCard({ t, flash, i }: { t: Trainee; flash: 'up' | 'down' | null;
         {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, k) => <i key={k} className={k < filled ? 'on' : ''} style={{ '--d': k } as CSSProperties} />)}
       </div>
       <small className="adm-small">{traineeNote(t)}</small>
+      {t.note && <small className="ap-rec-note">{t.note}</small>}
     </li>
   )
 }
@@ -93,7 +95,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 /**
  * "AI 수습사원": 레벨 설명, 일 종류별 인사 기록 카드, AI가 먼저 처리한 일(아침 보고)과 [되돌리기].
- * 경고·정지 같은 벌은 레벨 1 고정이라 늘 사람이 정한다
+ * 신고 판정·경고 철회 판단도 레벨 3(11/12 지영). 잘못된 경고는 관리자 경고 철회로 되돌린다
  */
 export function AdminApprentice() {
   const { state, notice } = useApprentice()

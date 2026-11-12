@@ -32,11 +32,12 @@ function seed(now: Date): ApprenticeState {
     { id: 's1', kind: 'noshow', roomId: 3, createdAt: ago(25), title: '노쇼 처리된 예약 #1037: 그 시각 문 앞 키패드가 꺼져 있었어요',
       plan: '노쇼 벌점을 무르고, 방이 먼저 "제 잘못이에요" 사과 카드를 보내요',
       reasons: ['예약 시작 뒤 15분 동안 입실 없음 → 노쇼', '같은 시각 키패드 신호가 6분 끊김', '입실 번호를 넣은 기록이 오기 전에 끊김'] },
-    { id: 's2', kind: 'report', roomId: 2, createdAt: ago(12), title: '어질러짐 신고 #31: 앞 팀 퇴실 사진에 컵이 남아 있어요',
-      plan: '"사실"로 판정하자고 제안해요. 바로 전 대표자에게 경고 1회가 가요',
-      reasons: ['앞 팀(#1038) 퇴실 사진: 책상 위 컵 3개·종이', '신고자 입실 사진도 같은 모습', '두 사진 사이 다른 예약 없음'] },
   ]
   const done: AutoDone[] = [
+    // 신고 판정은 레벨 3(혼자 정함, 11/12): 잘못이면 [되돌리기] = 관리자 경고 철회
+    { id: 's2', kind: 'report', roomId: 2, level: 3, createdAt: ago(12), doneAt: ago(12), undone: false, title: '어질러짐 신고 #31: 앞 팀 퇴실 사진에 컵이 남아 있어요',
+      plan: '"사실"로 판정했어요. 바로 전 대표자에게 경고 1회가 갔어요',
+      reasons: ['앞 팀(#1038) 퇴실 사진: 책상 위 컵 3개·종이', '신고자 입실 사진도 같은 모습', '두 사진 사이 다른 예약 없음'] },
     { id: 's3', kind: 'vent', roomId: 1, level: 2, createdAt: ago(16 * 60), doneAt: ago(16 * 60), undone: false,
       title: '9분 뒤 CO2가 1000ppm을 넘을 것 같아요', plan: '대표자에게 "10분 안에 창문을 잠깐 열어 주세요"를 미리 보냈어요', reasons: ['밤 10시 예약 · 예약 5명'] },
     { id: 's4', kind: 'vent', roomId: 5, level: 2, createdAt: ago(13 * 60), doneAt: ago(13 * 60), undone: false,
@@ -147,7 +148,7 @@ export function decideProposal(id: string, ok: boolean, reason?: string): void {
   let text: string
   if (result === 'up') text = `${next.name} 레벨 ${next.level} · 이제 AI가 먼저 처리하고 아침에 보고해요`
   else if (!ok) text = `"${reason ?? '아니에요'}" 기록 · ${next.name} ${result === 'down' ? `레벨 ${before.level} → ${next.level}` : '연속 기록이 0으로'}`
-  else if (next.locked) text = '처리했어요. 벌이 걸린 일이라 점수와 상관없이 늘 사람이 정해요'
+  else if (next.locked) text = '처리했어요. 늘 사람이 정하는 일이라 점수와 상관없이 레벨 1이에요'
   else if (next.level >= next.maxLevel) text = `처리했어요 · ${next.name} · 가장 높은 단계예요`
   else text = `처리했어요 · ${next.name} 연속 ${next.streak}/10`
   set({
