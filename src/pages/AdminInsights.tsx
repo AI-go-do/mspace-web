@@ -285,15 +285,28 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  * 물품별 확신도·모델 시험 정확도를 그대로 보여 준다. 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
+/**
+ * 퇴실 직후 줄의 사진 자리가 재입장 뒤 사진으로 바뀌었을 때(tidyPair), 판단 상자가 보이는 사진과 어긋나지 않게 맞춘다.
+ * - basis: 첫 판단(확신도)은 퇴실 직후 사진으로 한 것이라고 밝힌다(그 사진은 다시 확인 줄에 있다)
+ * - warn: 가져간 게 확인되면 상자를 주의 색으로 칠하지 않는다
+ */
+export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<TidyCheckRow, 'result' | 'leftItems'> | null, reentered: boolean, warn: boolean): { basis: string | null; warn: boolean } {
+  const swapped = row.phase === 'FIRST' && reentered && recheck !== null
+  if (!swapped) return { basis: null, warn }
+  const taken = recheck.result === 'CLEAN' && recheck.leftItems.length === 0
+  return { basis: '퇴실 직후 사진 기준', warn: warn && !taken }
+}
+
 function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
   const r = tidyReason(row, recheck !== null, reentered)
+  const box = tidyBoxState(row, recheck, reentered, r.warn)
   const top = seenItemsSummary(row.items).top
   const pcts = itemPercents(row.items)
   const steps = tidySteps(row, recheck, r.actions)
   const judge = steps.findIndex((s) => s.text.startsWith('젯슨'))
   const m = score
   return (
-    <div className={`tidy-ai done${r.warn ? ' t-warn' : ''}`}>
+    <div className={`tidy-ai done${box.warn ? ' t-warn' : ''}`}>
       <div className="tidy-ai-head">
         <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
         <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
@@ -312,7 +325,7 @@ function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; 
             {i === judge && (
               <div className="tidy-ai-result">
                 <b className="tidy-ai-verdict">{r.verdict}</b>
-                <span className="tidy-ai-reason">{r.why}</span>
+                <span className="tidy-ai-reason">{r.why}{box.basis && ` · ${box.basis}`}</span>
                 {pcts.length > 0 && (
                   <span className="tidy-ai-pcts" aria-label={`물품별 확신도 ${pcts.map((p) => `${p}%`).join(', ')}`}>
                     {pcts.map((p, k) => <em key={k} className="tidy-ai-sure">{p}%</em>)}

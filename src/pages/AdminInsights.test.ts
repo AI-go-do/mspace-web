@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modelScoreView, tidyPair, tidyReason, tidySteps } from './AdminInsights'
+import { modelScoreView, tidyBoxState, tidyPair, tidyReason, tidySteps } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -116,6 +116,15 @@ describe('재입장 뒤 사진', () => {
     expect(tidyPair({ reservationId: 7, phase: 'RECHECK' }, { reentered: true, rechecked: true })[1].label).toBe('재입장 뒤')
     const r = tidyReason({ phase: 'RECHECK', result: 'CLEAN', leftItems: [], items: [], reportId: null }, false, true)
     expect(r.verdict).toBe('가져갔어요')
+  })
+
+  it('사진이 재입장 뒤로 바뀌면 첫 판단은 퇴실 직후 사진 기준이라고 밝히고, 가져갔으면 주의 색을 끈다', () => {
+    const taken = tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, true, true)
+    expect(taken).toEqual({ basis: '퇴실 직후 사진 기준', warn: false })
+    const still = tidyBoxState({ phase: 'FIRST' }, { result: 'LEFT_ITEMS', leftItems: [] }, true, true)
+    expect(still).toEqual({ basis: '퇴실 직후 사진 기준', warn: true })
+    expect(tidyBoxState({ phase: 'FIRST' }, null, true, true)).toEqual({ basis: null, warn: true })
+    expect(tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, false, true)).toEqual({ basis: null, warn: true })
   })
 
   it('QR 10분이 지났는데 다시 찍은 기록이 없으면 예정이라고 하지 않는다', () => {
