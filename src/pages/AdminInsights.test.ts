@@ -100,3 +100,32 @@ describe('찾으러 들어온 뒤 다시 확인', () => {
     expect(s.at(-1)?.text).toBe('3시간 뒤 다시 확인')
   })
 })
+
+describe('재입장 뒤 사진', () => {
+  it('찾으러 들어와 다시 찍었으면 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다', () => {
+    const [before, after] = tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: true })
+    expect(before.phase).toBe('ENTRY')
+    expect(after).toMatchObject({ phase: 'RECHECK', label: '재입장 뒤' })
+  })
+
+  it('들어왔지만 아직 안 찍었으면 퇴실 뒤 사진 그대로', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: false })[1]).toMatchObject({ phase: 'FIRST', label: '퇴실 뒤' })
+  })
+
+  it('다시 확인 줄도 재입장이면 3시간 뒤라고 하지 않는다', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'RECHECK' }, { reentered: true, rechecked: true })[1].label).toBe('재입장 뒤')
+    const r = tidyReason({ phase: 'RECHECK', result: 'CLEAN', leftItems: [], items: [], reportId: null }, false, true)
+    expect(r.verdict).toBe('가져갔어요')
+  })
+
+  it('QR 10분이 지났는데 다시 찍은 기록이 없으면 예정이라고 하지 않는다', () => {
+    const first = {
+      reservationId: 41, roomId: 1, roomName: '창작실 1', phase: 'FIRST' as const, result: 'LEFT_ITEMS',
+      items: [{ name: 'cup', confidence: 0.57 }], leftItems: [], reportId: null,
+      endedAt: '2026-11-12T13:01:18+09:00', observedAt: '2026-11-12T13:01:21+09:00', retrievedAt: '2026-11-12T13:19:18+09:00',
+    }
+    const s = tidySteps(first, null, tidyReason(first).actions, Date.parse('2026-11-12T15:00:00+09:00'))
+    expect(s.at(-1)).toMatchObject({ text: '다시 확인 기록 없음' })
+    expect(s.at(-1)?.later).toBeFalsy()
+  })
+})

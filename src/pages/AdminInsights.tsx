@@ -133,18 +133,26 @@ interface Shot { reservationId: number; phase: TidyPhotoPhase; label: string }
  * - 퇴실 직후 줄: 입실 직전 빈 방(ENTRY, core #119·Q-27) ↔ 퇴실 직후. AI가 비교한 기준과 같은 순간이다
  * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
  */
-export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>): [Shot, Shot] {
+export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>, re: Reentry = NO_REENTRY): [Shot, Shot] {
+  const again = re.reentered ? '재입장 뒤' : '3시간 뒤'
   if (r.phase === 'RECHECK') {
     return [
       { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후' },
-      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤' },
+      { reservationId: r.reservationId, phase: 'RECHECK', label: again },
     ]
   }
+  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅) 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다. 퇴실 직후 사진은 다시 확인 줄에 그대로 있다
   return [
     { reservationId: r.reservationId, phase: 'ENTRY', label: '입실 전' },
-    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤' },
+    re.reentered && re.rechecked
+      ? { reservationId: r.reservationId, phase: 'RECHECK', label: again }
+      : { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤' },
   ]
 }
+
+/** 찾으러 다시 들어왔나(10분 QR, retrievedAt) · 그 뒤 다시 찍었나(RECHECK 줄 있음) */
+export interface Reentry { reentered: boolean; rechecked: boolean }
+const NO_REENTRY: Reentry = { reentered: false, rechecked: false }
 
 /** 오디가 한 일 하나: doing은 하는 중 글, done은 끝난 글. later면 아직 안 한 일(예정) */
 export interface TidyAction { doing: string; done: string; later?: boolean }
@@ -155,7 +163,7 @@ export interface TidyAction { doing: string; done: string; later?: boolean }
  * 퇴실 직후 LEFT_ITEMS → 대표자·참여자 LEFT_ITEM 알림, 3시간 뒤에도 남음 → 신고 + 대표자 경고). 그래서 결과 줄이 있으면 보낸 것으로 쓴다.
  * 물품 종류는 말하지 않는다(10차 회의 FR-DEV-105 ①: "두고 갔다"만)
  */
-export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
+export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftItems' | 'reportId' | 'items'>, rechecked = false, reentered = false): { verdict: string; why: string; actions: TidyAction[]; warn: boolean } {
   const clean = row.result === 'CLEAN' && row.leftItems.length === 0
   const n = row.items.length
   // 11/10 전 기록(NEEDS_CLEANING): 그때 core는 퇴실 직후 한 번만 보고 바로 신고했고 3시간 뒤 다시 확인이 없었다(core #110)
@@ -164,6 +172,12 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
     if (row.leftItems.length > 0) acts.push({ doing: '학생에게 알림 보내는 중', done: '대표자·참여자에게 알림 보냈어요' })
     if (row.reportId !== null) acts.push({ doing: '신고 만드는 중', done: `신고 #${row.reportId} 만들었어요` })
     return { verdict: '치워야 해요', why: '정리가 안 된 채로 퇴실했어요', warn: true, actions: acts }
+  }
+  if (row.phase === 'RECHECK' && reentered) {
+    // 찾으러 다시 들어온 뒤 다시 찍은 결과. 3시간 규칙과 따로 본다
+    return clean
+      ? { verdict: '가져갔어요', why: '재입장 뒤 퇴실 직후 본 물품이 없어졌어요', warn: false, actions: [] }
+      : { verdict: '아직 남은 물품이 있어요', why: '재입장 뒤에도 퇴실 직후 본 물품이 그대로 있어요', warn: true, actions: [] }
   }
   if (row.phase === 'RECHECK') {
     return clean
@@ -249,8 +263,10 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
         steps.push({ at: recheck.observedAt, text: '젯슨이 다시 찍어 확인', note: `들어온 지 ${gap(row.retrievedAt, recheck.observedAt)} 뒤` })
         steps.push({ at: null, text: recheck.result === 'CLEAN' ? '두고 간 물품 가져갔어요' : '아직 남은 물품이 있어요', got: recheck.result === 'CLEAN' })
       } else {
-        const due = new Date(Date.parse(row.retrievedAt) + RETRIEVE_PASS_MS).toISOString()
-        steps.push({ at: null, text: '10분 뒤 다시 찍어 확인', note: `${clock(due).slice(0, 5)}쯤`, later: true })
+        const due = Date.parse(row.retrievedAt) + RETRIEVE_PASS_MS
+        // 10분이 지났는데 기록이 없으면 예정이라고 하지 않는다(3시간 쪽과 같은 규칙)
+        if (due > now) steps.push({ at: null, text: '10분 뒤 다시 찍어 확인', note: `${clock(new Date(due).toISOString()).slice(0, 5)}쯤`, later: true })
+        else steps.push({ at: null, text: '다시 확인 기록 없음' })
       }
     } else if (a.later) {
       // 3시간 뒤 다시 확인: 이미 했으면 그 시각, 아직 3시간이 안 지났으면 예정(퇴실 + 3시간쯤).
@@ -269,8 +285,8 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  * 물품별 확신도·모델 시험 정확도를 그대로 보여 준다. 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
-function TidyJudgement({ row, recheck, score }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView }) {
-  const r = tidyReason(row, recheck !== null)
+function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
+  const r = tidyReason(row, recheck !== null, reentered)
   const top = seenItemsSummary(row.items).top
   const pcts = itemPercents(row.items)
   const steps = tidySteps(row, recheck, r.actions)
@@ -375,13 +391,17 @@ export function AdminTidyChecks() {
                 const key = rowKey(r)
                 const isOpen = open.has(key)
                 const on = r.result !== 'CLEAN'
-                const pair = isOpen ? tidyPair(r) : null
+                const firstOf = r.phase === 'FIRST' ? r : rows.find((x) => x.reservationId === r.reservationId && x.phase === 'FIRST')
+                const recheckOf = r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null
+                const re: Reentry = { reentered: !!firstOf?.retrievedAt, rechecked: r.phase === 'RECHECK' || recheckOf !== null }
+                const pair = isOpen ? tidyPair(r, re) : null
                 return (
                   <li key={key} className={`pen-row tidy-row ${on ? 'on' : ''}`}>
                     <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
                     <span className="pen-what">
                       <span className="tidy-tags">
-                        <span className="pen-tag">{r.phase === 'RECHECK' ? '3시간 뒤' : '퇴실 직후'}</span>
+                        <span className="pen-tag">{r.phase === 'RECHECK' ? (re.reentered ? '재입장 뒤' : '3시간 뒤') : '퇴실 직후'}</span>
+                        {r.phase === 'FIRST' && re.reentered && <span className="pen-tag reentry">재입장</span>}
                         <span className={`pen-tag ${on ? 'on' : ''}`}>
                           {TIDY_LABEL[r.result] ?? r.result}{r.reportId !== null ? ` · 경고 신고 #${r.reportId}` : ''}
                         </span>
@@ -406,7 +426,7 @@ export function AdminTidyChecks() {
                             <figcaption><b>{shot.label}</b></figcaption>
                           </figure>
                         ))}
-                      </div><TidyJudgement row={r} recheck={r.phase === 'FIRST' ? rows.find((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK') ?? null : null} score={score} /></div>
+                      </div><TidyJudgement row={r} recheck={recheckOf} score={score} reentered={re.reentered} /></div>
                     )}
                   </li>
                 )
