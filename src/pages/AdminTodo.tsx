@@ -156,7 +156,7 @@ function JudgeItem({ j }: { j: Pick<JudgeRow, 'day' | 'time' | 'room' | 'by' | '
 
 function JudgeLog() {
   const { rows, failed, error } = useJudgeRows()
-  const [all, setAll] = useState(false)
+  const [visible, setVisible] = useState(JUDGE_PAGE)
   if (demoOn()) {
     return (
       <ol className="jl">
@@ -173,7 +173,7 @@ function JudgeLog() {
   }
   // 숫자는 자르기 전 전체로 센다
   const n = judgeCounts(rows)
-  const shown = all ? rows : rows.slice(0, JUDGE_PAGE)
+  const shown = rows.slice(0, visible)
   return (
     <>
       <div className="jl-sum" role="group" aria-label={`최근 ${JUDGE_DAYS}일${failed.length ? ' (일부만)' : ''}`}>
@@ -183,10 +183,10 @@ function JudgeLog() {
       </div>
       {failed.length > 0 && <p role="alert" className="adm-msg err">{failed.map((f) => SOURCE_LABEL[f]).join('·')} 기록을 못 불러왔어요. 잠시 뒤 다시 읽어요.</p>}
       {rows.length === 0
-        ? <div className="adm-empty"><b>아직 판정한 일이 없어요</b></div>
+        ? failed.length === 0 && <div className="adm-empty"><b>아직 판정한 일이 없어요</b></div>
         : <ol className="jl">{shown.map((j) => <JudgeItem key={j.key} j={j} />)}</ol>}
       {rows.length > shown.length && (
-        <button type="button" className="adm-link jl-more" onClick={() => setAll(true)}>{rows.length - shown.length}건 더 보기</button>
+        <button type="button" className="adm-link jl-more" onClick={() => setVisible((v) => v + JUDGE_PAGE)}>{Math.min(JUDGE_PAGE, rows.length - shown.length)}건 더 보기</button>
       )}
     </>
   )
