@@ -104,7 +104,6 @@
 .adm .ct-co2 b i, .adm .ct-co2 em, .adm .ct-foot { color: var(--navy-70); }
 .adm .ct-co2 b.none { color: var(--c-faint); }
 .adm .ct-co2 em.why { color: var(--navy); font-weight: 600; }
-.adm .ct-co2 em.why.off span { background: var(--navy); color: var(--white); }
 .adm .ct-go { color: var(--blue); opacity: 1; transform: none; }
 
 /* 작은 그래프: 파랑 한 줄, 기준선만 노랑 */
@@ -182,7 +181,6 @@
 .adm .ctl-tile.tn-off:has(.ct-hit:hover) { box-shadow: inset 0 0 0 1px var(--alert); }
 .adm .ct-tag.s-off { background: none; color: var(--alert); box-shadow: inset 0 0 0 1px var(--alert-line); }
 .adm .ct-co2 em.why.off { color: var(--alert); }
-.adm .ct-co2 em.why.off span { background: none; color: var(--alert); }
 .adm .ctl-tile.tn-off .sp-line { stroke: var(--alert); stroke-dasharray: 3 3; }
 .adm .ctl-tile.st-off .ct-metric button[aria-pressed='true'] { background: var(--white); color: var(--alert); }
 .adm .cf-item.i-off { background: var(--alert-soft); }

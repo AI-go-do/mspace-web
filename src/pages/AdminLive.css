@@ -70,7 +70,6 @@
 @media (prefers-reduced-motion: no-preference) {
   /* 주의 방: 노란 테두리가 두근두근(두 번 뛰고 쉼) */
   .adm .ctl-tile.tn-warn { animation: tile-heart 1.6s ease-in-out infinite !important; }
-  .adm .ct-co2 em.why.warn span { animation: warn-beat 1.6s ease-in-out infinite !important; }
   /* 실시간 점: 값이 올 때마다 퍼지는 고리 */
   .adm .sp-dot { animation: dot-ping 1.4s ease-out infinite !important; }
   .adm .ctl-ov .ov-live .ov-ping { animation: ov-ping 1.6s ease-out infinite !important; transform-origin: center; transform-box: fill-box; }
