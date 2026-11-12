@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   climateMissing, getClimateRooms, getClimateSeries, getDecisions, streamClimate,
-  type ClimateRoom, type Decision, type MetricKey, type Reading, type Series, type SeriesPoint, type SseEvent, type StreamState,
+  type ClimateMetric, type ClimateRoom, type Decision, type MetricKey, type Reading, type Series, type SeriesPoint, type SseEvent, type StreamState,
 } from '../api/climate'
 import { adminErrorMessage } from '../api/admin'
 import './AdminClimate.css'
@@ -34,6 +34,14 @@ export function ago(iso: string | null, now: number): string {
 
 type SeriesMap = Record<number, Partial<Record<MetricKey, Series>>>
 
+/** 새 값이 기준선 밖이면 넘음, 안이면 평소로. 기울기·남은 분은 다음 1분 판단(tick)에서 서버가 다시 준다 */
+function judge(m: ClimateMetric, v: number): ClimateMetric {
+  const { lower, upper } = m.baseline
+  const out = (upper !== null && v > upper) || (lower !== null && v < lower)
+  const status = m.status === 'SENSOR' ? 'SENSOR' : out ? 'OVER' : m.status === 'OVER' || m.status === 'NONE' ? 'OK' : m.status
+  return { ...m, status, etaMinutes: out ? null : m.etaMinutes }
+}
+
 /** 밀려온 값 하나를 방 카드·그래프에 붙인다(같은 분이면 갈아 끼움) */
 export function applyReading(rooms: ClimateRoom[], series: SeriesMap, r: Reading): { rooms: ClimateRoom[]; series: SeriesMap } {
   const vals: [MetricKey, number | null][] = [['CO2', r.co2], ['TEMPERATURE', r.temperatureC], ['HUMIDITY', r.humidityPct]]
@@ -43,7 +51,7 @@ export function applyReading(rooms: ClimateRoom[], series: SeriesMap, r: Reading
     for (const [k, v] of vals) {
       const m = metrics[k]
       if (v === null || !m) continue
-      metrics[k] = { ...m, value: v, at: r.at }
+      metrics[k] = { ...judge(m, v), value: v, at: r.at }
     }
     return { ...room, metrics, envAt: r.at, offline: false }
   })
@@ -62,29 +70,60 @@ export function applyReading(rooms: ClimateRoom[], series: SeriesMap, r: Reading
   return { rooms: nextRooms, series: { ...series, [r.roomId]: per } }
 }
 
+const newer = (a: string | null | undefined, b: string | null | undefined) => !!a && (!b || Date.parse(a) > Date.parse(b))
+
+/** 다시 읽은 방 목록을 지금 화면과 합친다: 밀려온 값이 다시 읽은 값보다 새것이면 밀려온 값을 둔다 */
+export function mergeRooms(prev: ClimateRoom[] | null, next: ClimateRoom[]): ClimateRoom[] {
+  if (!prev) return next
+  return next.map((n) => {
+    const p = prev.find((x) => x.roomId === n.roomId)
+    if (!p) return n
+    const metrics = { ...n.metrics }
+    for (const k of Object.keys(metrics) as MetricKey[]) {
+      const pm = p.metrics[k]
+      const nm = metrics[k]
+      if (pm && nm && newer(pm.at, nm.at)) metrics[k] = { ...nm, value: pm.value, at: pm.at }
+    }
+    return { ...n, metrics, envAt: newer(p.envAt, n.envAt) ? p.envAt : n.envAt }
+  })
+}
+
+/** 다시 읽은 그래프에, 그 끝보다 뒤에 밀려온 점을 이어 붙인다 */
+export function mergeSeries(prev: SeriesMap, next: SeriesMap): SeriesMap {
+  const out: SeriesMap = { ...next }
+  for (const id of Object.keys(next).map(Number)) {
+    const per = { ...next[id] }
+    for (const k of Object.keys(per) as MetricKey[]) {
+      const s = per[k]
+      const old = prev[id]?.[k]
+      if (!s || !old) continue
+      const end = s.points.length ? Date.parse(s.points[s.points.length - 1].at) : -Infinity
+      const tail = old.points.filter((p) => Date.parse(p.at) > end && Math.floor(Date.parse(p.at) / 60_000) > Math.floor(end / 60_000))
+      if (tail.length) per[k] = { ...s, points: [...s.points, ...tail] }
+    }
+    out[id] = per
+  }
+  return out
+}
+
 /** 판단 카드를 id로 갈아 끼우고, 열린 것 먼저·새것 먼저 */
 export function upsertDecision(list: Decision[], d: Decision): Decision[] {
   const rest = list.filter((x) => x.id !== d.id)
   return [d, ...rest].sort((a, b) => Number(b.open) - Number(a.open) || Date.parse(b.openedAt) - Date.parse(a.openedAt)).slice(0, 30)
 }
 
+type Live = { rooms: ClimateRoom[] | null; series: SeriesMap }
+
 /** climate 실시간 값·판단 카드. enabled=false(시연 값)면 아무것도 읽지 않는다 */
 export function useClimateLive(enabled: boolean) {
-  const [rooms, setRooms] = useState<ClimateRoom[] | null>(null)
-  const [series, setSeries] = useState<SeriesMap>({})
+  // 방과 그래프는 한 상태로 같이 바꾼다(값이 잇달아 와도 그래프 점이 빠지지 않게)
+  const [live, setLive] = useState<Live>({ rooms: null, series: {} })
   const [decisions, setDecisions] = useState<Decision[]>([])
   const [state, setState] = useState<StreamState>('connecting')
   const [missing, setMissing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [flash, setFlash] = useState<Record<number, number>>({})
   const [lastAt, setLastAt] = useState<string | null>(null)
-  const seriesRef = useRef(series)
-  seriesRef.current = series
-
-  const loadSeries = useCallback(async (ids: number[], signal: AbortSignal) => {
-    const all = await Promise.all(ids.map((id) => getClimateSeries(id, MINUTES, signal).then((m) => [id, m] as const).catch(() => [id, seriesRef.current[id] ?? {}] as const)))
-    if (!signal.aborted) setSeries(Object.fromEntries(all))
-  }, [])
 
   useEffect(() => {
     if (!enabled) return
@@ -92,22 +131,25 @@ export function useClimateLive(enabled: boolean) {
     const { signal } = ctrl
     const reload = async (withSeries: boolean) => {
       const r = await getClimateRooms(signal)
-      setRooms(r)
+      let fresh: SeriesMap | null = null
+      if (withSeries) {
+        const all = await Promise.all(r.map((x) => getClimateSeries(x.roomId, MINUTES, signal).then((m) => [x.roomId, m] as const).catch(() => null)))
+        fresh = Object.fromEntries(all.filter((x): x is NonNullable<typeof x> => x !== null))
+      }
+      if (signal.aborted) return
+      setLive((prev) => ({
+        rooms: mergeRooms(prev.rooms, r),
+        series: fresh ? { ...prev.series, ...mergeSeries(prev.series, fresh) } : prev.series,
+      }))
       setError(null)
       const latest = r.map((x) => x.envAt).filter((x): x is string => !!x).sort().pop() ?? null
       setLastAt((p) => (p && latest && p > latest ? p : latest))
-      if (withSeries) await loadSeries(r.map((x) => x.roomId), signal)
     }
     const onEvent = (e: SseEvent) => {
       try {
         if (e.event === 'reading') {
           const r = JSON.parse(e.data) as Reading
-          setRooms((prev) => {
-            if (!prev) return prev
-            const out = applyReading(prev, seriesRef.current, r)
-            setSeries(out.series)
-            return out.rooms
-          })
+          setLive((prev) => (prev.rooms ? applyReading(prev.rooms, prev.series, r) : prev))
           setFlash((f) => ({ ...f, [r.roomId]: Date.now() }))
           setLastAt(r.at)
         } else if (e.event === 'decision') {
@@ -120,21 +162,26 @@ export function useClimateLive(enabled: boolean) {
       } catch { /* 모양이 다른 한 줄은 버린다 */ }
     }
     ;(async () => {
-      try {
-        await reload(true)
-        const d = await getDecisions(12, signal)
-        setDecisions(d.reduce(upsertDecision, [] as Decision[]))
-        void streamClimate(onEvent, setState, signal)
-      } catch (e) {
-        if (signal.aborted) return
-        if (climateMissing(e)) setMissing(true)
-        else setError(adminErrorMessage(e))
+      // 처음 읽기가 잠깐 실패하면 오류를 보여 둔 채 2초 → 4초 → … 최대 30초 뒤 다시
+      for (let wait = 2000; !signal.aborted; wait = Math.min(30_000, wait * 2)) {
+        try {
+          await reload(true)
+          const d = await getDecisions(12, signal)
+          setDecisions(d.reduce(upsertDecision, [] as Decision[]))
+          void streamClimate(onEvent, setState, signal)
+          return
+        } catch (e) {
+          if (signal.aborted) return
+          if (climateMissing(e)) { setMissing(true); return }
+          setError(adminErrorMessage(e))
+        }
+        await new Promise((r) => setTimeout(r, wait))
       }
     })()
     return () => ctrl.abort()
-  }, [loadSeries, enabled])
+  }, [enabled])
 
-  return { rooms, series, decisions, state, missing, error, flash, lastAt }
+  return { rooms: live.rooms, series: live.series, decisions, state, missing, error, flash, lastAt }
 }
 
 const STATUS_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 's-done', RUNNING: 's-now', SKIPPED: 's-next', FAILED: 's-fail' }

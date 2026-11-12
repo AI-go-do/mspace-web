@@ -18,4 +18,11 @@ describe('parseSse', () => {
   it('\\r\\n 줄바꿈도 읽는다', () => {
     expect(parseSse('event:tick\r\ndata:{}\r\n\r\n').events).toEqual([{ event: 'tick', data: '{}' }])
   })
+
+  it('\\r\\n이 두 조각으로 끊겨도 한 이벤트로 읽는다', () => {
+    const first = parseSse('event: reading\r')
+    expect(first.events).toEqual([])
+    const second = parseSse(first.rest + '\ndata: {"roomId":3}\r\n\r\n')
+    expect(second.events).toEqual([{ event: 'reading', data: '{"roomId":3}' }])
+  })
 })

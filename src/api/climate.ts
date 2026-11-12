@@ -117,9 +117,11 @@ export interface SseEvent { event: string; data: string }
  */
 export function parseSse(buffer: string): { events: SseEvent[]; rest: string } {
   const events: SseEvent[] = []
-  const norm = buffer.replace(/\r\n?/g, '\n')
+  // 조각이 \r에서 끊기면 다음 조각의 \n과 한 줄바꿈일 수 있어 남겨 둔다
+  const hold = buffer.endsWith('\r') ? '\r' : ''
+  const norm = (hold ? buffer.slice(0, -1) : buffer).replace(/\r\n?/g, '\n')
   const blocks = norm.split('\n\n')
-  const rest = blocks.pop() ?? ''
+  const rest = (blocks.pop() ?? '') + hold
   for (const block of blocks) {
     let event = 'message'
     const data: string[] = []
@@ -142,8 +144,12 @@ export type StreamState = 'connecting' | 'live' | 'retrying'
  * 실시간 연결을 열어 두고, 끊기면 다시 붙는다(1초 → 2초 → … 최대 15초). signal을 끊으면 멈춘다.
  * 토큰이 끝났으면 refresh로 새로 받아 다시 붙는다
  */
+/** climate는 20초마다 ping을 보낸다. 이만큼 아무것도 안 오면 끊긴 것으로 보고 다시 붙는다 */
+const IDLE_MS = 60_000
+
 export async function streamClimate(onEvent: (e: SseEvent) => void, onState: (s: StreamState) => void, signal: AbortSignal): Promise<void> {
   let wait = 1000
+  let refreshed = false
   while (!signal.aborted) {
     onState('connecting')
     try {
@@ -155,18 +161,24 @@ export async function streamClimate(onEvent: (e: SseEvent) => void, onState: (s:
         cache: 'no-store',
         signal,
       })
-      if (res.status === 401) { await refreshTokens(); continue }
+      // 새 토큰으로 한 번만 바로 다시 붙고, 그래도 401이면 기다렸다가 다시
+      if (res.status === 401 && !refreshed) { refreshed = true; await refreshTokens(); continue }
       if (!res.ok || !res.body) throw new Error(`stream ${res.status}`)
+      refreshed = false
       onState('live')
       wait = 1000
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
-      let buf = ''
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        const { events, rest } = parseSse(buf + value)
-        buf = rest
-        events.forEach(onEvent)
+      try {
+        let buf = ''
+        for (;;) {
+          const { value, done } = await readWithin(reader, IDLE_MS)
+          if (done) break
+          const { events, rest } = parseSse(buf + value)
+          buf = rest
+          events.forEach(onEvent)
+        }
+      } finally {
+        reader.cancel().catch(() => undefined)
       }
     } catch {
       if (signal.aborted) return
@@ -176,4 +188,11 @@ export async function streamClimate(onEvent: (e: SseEvent) => void, onState: (s:
     await new Promise((r) => setTimeout(r, wait))
     wait = Math.min(15_000, wait * 2)
   }
+}
+
+function readWithin<T>(reader: ReadableStreamDefaultReader<T>, ms: number): Promise<ReadableStreamReadResult<T>> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('stream idle')), ms)
+    reader.read().then((r) => { clearTimeout(t); resolve(r) }, (e: unknown) => { clearTimeout(t); reject(e) })
+  })
 }

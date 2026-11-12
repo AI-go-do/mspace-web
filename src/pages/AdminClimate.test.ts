@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ago, applyReading, upsertDecision } from './AdminClimate'
+import { ago, applyReading, mergeRooms, mergeSeries, upsertDecision } from './AdminClimate'
 import type { ClimateRoom, Decision, Series } from '../api/climate'
 
 const base = { mean: 600, std: 40, lower: 500, upper: 700, samples: 60, learning: false, scope: 'HOUR' }
@@ -24,6 +24,28 @@ describe('applyReading', () => {
     const out = applyReading([room(1)], { 1: { CO2: series('2026-11-12T16:00:05+09:00') } },
       { roomId: 1, at: '2026-11-12T16:00:40+09:00', co2: 640, temperatureC: null, humidityPct: null, source: 'REAL' })
     expect(out.series[1].CO2?.points.map((p) => p.value)).toEqual([640])
+  })
+
+  it('기준선을 넘는 값이 오면 넘음으로 바꾼다', () => {
+    const out = applyReading([room(1)], {}, { roomId: 1, at: '2026-11-12T16:01:00+09:00', co2: 720, temperatureC: null, humidityPct: null, source: 'REAL' })
+    expect(out.rooms[0].metrics.CO2?.status).toBe('OVER')
+  })
+})
+
+describe('다시 읽은 값과 합치기', () => {
+  it('밀려온 값이 다시 읽은 값보다 새것이면 밀려온 값을 둔다', () => {
+    const now = { ...room(1), metrics: { CO2: metric(812, '2026-11-12T16:02:00+09:00') } }
+    const old = { ...room(1), metrics: { CO2: metric(650, '2026-11-12T16:01:00+09:00') } }
+    expect(mergeRooms([now], [old])[0].metrics.CO2?.value).toBe(812)
+    expect(mergeRooms([old], [now])[0].metrics.CO2?.value).toBe(812)
+  })
+
+  it('다시 읽은 그래프 끝보다 뒤에 밀려온 점은 남긴다', () => {
+    const prev = { 1: { CO2: { ...series('2026-11-12T16:00:00+09:00'), points: [
+      { at: '2026-11-12T16:00:00+09:00', value: 600, lower: 500, upper: 700 },
+      { at: '2026-11-12T16:02:00+09:00', value: 640, lower: 500, upper: 700 }] } } }
+    const out = mergeSeries(prev, { 1: { CO2: series('2026-11-12T16:01:00+09:00') } })
+    expect(out[1].CO2?.points.map((p) => p.value)).toEqual([600, 640])
   })
 })
 
