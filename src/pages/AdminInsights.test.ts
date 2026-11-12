@@ -73,3 +73,30 @@ describe('모델 시험 정확도 글', () => {
     expect(modelScoreView(null)).toMatchObject({ model: 'YOLOv8s', pct: '76.6%', cases: 47, when: '11/11 기록', live: false })
   })
 })
+
+describe('찾으러 들어온 뒤 다시 확인', () => {
+  const first = {
+    reservationId: 41, roomId: 1, roomName: '창작실 1', phase: 'FIRST' as const, result: 'LEFT_ITEMS',
+    items: [{ name: 'cup', confidence: 0.57 }], leftItems: [], reportId: null,
+    endedAt: '2026-11-12T13:01:18+09:00', observedAt: '2026-11-12T13:01:21+09:00', retrievedAt: '2026-11-12T13:19:18+09:00',
+  }
+
+  it('QR로 들어오고 아직 다시 안 찍었으면 10분 뒤 예정을 보여 준다', () => {
+    const s = tidySteps(first, null, tidyReason(first).actions, Date.parse('2026-11-12T13:20:00+09:00'))
+    expect(s.map((x) => x.text)).toContain('찾으러 들어왔어요')
+    expect(s.at(-1)).toMatchObject({ text: '10분 뒤 다시 찍어 확인', note: '13:29쯤', later: true })
+  })
+
+  it('다시 찍어 비었으면 가져갔다고 끝낸다', () => {
+    const recheck = { ...first, phase: 'RECHECK' as const, result: 'CLEAN', items: [], observedAt: '2026-11-12T13:29:28+09:00' }
+    const s = tidySteps(first, recheck, tidyReason(first, true).actions)
+    expect(s.at(-2)).toMatchObject({ text: '젯슨이 다시 찍어 확인', note: '들어온 지 10분 뒤' })
+    expect(s.at(-1)).toMatchObject({ text: '두고 간 물품 가져갔어요', got: true })
+  })
+
+  it('QR로 안 들어왔으면 지금처럼 3시간 뒤 다시 확인', () => {
+    const plain = { ...first, retrievedAt: null }
+    const s = tidySteps(plain, null, tidyReason(plain).actions, Date.parse('2026-11-12T13:20:00+09:00'))
+    expect(s.at(-1)?.text).toBe('3시간 뒤 다시 확인')
+  })
+})

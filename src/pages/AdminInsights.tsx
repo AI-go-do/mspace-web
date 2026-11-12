@@ -226,8 +226,11 @@ export function modelScoreView(live: ModelScore | null): ModelScoreView {
   }
 }
 
+/** 찾으러 들어가는 QR이 살아 있는 시간(core mspace.tidy.retrieve-pass-minutes 기본 10분). 이게 끝나면 다시 찍는다 */
+const RETRIEVE_PASS_MS = 10 * 60_000
+
 /** 판단 상자 한 줄: 언제 · 무엇. at이 없으면 시각을 모르는 일(지어내지 않는다) */
-interface TidyStep { at: string | null; text: string; note?: string; later?: boolean }
+interface TidyStep { at: string | null; text: string; note?: string; later?: boolean; got?: boolean }
 
 /** 기록에 있는 시각만으로 판단 상자 줄을 만든다 (정해 둔 시간으로 움직이지 않는다) */
 export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actions: TidyAction[], now: number = Date.now()): TidyStep[] {
@@ -239,7 +242,17 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
     note: row.endedAt ? `퇴실 ${gap(row.endedAt, row.observedAt)} 뒤` : undefined,
   })
   for (const a of actions) {
-    if (a.later) {
+    if (a.later && row.retrievedAt) {
+      // 찾으러 들어왔다(10분 QR): 3시간을 기다리지 않고, QR 10분이 끝나면 젯슨이 다시 찍어 가져갔는지 본다(11/12 재웅)
+      steps.push({ at: row.retrievedAt, text: '찾으러 들어왔어요', note: 'QR' })
+      if (recheck) {
+        steps.push({ at: recheck.observedAt, text: '젯슨이 다시 찍어 확인', note: `들어온 지 ${gap(row.retrievedAt, recheck.observedAt)} 뒤` })
+        steps.push({ at: null, text: recheck.result === 'CLEAN' ? '두고 간 물품 가져갔어요' : '아직 남은 물품이 있어요', got: recheck.result === 'CLEAN' })
+      } else {
+        const due = new Date(Date.parse(row.retrievedAt) + RETRIEVE_PASS_MS).toISOString()
+        steps.push({ at: null, text: '10분 뒤 다시 찍어 확인', note: `${clock(due).slice(0, 5)}쯤`, later: true })
+      }
+    } else if (a.later) {
       // 3시간 뒤 다시 확인: 이미 했으면 그 시각, 아직 3시간이 안 지났으면 예정(퇴실 + 3시간쯤).
       // 3시간이 지났는데 기록이 없으면(다음 팀이 들어와 core가 건너뜀 등) 예정이라고 하지 않는다
       const due = row.endedAt ? Date.parse(row.endedAt) + 3 * 3600_000 : null
@@ -272,7 +285,7 @@ function TidyJudgement({ row, recheck, score }: { row: TidyCheckRow; recheck: Ti
       </div>
       <ol className="tidy-ai-acts tidy-ai-timeline">
         {steps.map((s, i) => (
-          <li key={i} className={s.later ? 'later' : 'ok'}>
+          <li key={i} className={`${s.later ? 'later' : 'ok'}${s.got ? ' got' : ''}`}>
             <span className="mark" aria-hidden="true" />
             <span className="txt">
               {s.at && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}

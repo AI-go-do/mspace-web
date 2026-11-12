@@ -475,6 +475,8 @@
 .tidy-ai-acts .ok .mark::before { content: '✓'; }
 .tidy-ai-acts .later .mark { border: 2px dashed var(--ai-c); }
 .tidy-ai-acts .later { color: var(--navy-70, #6b7487); }
+.tidy-ai-acts .got .txt { color: var(--ok, #16865a); }
+.tidy-ai-acts .got .mark { background: var(--ok, #16865a); }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 @keyframes ai-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
 @keyframes ai-border { to { background-position: 0 0, 300% 0; } }
