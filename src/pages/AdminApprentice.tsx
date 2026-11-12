@@ -3,7 +3,7 @@ import { adminErrorMessage, getPenalties, getReports } from '../api/admin'
 import { currentMemberId } from '../api/client'
 import { CATEGORIES, VERDICT_LABEL } from '../api/reports'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { AI_SCORES, aiRecords, rateOf, recordTotals, type AiRecord, type AiScore } from '../lib/apprentice'
+import { aiRecords, initialTrainees, rateOf, recordTotals, STREAK_TO_LEVEL_UP, traineeNote, type AiRecord, type Trainee } from '../lib/apprentice'
 import { POLL_MS } from '../lib/poll'
 import { onReportsChanged } from '../lib/reportsBus'
 import { seoulClock, seoulDate } from '../lib/time'
@@ -23,20 +23,32 @@ function when(iso: string) {
 /** 경고를 철회할 수 있는 기간(경고 목록 API 범위) */
 const DAYS = 30
 
-/** 일 하나의 성적 카드: 실제로 잰 정확도 */
-function ScoreCard({ s, i }: { s: AiScore; i: number }) {
-  const rate = rateOf(s)
+const LEVELS = [
+  { level: 1, title: '제안만 해요', text: '사람이 [맞아요]를 눌러야 실행' },
+  { level: 2, title: '먼저 하고 보고해요', text: '실행한 뒤 아침 보고에 남기고 언제든 되돌리기' },
+  { level: 3, title: '혼자 해요', text: '기록은 남고 되돌릴 수 있어요' },
+]
+const TRAINEES = initialTrainees()
+
+/** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워진다 */
+function TraineeCard({ t, i }: { t: Trainee; i: number }) {
+  const filled = t.level >= t.maxLevel ? STREAK_TO_LEVEL_UP : t.streak
+  const rate = rateOf(t)
   return (
     <li className="card ap-rec" style={{ '--k': i } as CSSProperties}>
       <div className="ap-rec-top">
-        <span className="ap-lv-big l3" aria-hidden="true">✦</span>
+        <span className={`ap-lv-big l${t.level}`} aria-hidden="true">{t.level}</span>
         <div className="ap-rec-name">
-          <b>{s.name}</b>
-          <span className="adm-small">AI가 혼자 처리해요</span>
+          <b>{t.name}</b>
+          <span className="adm-small">레벨 {t.level} · 최고 {t.maxLevel}</span>
         </div>
-        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {s.right}/{s.total}</small></span>
+        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {t.right}/{t.total}</small></span>
       </div>
-      <small className="ap-rec-note">{s.note}</small>
+      <div className="ap-dots" role="img" aria-label={`연속 ${filled}/${STREAK_TO_LEVEL_UP}`}>
+        {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, k) => <i key={k} className={k < filled ? 'on' : ''} style={{ '--d': k } as CSSProperties} />)}
+      </div>
+      <small className="adm-small">{traineeNote(t)}</small>
+      {t.note && <small className="ap-rec-note">{t.note}</small>}
     </li>
   )
 }
@@ -70,7 +82,7 @@ function RecordRow({ r, i, onChanged }: { r: AiRecord; i: number; onChanged: () 
 
 /**
  * "AI 수습사원" (11/12 지영: 무인 운영). AI가 처리하고 관리자는 결과만 본다.
- * 위: 실제로 잰 정확도. 아래: core에 쌓인 신고 판정 기록(최근 30일)과 그 판정으로 간 경고. 관리자가 할 수 있는 건 경고 철회뿐
+ * 위: 레벨 단계와 인사 기록 카드(11/12 지영 "그대로 두기"). 옆: core에 쌓인 신고 판정 기록(최근 30일)과 그 판정으로 간 경고. 관리자가 할 수 있는 건 경고 철회뿐
  */
 export function AdminApprentice() {
   const [records, setRecords] = useState<AiRecord[] | null>(null)
@@ -106,13 +118,21 @@ export function AdminApprentice() {
   const totals = records ? recordTotals(records) : null
   return (
     <section className="ap-wrap" aria-label="AI 수습사원">
+      <ol className="ap-steps">
+        {LEVELS.map((l, i) => (
+          <li key={l.level} className={`ap-step l${l.level}`} style={{ '--k': i } as CSSProperties}>
+            <span className="ap-step-no">{l.level}</span>
+            <div><b>{l.title}</b><span>{l.text}</span></div>
+          </li>
+        ))}
+      </ol>
       <div className="ap-two">
         <section className="ap-sec" aria-labelledby="ap-rec-h">
           <div className="adm-sec-h">
-            <h2 id="ap-rec-h">AI 성적표</h2>
-            <p>처음 보는 사례로 잰 정확도예요. 이 점수로 사람 결재 없이 AI가 혼자 처리해요.</p>
+            <h2 id="ap-rec-h">인사 기록 카드</h2>
+            <p>{STREAK_TO_LEVEL_UP}번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려가요.</p>
           </div>
-          <ul className="ap-recs">{AI_SCORES.map((s, i) => <ScoreCard key={s.kind} s={s} i={i} />)}</ul>
+          <ul className="ap-recs">{TRAINEES.map((t, i) => <TraineeCard key={t.kind} t={t} i={i} />)}</ul>
         </section>
         <section className="ap-sec" aria-labelledby="ap-log-h">
           <div className="adm-sec-h">

@@ -1,10 +1,35 @@
 /*
- * AI 수습사원: AI 성적표(실제로 잰 정확도) + AI가 처리한 일(보기만, 경고 철회만).
+ * AI 수습사원: 레벨 단계·인사 기록 카드 + AI가 처리한 일(보기만, 경고 철회만).
  * 색은 tokens.css 4+2색만
  */
 .ap-tag { padding: 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 800; background: var(--gray); color: var(--navy); white-space: nowrap; }
 /* ---------- 수습사원 칸 ---------- */
 .ap-wrap { display: flex; flex-direction: column; gap: 18px; }
+/* 레벨 1 → 2 → 3 계단. 칸 사이 선이 왼쪽부터 차오른다 */
+.ap-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; position: relative; }
+.ap-step {
+  position: relative; padding: 16px 18px; border-radius: 22px; background: var(--white); box-shadow: var(--shadow-1);
+  display: flex; gap: 12px; align-items: flex-start; font-size: 13px;
+  animation: rise-in 0.42s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 90ms);
+}
+.ap-step b { display: block; font-size: 15px; }
+.ap-step span:not(.ap-step-no) { display: block; margin-top: 2px; color: var(--navy-70); line-height: 1.5; }
+.ap-step-no {
+  flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 17px; font-weight: 900;
+  animation: pop 0.5s var(--ease-spring) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.2s);
+}
+.ap-step.l1 .ap-step-no { background: var(--gray); color: var(--navy); }
+.ap-step.l2 .ap-step-no { background: color-mix(in srgb, var(--sky) 40%, var(--white)); color: var(--blue); }
+.ap-step.l3 .ap-step-no { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
+.ap-step:not(:last-child)::after {
+  content: ''; position: absolute; right: -12px; top: 50%; width: 12px; height: 3px; background: var(--blue); border-radius: 2px;
+  transform-origin: left; animation: grow-x 0.4s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.4s);
+}
+@media (max-width: 640px) {
+  .ap-steps { grid-template-columns: 1fr; gap: 8px; }
+  .ap-step:not(:last-child)::after { right: auto; left: 35px; top: auto; bottom: -8px; width: 3px; height: 8px; transform-origin: top; animation-name: grow-y; }
+}
+
 .ap-two { display: grid; gap: 20px; align-items: start; }
 @media (min-width: 1100px) { .ap-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .ap-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -20,12 +45,20 @@
   flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; font-weight: 900;
   transition: background-color 0.4s, color 0.4s;
 }
+.ap-lv-big.l1 { background: var(--gray); color: var(--navy); }
+.ap-lv-big.l2 { background: color-mix(in srgb, var(--sky) 40%, var(--white)); color: var(--blue); }
 .ap-lv-big.l3 { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
 .ap-rec-note { font-size: 12px; line-height: 1.45; color: var(--navy-70); }
 .ap-rec-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ap-rec-name b { font-size: 15px; }
 .ap-rate { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .ap-rate small { font-size: 11px; font-weight: 700; color: var(--navy-70); letter-spacing: 0; }
+.ap-dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.ap-dots i { height: 8px; border-radius: 4px; background: var(--gray); }
+.ap-dots i.on {
+  background: linear-gradient(90deg, var(--blue-lift), var(--blue)); transform-origin: left;
+  animation: grow-x 0.3s var(--ease-out) backwards; animation-delay: calc(var(--d, 0) * 50ms + 0.4s);
+}
 /* AI가 처리한 일 */
 .ap-stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .ap-stat { padding: 12px 14px; border-radius: 18px; background: var(--white); box-shadow: var(--shadow-1); animation: rise-in 0.4s var(--ease-out) backwards; }

@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import type { AdminReport, Warning } from '../api/admin'
-import { AI_SCORES, aiRecords, rateOf, recordTotals } from './apprentice'
+import { aiRecords, initialTrainees, rateOf, recordTotals, traineeNote } from './apprentice'
 
 const report = (id: number, verdict: AdminReport['verdict'], judgedAt: string | null, createdAt = '2026-11-12T09:00:00+09:00'): AdminReport =>
   ({ id, roomId: 1, category: 'MESSY', content: null, verdict, reporterReservationId: 10, createdAt, judgedAt })
 const warning = (id: number, reportId: number, withdrawnAt: string | null = null): Warning =>
   ({ id, member: { id: 1, studentId: '20260000', name: '홍길동' }, reason: 'VIOLATION', reportId, reservationId: 9, createdAt: '2026-11-12T10:00:00+09:00', withdrawnAt })
 
-describe('AI 성적표', () => {
-  it('측정한 정확도를 소수 한 자리로', () => {
-    expect(AI_SCORES.map(rateOf)).toEqual([98.9, 98.2])
+describe('인사 기록 카드', () => {
+  it('신고 판정·경고 철회 판단은 측정한 정확도, 소수 한 자리로', () => {
+    const t = initialTrainees()
+    expect(['report', 'withdraw'].map((k) => rateOf(t.find((x) => x.kind === k)!))).toEqual([98.9, 98.2])
+  })
+  it('카드 아래 한 줄', () => {
+    const t = initialTrainees()
+    expect(traineeNote(t.find((x) => x.kind === 'report')!)).toBe('가장 높은 단계')
+    expect(traineeNote(t.find((x) => x.kind === 'noshow')!)).toBe('연속 맞음 3/10 · 레벨 2까지 7번')
   })
   it('잰 게 없으면 null', () => {
     expect(rateOf({ right: 0, total: 0 })).toBeNull()
