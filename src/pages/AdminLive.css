@@ -1,0 +1,77 @@
+/*
+ * 관리자 "지금" 실시간 느낌(재웅 11/12 17:14 "노란색도 두근두근, 그래프가 진짜 실시간 차트 같은 느낌").
+ * 관리자 화면은 움직임을 끄지만(AdminPlain.css) 여기 것만 켠다. 움직임 줄이기를 켠 사람은 그대로 끈다.
+ * 방 색 5개는 큰 그래프·방 단추·툴팁이 같이 쓴다(어느 선이 몇 번 방인지 한눈에)
+ */
+.adm { --r1: #2f6fed; --r2: #0f9d8f; --r3: #7b5cf0; --r4: #e07b39; --r5: #d6457a; }
+
+/* ---------- 자리: 큰 그래프는 폭 전체, 오른쪽 칸은 평면도 높이에 맞춰 안에서 스크롤 ---------- */
+@media (min-width: 1100px) {
+  .adm .ctl-side { grid-row: 1; position: static; height: 0; min-height: 100%; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; }
+  .adm .ctl-ov { grid-column: 1 / -1; }
+}
+.adm .ctl-ov { padding: 20px 22px 16px; }
+
+/* ---------- 큰 그래프 ---------- */
+.adm .ov-livepill { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 2px 8px 2px 7px; border-radius: 999px; background: color-mix(in srgb, #e5484d 12%, transparent); color: #d13438; font-size: 11px; font-weight: 900; letter-spacing: 0.06em; vertical-align: 3px; }
+.adm .ov-livepill i { width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
+.adm .ctl-ov .ov-line .ov-path { stroke-width: 2; opacity: 0.9; stroke-dasharray: none; }
+.adm .ctl-ov .ov-line .ov-pred { stroke-width: 1.8; stroke-dasharray: 5 5; opacity: 0.6; }
+.adm .ctl-ov .ov-line.hot .ov-path { stroke-width: 2.8; opacity: 1; }
+.adm .ctl-ov .ov-line.off .ov-path { stroke: var(--navy-70) !important; stroke-dasharray: 3 4; opacity: 0.6; }
+.adm .ctl-ov .ov-line.dim .ov-path, .adm .ctl-ov .ov-line.dim .ov-pred { opacity: 0.12; }
+.adm .ctl-ov .ov-line.focus .ov-path { stroke-width: 3.2; opacity: 1; }
+.adm .ov-now { stroke: var(--navy); stroke-opacity: 0.35; stroke-dasharray: 3 3; }
+.adm .ov-now-t { fill: var(--navy); font-weight: 800; }
+.adm .ov-ahead { fill: color-mix(in srgb, var(--navy) 3.5%, transparent); }
+.adm .ov-grid { stroke: var(--c-line); stroke-opacity: 0.7; }
+.adm .ctl-ov .ov-live .ov-dot { stroke: var(--white); stroke-width: 1.5; }
+.adm .ctl-ov .ov-live .ov-ping { fill: none; stroke-width: 2; opacity: 0; }
+.adm .ctl-ov .ov-live.dim { opacity: 0.15; }
+.adm .ctl-ov .ov-end circle { stroke: var(--white); stroke-width: 2; }
+.adm .ctl-ov .ov-end text { fill: var(--white); }
+.adm .ctl-ov .ov-end.hot circle { stroke: var(--yellow); stroke-width: 3; }
+.adm .ctl-ov .ov-end.off circle { fill: var(--navy-70) !important; }
+.adm .ctl-ov .ov-rooms button { gap: 6px; }
+.adm .ctl-ov .ov-rooms button i { color: var(--white); box-shadow: none; }
+.adm .ctl-ov .ov-rooms button.hot i { box-shadow: 0 0 0 2px var(--yellow); }
+.adm .ov-room-v { margin-left: 2px; font-size: 12.5px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; min-width: 4.5ch; text-align: right; }
+.adm .ctl-ov .ov-tip i { color: var(--white); }
+
+/* 방 색 */
+.adm .r1 { --rc: var(--r1); } .adm .r2 { --rc: var(--r2); } .adm .r3 { --rc: var(--r3); } .adm .r4 { --rc: var(--r4); } .adm .r5 { --rc: var(--r5); }
+.adm .ctl-ov .ov-line .ov-path, .adm .ctl-ov .ov-line .ov-pred { stroke: var(--rc); }
+.adm .ctl-ov .ov-stop { stop-color: var(--rc); }
+.adm .ctl-ov .ov-live .ov-dot { fill: var(--rc); }
+.adm .ctl-ov .ov-live .ov-ping { stroke: var(--rc); }
+.adm .ctl-ov .ov-end circle, .adm .ctl-ov .ov-end.hot circle { fill: var(--rc); }
+.adm .ctl-ov .ov-rooms button i, .adm .ctl-ov .ov-tip i { background: var(--rc); }
+
+/* ---------- 방 칸 ---------- */
+.adm .ctl-spark-box { position: relative; display: block; width: 100%; min-width: 0; }
+.adm .sp-dot { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px var(--white); }
+.adm .ctl-tile.tn-warn .sp-dot { background: #c98a00; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* 주의 방: 노란 테두리가 두근두근(두 번 뛰고 쉼) */
+  .adm .ctl-tile.tn-warn { animation: tile-heart 1.6s ease-in-out infinite !important; }
+  .adm .ct-co2 em.why.warn span { animation: warn-beat 1.6s ease-in-out infinite !important; }
+  /* 실시간 점: 값이 올 때마다 퍼지는 고리 */
+  .adm .sp-dot { animation: dot-ping 1.4s ease-out infinite !important; }
+  .adm .ctl-ov .ov-live .ov-ping { animation: ov-ping 1.6s ease-out infinite !important; transform-origin: center; transform-box: fill-box; }
+  .adm .ctl-ov .ov-live.hot .ov-ping { animation-duration: 1s !important; }
+  .adm .ov-livepill i { animation: live-blink 1s steps(2, jump-none) infinite !important; }
+  /* 선 끝이 1초마다 옆으로 흐를 때 덜컥이지 않게 */
+  .adm .ctl-ov .ov-live { transition: transform 0.9s linear; }
+  .adm .ctl-ov .ov-end { transition: transform 0.6s var(--ease-out); }
+}
+@keyframes tile-heart {
+  0%, 40%, 100% { box-shadow: inset 0 0 0 2px var(--yellow), 0 0 0 0 color-mix(in srgb, var(--yellow) 0%, transparent); }
+  12% { box-shadow: inset 0 0 0 3px var(--yellow), 0 0 0 5px color-mix(in srgb, var(--yellow) 35%, transparent); }
+  24% { box-shadow: inset 0 0 0 2px var(--yellow), 0 0 0 1px color-mix(in srgb, var(--yellow) 20%, transparent); }
+  32% { box-shadow: inset 0 0 0 3px var(--yellow), 0 0 0 8px color-mix(in srgb, var(--yellow) 25%, transparent); }
+}
+@keyframes warn-beat { 0%, 40%, 100% { transform: scale(1); } 12%, 32% { transform: scale(1.25); } 24% { transform: scale(1.05); } }
+@keyframes dot-ping { 0% { box-shadow: 0 0 0 2px var(--white), 0 0 0 2px color-mix(in srgb, var(--blue) 45%, transparent); } 100% { box-shadow: 0 0 0 2px var(--white), 0 0 0 10px transparent; } }
+@keyframes ov-ping { 0% { opacity: 0.7; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.6); } }
+@keyframes live-blink { 0% { opacity: 1; } 100% { opacity: 0.25; } }

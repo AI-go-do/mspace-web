@@ -24,6 +24,7 @@ import { useClimateRules } from '../components/Climate'
 import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
 import './AdminNow.css'
+import './AdminLive.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
 
@@ -160,6 +161,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 실제 센서가 없어 실습실 값으로 만든 방(DERIVED)은 화면에 "추정"으로 밝힌다
   const derived = climateOn ? (climate.rooms ?? []).filter((r) => r.source === 'DERIVED').map((r) => r.roomId) : []
   const replay = climateOn && (climate.rooms ?? []).some((r) => r.source === 'REPLAY')
+  const sim = climateOn && (climate.rooms ?? []).some((r) => r.source === 'SIM')
 
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
@@ -242,6 +244,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
         {replay && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">녹화 재생</span>}
+        {sim && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">시뮬레이션</span>}
         {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
@@ -293,7 +296,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           )}
         </aside>
 
-        {views.length > 0 && <AdminOverview views={views} compact />}
+        {views.length > 0 && <AdminOverview views={views} compact ticks={climateOn ? climate.ticks : undefined} />}
         {/* 방별 센서 그래프·열지도는 접어 둔다. 첫 화면은 대시보드만(11/10 재웅 "정신 사납다") */}
         {views.length > 0 && (
           <details className="ctl-more">

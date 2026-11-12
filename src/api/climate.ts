@@ -49,7 +49,7 @@ export interface ClimateAppliance {
 export interface ClimateRoom {
   roomId: number
   roomName: string
-  source: 'REAL' | 'DERIVED' | 'REPLAY'
+  source: 'REAL' | 'DERIVED' | 'REPLAY' | 'SIM'
   occupied: boolean | null
   auto: boolean
   offline: boolean
@@ -86,7 +86,7 @@ export interface Reading {
   co2: number | null
   temperatureC: number | null
   humidityPct: number | null
-  source: 'REAL' | 'DERIVED' | 'REPLAY'
+  source: 'REAL' | 'DERIVED' | 'REPLAY' | 'SIM'
 }
 
 export async function getClimateRooms(signal?: AbortSignal): Promise<ClimateRoom[]> {

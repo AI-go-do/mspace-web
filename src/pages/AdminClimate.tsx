@@ -4,6 +4,7 @@ import {
   type ClimateMetric, type ClimateRoom, type Decision, type MetricKey, type Reading, type Series, type SeriesPoint, type SseEvent, type StreamState,
 } from '../api/climate'
 import { adminErrorMessage } from '../api/admin'
+import Odi from '../components/Odi'
 import './AdminClimate.css'
 
 /**
@@ -17,7 +18,6 @@ import './AdminClimate.css'
 
 const MINUTES = 120
 const LABEL: Record<MetricKey, string> = { CO2: 'CO2', TEMPERATURE: '온도', HUMIDITY: '습도' }
-const GROUP: Record<Decision['group'], string> = { HIGH: '평소보다 높아요', LOW: '평소보다 낮아요', SENSOR: '센서가 이상해요' }
 const STEP: Record<Decision['steps'][number]['key'], string> = { DETECT: '탐지', PREDICT: '예측', NOTIFY: '알림', CONTROL: '제어', VERIFY: '다시 확인' }
 
 
@@ -114,6 +114,24 @@ export function upsertDecision(list: Decision[], d: Decision): Decision[] {
 
 type Live = { rooms: ClimateRoom[] | null; series: SeriesMap }
 
+/** 밀려온 값 하나(초 단위). 큰 그래프가 분 기록 뒤에 이어 그려 진짜 실시간 차트처럼 보이게 한다 */
+export interface LiveTick { t: number; co2: number | null; temp: number | null; hum: number | null }
+export type LiveTicks = Record<number, LiveTick[]>
+/** 초 단위 값을 들고 있는 시간 */
+export const TICK_KEEP_MS = 30 * 60_000
+
+/** 초 값 하나를 붙이고 오래된 것은 버린다 */
+export function addTick(ticks: LiveTicks, r: Reading): LiveTicks {
+  const t = Date.parse(r.at)
+  if (!Number.isFinite(t)) return ticks
+  const list = ticks[r.roomId] ?? []
+  const last = list[list.length - 1]
+  if (last && t <= last.t) return ticks
+  const from = t - TICK_KEEP_MS
+  const kept = list[0] && list[0].t < from ? list.filter((x) => x.t >= from) : list
+  return { ...ticks, [r.roomId]: [...kept, { t, co2: r.co2, temp: r.temperatureC, hum: r.humidityPct }] }
+}
+
 /** climate 실시간 값·판단 카드. enabled=false(시연 값)면 아무것도 읽지 않는다 */
 export function useClimateLive(enabled: boolean) {
   // 방과 그래프는 한 상태로 같이 바꾼다(값이 잇달아 와도 그래프 점이 빠지지 않게)
@@ -124,6 +142,7 @@ export function useClimateLive(enabled: boolean) {
   const [error, setError] = useState<string | null>(null)
   const [flash, setFlash] = useState<Record<number, number>>({})
   const [lastAt, setLastAt] = useState<string | null>(null)
+  const [ticks, setTicks] = useState<LiveTicks>({})
 
   useEffect(() => {
     if (!enabled) return
@@ -150,6 +169,7 @@ export function useClimateLive(enabled: boolean) {
         if (e.event === 'reading') {
           const r = JSON.parse(e.data) as Reading
           setLive((prev) => (prev.rooms ? applyReading(prev.rooms, prev.series, r) : prev))
+          setTicks((t) => addTick(t, r))
           setFlash((f) => ({ ...f, [r.roomId]: Date.now() }))
           setLastAt(r.at)
         } else if (e.event === 'decision') {
@@ -181,47 +201,45 @@ export function useClimateLive(enabled: boolean) {
     return () => ctrl.abort()
   }, [enabled])
 
-  return { rooms: live.rooms, series: live.series, decisions, state, missing, error, flash, lastAt }
+  return { rooms: live.rooms, series: live.series, decisions, state, missing, error, flash, lastAt, ticks }
 }
 
-const STATUS_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 's-done', RUNNING: 's-now', SKIPPED: 's-next', FAILED: 's-fail' }
+const STEP_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 'ok', RUNNING: 'doing', SKIPPED: 'skip', FAILED: 'fail' }
 
 /**
- * 오른쪽 "오디가 한 일" 안의 공기 판단 (기존 줄 모양 그대로). 한 줄 = 방 하나의 판단 하나, 아래에 다섯 단계.
- * 단계 시각은 서버가 실제로 한 시각, 도는 표시는 아직 끝나지 않은 "다시 확인"뿐
+ * 오른쪽 "오디가 한 일" 안의 공기 판단 = 오디 AI 카드(재웅 11/12 17:09 "오른쪽 사진이 훨씬 나아", 정리 확인 오디 AI 상자와 같은 모양).
+ * 카드 하나 = 방 하나의 판단 하나, 시각이 앞에 오는 다섯 단계. 시각은 서버가 실제로 한 시각, 도는 표시는 끝나지 않은 단계뿐.
+ * 머리(오디 AI · 방 · 지표)를 누르면 그 방 상세 창
  */
 export function ClimateFeed({ decisions, onOpen, max = 4 }: { decisions: Decision[]; onOpen: (roomId: number) => void; max?: number }) {
   const list = decisions.slice(0, max)
   if (list.length === 0) return null
   return (
-    <ul className="ctl-feed cl-feed">
-      {list.map((d, i) => {
-        const detect = d.steps.find((s) => s.key === 'DETECT')
-        const control = d.steps.find((s) => s.key === 'CONTROL')
-        return (
-          <li key={d.id} style={{ '--k': i } as CSSProperties}>
-            <button type="button" className={`cf-item i-${d.open ? 'warn' : 'ok'}`} onClick={() => onOpen(d.roomId)}>
-              <span className="cf-no">{d.roomId}</span>
-              <span className="cf-text">
-                <small>{d.roomName} · {d.metric ? LABEL[d.metric] : '센서'} · {clock(d.openedAt).slice(0, 5)}</small>
-                <b>{detect?.text ?? ''}</b>
-                {control && control.status === 'DONE' && <span className="cf-auto">오디: {control.text}</span>}
-              </span>
-              <span className="cf-go" aria-hidden="true">›</span>
+    <ul className="cl-feed">
+      {list.map((d, i) => (
+        <li key={d.id} style={{ '--k': i } as CSSProperties}>
+          <article className={`tidy-ai cl-card ${d.open ? 'thinking' : 'done'}`} aria-label={`${d.roomName} ${d.metric ? LABEL[d.metric] : '센서'} 오디 판단`}>
+            <button type="button" className="tidy-ai-head cl-card-head" onClick={() => onOpen(d.roomId)} aria-label={`${d.roomName} 자세히`}>
+              <span className="tidy-ai-odi"><Odi size={24} label="오디" /></span>
+              <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
+              <span className="tidy-ai-model">{d.roomName} · {d.metric ? LABEL[d.metric] : '센서'}</span>
             </button>
-            <ol className="ca-steps cl-steps" aria-label="오디가 판단한 과정">
+            <ol className="tidy-ai-acts tidy-ai-timeline" aria-label="오디가 판단한 과정">
               {d.steps.map((s) => (
-                <li key={s.key} className={STATUS_CLASS[s.status]}>
-                  <i aria-hidden="true" />
-                  <span><b>{STEP[s.key]}</b> {s.key === 'DETECT' && s.status === 'DONE' ? GROUP[d.group] : s.text}</span>
-                  {s.at && s.status !== 'SKIPPED' && <small className="cl-at">{clock(s.at).slice(0, 5)}</small>}
-                  {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
+                <li key={s.key} className={STEP_CLASS[s.status]}>
+                  <span className="mark" aria-hidden="true" />
+                  <span className="txt">
+                    {s.at && s.status !== 'RUNNING' && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
+                    <b className="cl-step">{STEP[s.key]}</b>
+                    {s.text}
+                    {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
+                  </span>
                 </li>
               ))}
             </ol>
-          </li>
-        )
-      })}
+          </article>
+        </li>
+      ))}
     </ul>
   )
 }

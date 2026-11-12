@@ -58,6 +58,7 @@ export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; 
   const area = segs.length ? `${line(segs[segs.length - 1])}L${segs[segs.length - 1].at(-1)![0].toFixed(2)},40L${segs[segs.length - 1][0][0].toFixed(2)},40Z` : ''
   const nowX = x(lastIdx)
   return (
+    <span className="ctl-spark-box">
     <svg className={`ctl-spark ${wide ? 'wide' : ''} m-${metric}`} viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
       {/* 경고 쪽 칸: 습도는 기준 아래(건조), 조도는 경고 칸 없음 (AdminOverview와 같게) */}
       {metric !== 'light' && (metric === 'hum'
@@ -69,6 +70,9 @@ export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; 
       {pred && <path d={pred} className="sp-pred" vectorEffect="non-scaling-stroke" />}
       <line x1={nowX} x2={nowX} y1="0" y2="40" className="sp-now" vectorEffect="non-scaling-stroke" />
     </svg>
+    {/* 지금 값 점: 실시간 값이 들어올 때마다 위아래로 움직이고 퍼지는 고리로 "살아 있음"을 보여 준다 */}
+    {lastVal !== null && <i key={`${lastVal}`} className="sp-dot" style={{ left: `${nowX}%`, top: `${(y(lastVal) / 40) * 100}%` }} aria-hidden="true" />}
+    </span>
   )
 }
 

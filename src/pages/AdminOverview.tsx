@@ -3,6 +3,8 @@ import { ENV_RULES } from '../config/adminRooms'
 import type { RoomView } from '../lib/roomHealth'
 import { isTrusted, overview, type Level } from '../lib/roomOverview'
 import { seoulClock } from '../lib/time'
+import { useNow } from '../lib/useNow'
+import type { LiveTick, LiveTicks } from './AdminClimate'
 
 /**
  * 관제실 "전체 실시간 분석": 방 1~5를 한 그래프에 겹쳐 비교한다.
@@ -39,92 +41,128 @@ function useWidth() {
 const seriesOf = (v: RoomView, m: Metric) => (m === 'co2' ? v.history : m === 'temp' ? v.temps : m === 'hum' ? v.hums : v.lights)
 const fmt = (v: number, d: number) => (d ? v.toFixed(d) : String(Math.round(v)))
 
-const PAD = { l: 44, r: 40, t: 14, b: 26 }
+const PAD = { l: 48, r: 44, t: 16, b: 30 }
+/** 큰 그래프가 보여 주는 지난 시간. 짧게 잡아 1초마다 옆으로 흐르는 게 눈에 보이게(재웅 11/12 "진짜 실시간 차트 느낌") */
+const PAST_MIN = 20
+const GRID_MIN = 5
 
-function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metric: Metric; focus: number | null; onFocus: (id: number | null) => void }) {
+type Pt = { t: number; v: number }
+
+/** 분 기록 + (있으면) 초 단위 실시간 값. 초 값이 시작된 뒤의 분 기록은 초 값으로 갈음한다 */
+function pointsOf(v: RoomView, metric: Metric, ticks: LiveTick[] | undefined, from: number): (Pt | null)[] {
+  const vals = seriesOf(v, metric)
+  const live = metric === 'light' ? [] : (ticks ?? []).map((k) => ({ t: k.t, v: metric === 'co2' ? k.co2 : metric === 'temp' ? k.temp : k.hum }))
+    .filter((p): p is Pt => p.v !== null)
+  const cut = live.length ? live[0].t : Infinity
+  const out: (Pt | null)[] = []
+  vals.forEach((val, i) => {
+    const t = Date.parse(v.times[i] ?? '')
+    if (!Number.isFinite(t) || t < from - 60_000 || t >= cut) return
+    out.push(val === null ? null : { t, v: val })
+  })
+  return [...out, ...live]
+}
+
+function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[]; metric: Metric; focus: number | null; onFocus: (id: number | null) => void; ticks?: LiveTicks }) {
   const [ref, w] = useWidth()
   const [hover, setHover] = useState<number | null>(null)
-  const h = 240
+  const clock = useNow(1000)
+  const h = 340
   const m = METRICS.find((x) => x.key === metric)!
-  const past = Math.max(0, ...views.map((v) => v.history.length))
-  const ahead = metric === 'co2' ? ENV_RULES.forecastMinutes : 0
-  const total = past + ahead
+  // 지금 = 화면 시각(1초마다). 실시간 값이 없는 시연 값이면 마지막 기록 시각
+  const lastT = Math.max(0, ...views.map((v) => Date.parse(v.times[v.times.length - 1] ?? '') || 0))
+  const live = !!ticks && Object.keys(ticks).length > 0
+  const now = live ? clock.getTime() : lastT || clock.getTime()
+  // 예측 칸은 실제 예측 길이만큼(없으면 기본 15분). 온도·습도는 예측이 없어 오른쪽 여백 1분
+  const ahead = metric === 'co2' ? Math.max(5, Math.min(ENV_RULES.forecastMinutes, ...views.map((v) => v.forecast.length).filter((n) => n > 0))) : 1
+  const t0 = now - PAST_MIN * 60_000
+  const t1 = now + ahead * 60_000
   const limit = metric === 'co2' ? ENV_RULES.co2LimitPpm : metric === 'temp' ? ENV_RULES.hotC : metric === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct
-  // CO2 멈춤(stuck)은 SCD40 하나가 고장 난 것이라 CO2·온도·습도만 믿지 않는다. 조도는 우노라 끊김만 본다
   const trusted = (v: RoomView) => (metric === 'light' ? !v.flags.offline : isTrusted(v))
 
-  // 축 범위는 믿을 수 있는 방 값으로만 정한다. 멈춘·끊긴 방의 튀는 값이 다른 방 선을 눌러 버리지 않게.
-  // 믿을 수 없는 방 선은 그대로 그리되(점선) 범위 밖이면 위·아래 끝에 붙인다
-  const valuesOf = (vs: RoomView[]) => vs.flatMap((v) => [...seriesOf(v, metric), ...(metric === 'co2' ? v.forecast : [])]).filter((x): x is number => x !== null)
-  const sure = valuesOf(views.filter(trusted))
-  const all = sure.length ? sure : valuesOf(views)
+  const lines = views.map((v) => {
+    const pts = pointsOf(v, metric, ticks?.[v.roomId], t0)
+    let last: Pt | null = null
+    for (let k = pts.length - 1; k >= 0 && !last; k--) last = pts[k]
+    // 마지막 값을 지금까지 이어 선 끝이 늘 오른쪽 "지금"에 닿게
+    const tip = last && live && now - last.t < 90_000 ? { t: now, v: last.v } : last
+    const pred = metric === 'co2' && tip ? v.forecast.map((p, i) => ({ t: tip.t + (i + 1) * 60_000, v: p })) : []
+    return { v, pts, tip, pred }
+  })
+
+  const sure = lines.filter((l) => trusted(l.v)).flatMap((l) => [...l.pts, ...l.pred]).filter((p): p is Pt => !!p && p.t >= t0).map((p) => p.v)
+  const all = sure.length ? sure : lines.flatMap((l) => l.pts).filter((p): p is Pt => !!p).map((p) => p.v)
   const [lo, hi] = metric === 'co2'
-    ? [Math.min(400, ...all) - 20, Math.max(limit + 150, ...all) + 30]
+    ? [Math.min(450, ...all) - 30, Math.max(limit + 150, ...all) + 40]
     : metric === 'temp' ? [Math.min(21, ...all) - 0.5, Math.max(limit + 1, ...all) + 0.5]
       : metric === 'hum' ? [Math.min(limit - 8, ...all) - 2, Math.max(62, ...all) + 2] : [0, 100]
 
   const iw = Math.max(1, w - PAD.l - PAD.r)
   const ih = h - PAD.t - PAD.b
-  const x = (i: number) => PAD.l + (total > 1 ? (i / (total - 1)) * iw : 0)
+  const x = (t: number) => PAD.l + ((t - t0) / (t1 - t0)) * iw
   const y = (v: number) => PAD.t + ih - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * ih
-  const nowI = past - 1
-  const ticks = useMemo(() => {
-    const step = metric === 'co2' ? 200 : metric === 'temp' ? 2 : metric === 'hum' ? 10 : 25
+  const ticksY = useMemo(() => {
+    const step = metric === 'co2' ? 200 : metric === 'temp' ? 1 : metric === 'hum' ? 5 : 25
     const out: number[] = []
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v)
     return out
   }, [lo, hi, metric])
+  // 5분마다 세로 눈금과 시각. 시간이 흐르면 같이 왼쪽으로 흘러간다
+  const gridT: number[] = []
+  for (let t = Math.ceil(t0 / (GRID_MIN * 60_000)) * GRID_MIN * 60_000; t <= t1; t += GRID_MIN * 60_000) gridT.push(t)
 
-  const pathOf = (vals: (number | null)[], start = 0) => {
+  const pathOf = (pts: (Pt | null)[]) => {
     let d = ''
     let pen = false
-    vals.forEach((v, i) => {
-      if (v === null) { pen = false; return }
-      d += `${pen ? 'L' : 'M'}${x(start + i).toFixed(1)},${y(v).toFixed(1)}`
+    let prev = -Infinity
+    for (const p of pts) {
+      // 값이 없거나 3분 넘게 비면 선을 끊는다
+      if (!p || p.t - prev > 180_000) pen = false
+      if (!p) continue
+      d += `${pen ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`
       pen = true
-    })
+      prev = p.t
+    }
     return d
   }
+  const area = (pts: (Pt | null)[], tip: Pt | null) => {
+    const ok = pts.filter((p): p is Pt => !!p && p.t >= t0 - 60_000)
+    if (!ok.length || !tip) return ''
+    const line = [...ok, tip].map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join('')
+    return `${line}L${x(tip.t).toFixed(1)},${PAD.t + ih}L${x(ok[0].t).toFixed(1)},${PAD.t + ih}Z`
+  }
 
-  // 선 끝 번호: "지금" 자리의 값. 겹치면 위아래로 밀어 18px씩 띄운다
-  const ends = views.map((v) => {
-    const vals = seriesOf(v, metric)
-    let j = vals.length - 1
-    while (j >= 0 && vals[j] === null) j--
-    return { id: v.roomId, y: j >= 0 ? y(vals[j] as number) : null }
-  }).filter((e): e is { id: number; y: number } => e.y !== null).sort((a, b) => a.y - b.y)
+  // 선 끝 번호: 겹치면 18px씩 띄운다
+  const ends = lines.filter((l) => l.tip).map((l) => ({ id: l.v.roomId, y: y(trusted(l.v) && l.pred.length ? l.pred[l.pred.length - 1].v : l.tip!.v) })).sort((a, b) => a.y - b.y)
   for (let k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 18) ends[k].y = ends[k - 1].y + 18
 
-  // 주의 색은 CO2와 빈 방 불 켜짐만. 온도·습도는 사람마다 느낌이 달라 참고로만 둔다
   const hot = (v: RoomView) => metric === 'co2' ? v.flags.co2Over || v.flags.co2Soon : metric === 'light' ? v.flags.lightLeftOn : false
 
   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
-    const px = e.clientX - r.left
-    const i = Math.round(((px - PAD.l) / iw) * (total - 1))
-    setHover(i < 0 || i >= total ? null : i)
+    const t = t0 + ((e.clientX - r.left - PAD.l) / iw) * (t1 - t0)
+    setHover(t < t0 || t > t1 ? null : t)
   }
-  const at = hover === null ? null : hover <= nowI
-    ? views.map((v) => ({ id: v.roomId, name: v.name, val: trusted(v) ? seriesOf(v, metric)[hover] ?? null : null, pred: false }))
-    : views.map((v) => ({ id: v.roomId, name: v.name, val: trusted(v) && metric === 'co2' ? v.forecast[hover - past] ?? null : null, pred: true }))
-  const hoverTime = hover === null ? null : (() => {
-    const base = views[0]?.times[views[0].times.length - 1]
-    if (!base) return null
-    return seoulClock(new Date(new Date(base).getTime() + (hover - nowI) * 60_000))
-  })()
+  const near = (pts: (Pt | null)[], t: number) => {
+    let best: Pt | null = null
+    for (const p of pts) if (p && Math.abs(p.t - t) <= 60_000 && (!best || Math.abs(p.t - t) < Math.abs(best.t - t))) best = p
+    return best
+  }
+  const at = hover === null ? null : lines.map((l) => {
+    const pred = hover > now
+    const p = !trusted(l.v) ? null : pred ? near(l.pred, hover) : near(l.tip ? [...l.pts, l.tip] : l.pts, hover)
+    return { id: l.v.roomId, name: l.v.name, val: p?.v ?? null, pred }
+  })
   const limitY = y(limit)
   const above = metric !== 'hum'
-  // 조도 기준선은 "불 켜짐" 표시일 뿐 나쁨이 아니라 빗금 띠를 깔지 않는다
   const zone = metric !== 'light'
+  const nowX = x(now)
 
-  const label = `방 ${views.length}개 ${m.label} 지난 ${past}분${ahead ? `과 ${ahead}분 예측` : ''}. ` + views.map((v) => {
-    const vals = seriesOf(v, metric).filter((q): q is number => q !== null)
-    return `${v.roomId}번 ${trusted(v) && vals.length ? `${fmt(vals[vals.length - 1], m.digits)}${m.unit}` : '값 없음'}`
-  }).join(', ')
+  const label = `방 ${views.length}개 ${m.label} 지난 ${PAST_MIN}분${metric === 'co2' ? `과 ${ahead}분 예측` : ''}. ` + lines.map((l) =>
+    `${l.v.roomId}번 ${trusted(l.v) && l.tip ? `${fmt(l.tip.v, m.digits)}${m.unit}` : '값 없음'}`).join(', ')
 
   return (
-    <div className="ov-chart" ref={ref}>
-      {/* 첫 그림 전(폭을 재기 전)에도 높이를 잡아 두어 값을 바꿀 때 화면이 튀지 않게 */}
+    <div className={`ov-chart ${live ? 'is-live' : ''}`} ref={ref}>
       {w === 0 && <div style={{ height: h }} aria-hidden="true" />}
       {w > 0 && (
         <svg className={metric === 'temp' || metric === 'hum' ? 'ov-ref' : ''} width={w} height={h} role="img" aria-label={label} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
@@ -132,46 +170,62 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
             <pattern id="ov-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="2" height="6" className="ov-hatch" />
             </pattern>
+            <clipPath id="ov-clip"><rect x={PAD.l} y={PAD.t - 4} width={iw} height={ih + 8} /></clipPath>
+            {lines.map((l) => (
+              <linearGradient key={l.v.roomId} id={`ov-fill-${l.v.roomId}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" className={`ov-stop r${l.v.roomId}`} stopOpacity="0.16" />
+                <stop offset="1" className={`ov-stop r${l.v.roomId}`} stopOpacity="0" />
+              </linearGradient>
+            ))}
           </defs>
-          {/* 기준 넘는 쪽 띠 */}
           {zone && <rect x={PAD.l} width={iw} y={above ? PAD.t : limitY} height={above ? Math.max(0, limitY - PAD.t) : Math.max(0, PAD.t + ih - limitY)} fill="url(#ov-hatch)" />}
-          {ticks.map((t) => (
+          {ticksY.map((t) => (
             <g key={t}>
               <line x1={PAD.l} x2={PAD.l + iw} y1={y(t)} y2={y(t)} className="ov-grid" />
               <text x={PAD.l - 8} y={y(t) + 4} className="ov-tick" textAnchor="end">{fmt(t, 0)}</text>
             </g>
           ))}
+          {gridT.map((t) => (
+            <g key={t} className="ov-vt">
+              <line x1={x(t)} x2={x(t)} y1={PAD.t} y2={PAD.t + ih} className="ov-grid" />
+              {Math.abs(x(t) - nowX) > 28 && <text x={x(t)} y={h - 9} className="ov-tick" textAnchor="middle">{seoulClock(new Date(t)).slice(0, 5)}</text>}
+            </g>
+          ))}
           <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />
           <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : metric === 'hum' ? `참고 ${limit}%` : `불 켜짐 ${limit}%`}</text>
-          {ahead > 0 && <rect x={x(nowI)} width={Math.max(0, x(total - 1) - x(nowI))} y={PAD.t} height={ih} className="ov-ahead" />}
-          <line x1={x(nowI)} x2={x(nowI)} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
-          <text x={x(nowI)} y={h - 8} className="ov-tick" textAnchor="middle">지금</text>
-          <text x={PAD.l} y={h - 8} className="ov-tick">{past}분 전</text>
-          {ahead > 0 && <text x={PAD.l + iw} y={h - 8} className="ov-tick" textAnchor="end">+{ahead}분</text>}
+          {metric === 'co2' && <rect x={nowX} width={Math.max(0, PAD.l + iw - nowX)} y={PAD.t} height={ih} className="ov-ahead" />}
+          <line x1={nowX} x2={nowX} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
+          <text x={nowX} y={h - 9} className="ov-tick ov-now-t" textAnchor="middle">{seoulClock(new Date(now))}</text>
+          {metric === 'co2' && <text x={PAD.l + iw - 4} y={PAD.t + 14} className="ov-tick" textAnchor="end">예측 {ahead}분</text>}
 
-          {views.map((v) => {
-            const ok = trusted(v)
-            const dim = focus !== null && focus !== v.roomId
-            const cls = `ov-line ${!ok ? 'off' : hot(v) ? 'hot' : ''} ${dim ? 'dim' : ''} ${focus === v.roomId ? 'focus' : ''}`
-            const vals = seriesOf(v, metric)
-            let last = vals.length - 1
-            while (last >= 0 && vals[last] === null) last--
-            const pred = ok && metric === 'co2' && v.forecast.length && last >= 0
-              ? `M${x(last).toFixed(1)},${y(vals[last] as number).toFixed(1)}` + v.forecast.map((p, i) => `L${x(past + i).toFixed(1)},${y(p).toFixed(1)}`).join('')
-              : ''
-            return (
-              <g key={v.roomId} className={cls}>
-                <path d={pathOf(vals)} className="ov-path" pathLength={1} />
-                {pred && <path d={pred} className="ov-pred" />}
-              </g>
-            )
-          })}
+          <g clipPath="url(#ov-clip)">
+            {lines.map((l) => {
+              const ok = trusted(l.v)
+              const dim = focus !== null && focus !== l.v.roomId
+              const cls = `ov-line r${l.v.roomId} ${!ok ? 'off' : hot(l.v) ? 'hot' : ''} ${dim ? 'dim' : ''} ${focus === l.v.roomId ? 'focus' : ''}`
+              const pts = l.tip && l.tip !== l.pts[l.pts.length - 1] ? [...l.pts, l.tip] : l.pts
+              const pred = ok && l.tip && l.pred.length ? pathOf([l.tip, ...l.pred]) : ''
+              return (
+                <g key={l.v.roomId} className={cls}>
+                  {ok && (focus === l.v.roomId || (focus === null && hot(l.v))) && <path d={area(l.pts, l.tip)} fill={`url(#ov-fill-${l.v.roomId})`} className="ov-area" />}
+                  <path d={pathOf(pts)} className="ov-path" />
+                  {pred && <path d={pred} className="ov-pred" />}
+                </g>
+              )
+            })}
+          </g>
 
+          {lines.filter((l) => l.tip && trusted(l.v)).map((l) => (
+            <g key={l.v.roomId} className={`ov-live r${l.v.roomId} ${hot(l.v) ? 'hot' : ''} ${focus !== null && focus !== l.v.roomId ? 'dim' : ''}`} transform={`translate(${x(l.tip!.t).toFixed(1)},${y(l.tip!.v).toFixed(1)})`}>
+              <circle r="9" className="ov-ping" />
+              <circle r="3.5" className="ov-dot" />
+            </g>
+          ))}
           {ends.map((e) => {
             const v = views.find((q) => q.roomId === e.id)!
             const dim = focus !== null && focus !== e.id
             return (
-              <g key={e.id} className={`ov-end ${!trusted(v) ? 'off' : hot(v) ? 'hot' : ''} ${dim ? 'dim' : ''}`} transform={`translate(${x(nowI)},${e.y})`}>
+              <g key={e.id} className={`ov-end r${e.id} ${!trusted(v) ? 'off' : hot(v) ? 'hot' : ''} ${dim ? 'dim' : ''}`} transform={`translate(${(PAD.l + iw + 22).toFixed(1)},${e.y})`}>
                 <circle r="9" />
                 <text y="4" textAnchor="middle">{e.id}</text>
               </g>
@@ -181,19 +235,20 @@ function MultiChart({ views, metric, focus, onFocus }: { views: RoomView[]; metr
           {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={PAD.t + ih} className="ov-cross" />}
         </svg>
       )}
-      {at && hoverTime && (
-        <div className="ov-tip" style={{ left: Math.min(Math.max(x(hover!), 90), w - 90) }} role="status">
-          <b>{hoverTime}{at[0]?.pred ? ' 예측' : ''}</b>
+      {at && hover !== null && (
+        <div className="ov-tip" style={{ left: Math.min(Math.max(x(hover), 90), w - 90) }} role="status">
+          <b>{seoulClock(new Date(hover))}{at[0]?.pred ? ' 예측' : ''}</b>
           {[...at].sort((a, b) => (b.val ?? -1e9) - (a.val ?? -1e9)).map((r) => (
-            <span key={r.id} className={focus === r.id ? 'on' : ''}><i>{r.id}</i>{r.name}<em>{r.val === null ? '–' : `${fmt(r.val, m.digits)}${m.unit}`}</em></span>
+            <span key={r.id} className={`r${r.id} ${focus === r.id ? 'on' : ''}`}><i>{r.id}</i>{r.name}<em>{r.val === null ? '–' : `${fmt(r.val, m.digits)}${m.unit}`}</em></span>
           ))}
         </div>
       )}
       <div className="ov-rooms" role="group" aria-label="방 골라 또렷하게 보기">
         {views.map((v) => (
-          <button key={v.roomId} type="button" aria-pressed={focus === v.roomId} className={!trusted(v) ? 'off' : hot(v) ? 'hot' : ''}
+          <button key={v.roomId} type="button" aria-pressed={focus === v.roomId} className={`r${v.roomId} ${!trusted(v) ? 'off' : hot(v) ? 'hot' : ''}`}
             onClick={() => onFocus(focus === v.roomId ? null : v.roomId)}>
             <i aria-hidden="true">{v.roomId}</i>{v.name}
+            <b className="ov-room-v">{(() => { const l = lines.find((q) => q.v.roomId === v.roomId); return l?.tip && trusted(v) ? `${fmt(l.tip.v, m.digits)}${m.unit}` : '–' })()}</b>
           </button>
         ))}
         <span className="ov-key"><i className="k-line" />측정 {metric === 'co2' && <><i className="k-pred" />예측</>}<i className="k-hot" />주의 <i className="k-off" />확인 필요</span>
@@ -221,7 +276,7 @@ function HeatRow({ row, i, focus }: { row: ReturnType<typeof overview>['rows'][n
 }
 
 /** compact: 관리자 첫 화면(지금)에서는 그래프만. 숫자 칸·열지도는 빼서 한눈에 덜 복잡하게(11/10 재웅) */
-export function AdminOverview({ views, compact = false }: { views: RoomView[]; compact?: boolean }) {
+export function AdminOverview({ views, compact = false, ticks }: { views: RoomView[]; compact?: boolean; ticks?: LiveTicks }) {
   const [metric, setMetric] = useState<Metric>('co2')
   const [focus, setFocus] = useState<number | null>(null)
   const o = useMemo(() => overview(views), [views])
@@ -230,7 +285,7 @@ export function AdminOverview({ views, compact = false }: { views: RoomView[]; c
   return (
     <section className="ctl-ov" aria-labelledby="ov-h">
       <header className="ov-head">
-        <h2 id="ov-h">{compact ? '방 1~5 한 그래프' : <>전체 실시간 분석 <small>방 1~5 한 그래프</small></>}</h2>
+        <h2 id="ov-h">{compact ? <>방 1~5 실시간{ticks && Object.keys(ticks).length > 0 && <span className="ov-livepill"><i aria-hidden="true" />LIVE</span>}</> : <>전체 실시간 분석 <small>방 1~5 한 그래프</small></>}</h2>
         <div className="ov-seg" role="group" aria-label="보는 값" style={{ '--i': METRICS.findIndex((x) => x.key === metric) } as CSSProperties}>
           <span className="ov-seg-glow" aria-hidden="true" />
           {METRICS.map((x) => <button key={x.key} type="button" aria-pressed={metric === x.key} onClick={() => setMetric(x.key)}>{x.label}</button>)}
@@ -249,7 +304,7 @@ export function AdminOverview({ views, compact = false }: { views: RoomView[]; c
         </li>
       </ul>}
 
-      <MultiChart key={metric} views={views} metric={metric} focus={focus} onFocus={setFocus} />
+      <MultiChart key={metric} views={views} metric={metric} focus={focus} onFocus={setFocus} ticks={ticks} />
 
       {!compact && <div className="ov-heat">
         <div className="hr hr-head" aria-hidden="true">
