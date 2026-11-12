@@ -1,7 +1,22 @@
+import type { MyNoShow } from '../api/penalties'
 import type { MyReservation } from '../api/reservations'
 
 /** 노쇼 정지 기준 (예약 규칙 v2: 30일 안에 2회면 14일 정지). core가 노쇼 API를 주면 그 값으로 바꾼다 */
 export const NO_SHOW_RULES = { windowDays: 30, limit: 2, suspendDays: 14 }
+
+/** core #128 노쇼 API가 없는(예전) core일 때 내 예약의 노쇼를 같은 모양으로. 무름 여부는 몰라 셈에 든다고 본다 */
+export function fromReservations(list: MyReservation[], now: Date, rules = NO_SHOW_RULES): MyNoShow[] {
+  return myNoShows(list, now, rules).map((r) => ({
+    reservationId: r.id, roomId: r.room.id, roomName: r.room.name, startAt: r.startAt, endAt: r.endAt,
+    kind: 'NO_SHOW', happenedAt: r.checkinDeadline ?? r.startAt, counted: true, excusedAt: null,
+  }))
+}
+
+/** 정지 셈에 들어가는 노쇼·자리 비움 수 */
+export function countedTotals(items: MyNoShow[]): { noShows: number; awayReleases: number } {
+  const c = items.filter((x) => x.counted)
+  return { noShows: c.filter((x) => x.kind === 'NO_SHOW').length, awayReleases: c.filter((x) => x.kind === 'AWAY_RELEASED').length }
+}
 
 /**
  * 내 예약에서 노쇼 기록만 (11/12 지영 "내 경고 기록에 노쇼 기록도 보이게").

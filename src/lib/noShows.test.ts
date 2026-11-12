@@ -21,3 +21,15 @@ describe('내 노쇼 기록', () => {
     expect(myNoShows(list, now).map((x) => x.id)).toEqual([2, 1])
   })
 })
+
+describe('core 노쇼 기록 셈 (core #128)', () => {
+  it('counted인 것만 종류별로', async () => {
+    const { countedTotals } = await import('./noShows')
+    const base = { reservationId: 1, roomId: 1, roomName: '1번 방', startAt: '', endAt: '', happenedAt: '', excusedAt: null }
+    expect(countedTotals([
+      { ...base, kind: 'NO_SHOW', counted: true },
+      { ...base, kind: 'NO_SHOW', counted: false, excusedAt: '2026-11-12T10:00:00+09:00' },
+      { ...base, kind: 'AWAY_RELEASED', counted: true },
+    ])).toEqual({ noShows: 1, awayReleases: 1 })
+  })
+})
