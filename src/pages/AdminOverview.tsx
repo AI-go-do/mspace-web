@@ -247,8 +247,8 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
         {views.map((v) => (
           <button key={v.roomId} type="button" aria-pressed={focus === v.roomId} className={`r${v.roomId} ${!trusted(v) ? 'off' : hot(v) ? 'hot' : ''}`}
             onClick={() => onFocus(focus === v.roomId ? null : v.roomId)}>
-            <i aria-hidden="true">{v.roomId}</i>{v.name}
-            <b className="ov-room-v">{(() => { const l = lines.find((q) => q.v.roomId === v.roomId); return l?.tip && trusted(v) ? `${fmt(l.tip.v, m.digits)}${m.unit}` : '–' })()}</b>
+            <i aria-hidden="true">{v.roomId}</i><span className="ov-room-n">{v.name}</span>
+            <b className="ov-room-v">{(() => { const l = lines.find((q) => q.v.roomId === v.roomId); return l?.tip && trusted(v) ? <>{fmt(l.tip.v, m.digits)}<small>{m.unit}</small></> : '–' })()}</b>
           </button>
         ))}
         <span className="ov-key"><i className="k-line" />측정 {metric === 'co2' && <><i className="k-pred" />예측</>}<i className="k-hot" />주의 <i className="k-off" />확인 필요</span>
@@ -285,7 +285,7 @@ export function AdminOverview({ views, compact = false, ticks }: { views: RoomVi
   return (
     <section className="ctl-ov" aria-labelledby="ov-h">
       <header className="ov-head">
-        <h2 id="ov-h">{compact ? <>방 1~5 실시간{ticks && Object.keys(ticks).length > 0 && <span className="ov-livepill"><i aria-hidden="true" />LIVE</span>}</> : <>전체 실시간 분석 <small>방 1~5 한 그래프</small></>}</h2>
+        <h2 id="ov-h">{compact ? '방 1~5 실시간' : <>전체 실시간 분석 <small>방 1~5 한 그래프</small></>}</h2>
         <div className="ov-seg" role="group" aria-label="보는 값" style={{ '--i': METRICS.findIndex((x) => x.key === metric) } as CSSProperties}>
           <span className="ov-seg-glow" aria-hidden="true" />
           {METRICS.map((x) => <button key={x.key} type="button" aria-pressed={metric === x.key} onClick={() => setMetric(x.key)}>{x.label}</button>)}

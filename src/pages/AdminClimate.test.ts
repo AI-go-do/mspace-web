@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ago, applyReading, mergeRooms, mergeSeries, upsertDecision } from './AdminClimate'
+import { ago, applyReading, mergeRooms, mergeSeries, REVEAL_MS, revealCount, upsertDecision } from './AdminClimate'
 import type { ClimateRoom, Decision, Series } from '../api/climate'
 
 const base = { mean: 600, std: 40, lower: 500, upper: 700, samples: 60, learning: false, scope: 'HOUR' }
@@ -85,5 +85,15 @@ describe('ago', () => {
     const now = Date.parse('2026-11-12T16:02:00+09:00')
     expect(ago('2026-11-12T16:01:48+09:00', now)).toBe('12초 전')
     expect(ago('2026-11-12T15:59:00+09:00', now)).toBe('3분 전')
+  })
+})
+
+describe('revealCount', () => {
+  it('화면을 열 때 있던 판단은 다 보이고, 새 판단은 단계를 하나씩 연다', () => {
+    expect(revealCount(0, 5000)).toBe(Number.POSITIVE_INFINITY)
+    expect(revealCount(undefined, 5000)).toBe(0)
+    expect(revealCount(1000, 1000)).toBe(0)
+    expect(revealCount(1000, 1000 + REVEAL_MS)).toBe(1)
+    expect(revealCount(1000, 1000 + REVEAL_MS * 3 + 10)).toBe(3)
   })
 })

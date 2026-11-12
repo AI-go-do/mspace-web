@@ -13,8 +13,6 @@
 .adm .ctl-ov { padding: 20px 22px 16px; }
 
 /* ---------- 큰 그래프 ---------- */
-.adm .ov-livepill { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 2px 8px 2px 7px; border-radius: 999px; background: color-mix(in srgb, #e5484d 12%, transparent); color: #d13438; font-size: 11px; font-weight: 900; letter-spacing: 0.06em; vertical-align: 3px; }
-.adm .ov-livepill i { width: 7px; height: 7px; border-radius: 50%; background: #e5484d; }
 .adm .ctl-ov .ov-line .ov-path { stroke-width: 2; opacity: 0.9; stroke-dasharray: none; }
 .adm .ctl-ov .ov-line .ov-pred { stroke-width: 1.8; stroke-dasharray: 5 5; opacity: 0.6; }
 .adm .ctl-ov .ov-line.hot .ov-path { stroke-width: 2.8; opacity: 1; }
@@ -32,15 +30,32 @@
 .adm .ctl-ov .ov-end text { fill: var(--white); }
 .adm .ctl-ov .ov-end.hot circle { stroke: var(--yellow); stroke-width: 3; }
 .adm .ctl-ov .ov-end.off circle { fill: var(--navy-70) !important; }
-.adm .ctl-ov .ov-rooms button { gap: 6px; }
-.adm .ctl-ov .ov-rooms button i { color: var(--white); box-shadow: none; }
-.adm .ctl-ov .ov-rooms button.hot i { box-shadow: 0 0 0 2px var(--yellow); }
-.adm .ov-room-v { margin-left: 2px; font-size: 12.5px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; min-width: 4.5ch; text-align: right; }
+/* 방 1~5 단추: 그래프 아래 폭 전체에 큰 칸 다섯 개(재웅 11/12 17:28 "창작실 1~5 전체적으로 크게") */
+.adm .ctl-ov .ov-rooms { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+@media (max-width: 900px) { .adm .ctl-ov .ov-rooms { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .adm .ctl-ov .ov-rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.adm .ctl-ov .ov-rooms button {
+  min-height: 84px; padding: 14px 16px; border-radius: 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto;
+  align-items: center; column-gap: 12px; row-gap: 2px; text-align: left; background: var(--gray); color: var(--navy);
+  box-shadow: inset 4px 0 0 var(--rc); transition: background-color 0.2s, box-shadow 0.2s, transform 0.12s var(--ease-out);
+}
+.adm .ctl-ov .ov-rooms button i { grid-row: 1 / span 2; width: 38px; height: 38px; border-radius: 10px; font-size: 18px; color: var(--white); box-shadow: none; }
+.adm .ctl-ov .ov-room-n { font-size: 15px; font-weight: 700; color: var(--navy-70); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .ctl-ov .ov-room-v { font-size: 28px; line-height: 1.1; font-weight: 900; color: var(--navy); font-variant-numeric: tabular-nums; }
+.adm .ctl-ov .ov-room-v small { margin-left: 3px; font-size: 13px; font-weight: 700; color: var(--navy-70); }
+.adm .ctl-ov .ov-rooms button.hot { background: color-mix(in srgb, var(--yellow) 14%, var(--white)); box-shadow: inset 4px 0 0 var(--rc), inset 0 0 0 2px var(--yellow); }
+.adm .ctl-ov .ov-rooms button.off .ov-room-v { color: var(--navy-70); }
+.adm .ctl-ov .ov-rooms button[aria-pressed='true'] { background: var(--navy); }
+.adm .ctl-ov .ov-rooms button[aria-pressed='true'] .ov-room-n, .adm .ctl-ov .ov-rooms button[aria-pressed='true'] .ov-room-v,
+.adm .ctl-ov .ov-rooms button[aria-pressed='true'] .ov-room-v small { color: var(--white); }
+.adm .ctl-ov .ov-rooms button[aria-pressed='true'] i { box-shadow: 0 0 0 2px var(--white); }
+.adm .ctl-ov .ov-key { grid-column: 1 / -1; justify-self: end; margin-left: 0; }
 .adm .ctl-ov .ov-tip i { color: var(--white); }
 
 /* 방 색 */
 .adm .r1 { --rc: var(--r1); } .adm .r2 { --rc: var(--r2); } .adm .r3 { --rc: var(--r3); } .adm .r4 { --rc: var(--r4); } .adm .r5 { --rc: var(--r5); }
-.adm .ctl-ov .ov-line .ov-path, .adm .ctl-ov .ov-line .ov-pred { stroke: var(--rc); }
+/* 주의 방 선도 자기 방 색(AdminPlain의 .adm .ov-line.hot 파랑과 겨룰 수 있게 같은 자리에 .hot을 붙인다) */
+.adm .ctl-ov .ov-line .ov-path, .adm .ctl-ov .ov-line .ov-pred, .adm .ctl-ov .ov-line.hot .ov-path, .adm .ctl-ov .ov-line.hot .ov-pred { stroke: var(--rc); }
 .adm .ctl-ov .ov-stop { stop-color: var(--rc); }
 .adm .ctl-ov .ov-live .ov-dot { fill: var(--rc); }
 .adm .ctl-ov .ov-live .ov-ping { stroke: var(--rc); }
@@ -60,10 +75,19 @@
   .adm .sp-dot { animation: dot-ping 1.4s ease-out infinite !important; }
   .adm .ctl-ov .ov-live .ov-ping { animation: ov-ping 1.6s ease-out infinite !important; transform-origin: center; transform-box: fill-box; }
   .adm .ctl-ov .ov-live.hot .ov-ping { animation-duration: 1s !important; }
-  .adm .ov-livepill i { animation: live-blink 1s steps(2, jump-none) infinite !important; }
   /* 선 끝이 1초마다 옆으로 흐를 때 덜컥이지 않게 */
   .adm .ctl-ov .ov-live { transition: transform 0.9s linear; }
   .adm .ctl-ov .ov-end { transition: transform 0.6s var(--ease-out); }
+  /* 주의 방 단추도 두근두근 */
+  .adm .ctl-ov .ov-rooms button.hot:not([aria-pressed='true']) { animation: room-heart 1.6s ease-in-out infinite !important; }
+  .adm .ctl-ov .ov-rooms button.hot i { animation: warn-beat 1.6s ease-in-out infinite !important; }
+  /* 그래프 오른쪽 끝 방 번호도 주의면 같은 박자로 */
+  .adm .ctl-ov .ov-end.hot circle { animation: end-heart 1.6s ease-in-out infinite !important; }
+}
+@keyframes end-heart { 0%, 40%, 100% { stroke-width: 3; } 12%, 32% { stroke-width: 6; } 24% { stroke-width: 4; } }
+@keyframes room-heart {
+  0%, 40%, 100% { box-shadow: inset 4px 0 0 var(--rc), inset 0 0 0 2px var(--yellow), 0 0 0 0 transparent; }
+  12%, 32% { box-shadow: inset 4px 0 0 var(--rc), inset 0 0 0 2px var(--yellow), 0 0 0 5px color-mix(in srgb, var(--yellow) 30%, transparent); }
 }
 @keyframes tile-heart {
   0%, 40%, 100% { box-shadow: inset 0 0 0 2px var(--yellow), 0 0 0 0 color-mix(in srgb, var(--yellow) 0%, transparent); }
@@ -74,4 +98,3 @@
 @keyframes warn-beat { 0%, 40%, 100% { transform: scale(1); } 12%, 32% { transform: scale(1.25); } 24% { transform: scale(1.05); } }
 @keyframes dot-ping { 0% { box-shadow: 0 0 0 2px var(--white), 0 0 0 2px color-mix(in srgb, var(--blue) 45%, transparent); } 100% { box-shadow: 0 0 0 2px var(--white), 0 0 0 10px transparent; } }
 @keyframes ov-ping { 0% { opacity: 0.7; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.6); } }
-@keyframes live-blink { 0% { opacity: 1; } 100% { opacity: 0.25; } }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   climateMissing, getClimateRooms, getClimateSeries, getDecisions, streamClimate,
   type ClimateMetric, type ClimateRoom, type Decision, type MetricKey, type Reading, type Series, type SeriesPoint, type SseEvent, type StreamState,
@@ -214,40 +214,94 @@ export function useClimateLive(enabled: boolean) {
 
 const STEP_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 'ok', RUNNING: 'doing', SKIPPED: 'skip', FAILED: 'fail' }
 
+/** 새 판단이 오면 단계를 이만큼씩 하나씩 연다(재웅 11/12 17:29 "오디 AI도 실시간으로 파악하는, 로딩하면서 하는 느낌") */
+export const REVEAL_MS = 900
+/** 아직 안 연 단계 자리에 보이는 "하는 중" 문구 */
+const THINK: Record<Decision['steps'][number]['key'], string> = {
+  DETECT: '값을 평소와 견주는 중', PREDICT: '앞으로 30분을 계산하는 중', NOTIFY: '방 사람에게 알릴지 보는 중',
+  CONTROL: '켤 기기를 고르는 중', VERIFY: '다시 재는 중',
+}
+
+/** 처음 볼 때 탐지가 이보다 오래됐으면 지난 판단(화면을 새로 열었을 때 등)이라 다 연 채로 보인다 */
+const FRESH_MS = 20_000
+
+/**
+ * 판단마다 처음 본 시각. 이미 지난 판단은 0(다 연 상태), 방금 탐지한 판단은 처음 본 시각부터 단계를 하나씩 연다.
+ * 여는 동안만 0.2초마다 다시 그린다
+ */
+function useReveal(list: Decision[]): (id: string) => number {
+  const born = useRef(new Map<string, number>())
+  const [now, setNow] = useState(() => Date.now())
+  const map = born.current
+  const key = list.map((d) => `${d.id}@${d.steps[0]?.at ?? ''}`).join(',')
+  useEffect(() => {
+    const t = Date.now()
+    for (const part of key ? key.split(',') : []) {
+      const [id, at] = part.split('@')
+      if (!map.has(id)) map.set(id, at && t - Date.parse(at) < FRESH_MS ? t : 0)
+    }
+    setNow(t)
+  }, [key, map])
+  const opening = list.some((d) => { const b = map.get(d.id); return b === undefined || (b > 0 && now - b < REVEAL_MS * 6) })
+  useEffect(() => {
+    if (!opening) return
+    const t = setInterval(() => setNow(Date.now()), 200)
+    return () => clearInterval(t)
+  }, [opening])
+  return (id) => revealCount(map.get(id), now)
+}
+
+/** 처음 본 시각(born)부터 now까지 연 단계 수. 0 = 화면을 열 때 이미 있던 판단(다 염), 없음 = 막 들어와 아직 하나도 안 염 */
+export function revealCount(born: number | undefined, now: number): number {
+  if (born === undefined) return 0
+  return born === 0 ? Number.POSITIVE_INFINITY : Math.floor(Math.max(0, now - born) / REVEAL_MS)
+}
+
 /**
  * 오른쪽 "오디가 한 일" 안의 공기 판단 = 오디 AI 카드(재웅 11/12 17:09 "오른쪽 사진이 훨씬 나아", 정리 확인 오디 AI 상자와 같은 모양).
  * 카드 하나 = 방 하나의 판단 하나, 시각이 앞에 오는 다섯 단계. 시각은 서버가 실제로 한 시각, 도는 표시는 끝나지 않은 단계뿐.
- * 머리(오디 AI · 방 · 지표)를 누르면 그 방 상세 창
+ * 새로 들어온 판단은 단계를 하나씩 "하는 중"으로 보였다가 연다. 머리(오디 AI · 방 · 지표)를 누르면 그 방 상세 창
  */
 export function ClimateFeed({ decisions, onOpen, max = 4 }: { decisions: Decision[]; onOpen: (roomId: number) => void; max?: number }) {
   const list = decisions.slice(0, max)
+  const shown = useReveal(list)
   if (list.length === 0) return null
   return (
     <ul className="cl-feed">
-      {list.map((d, i) => (
-        <li key={d.id} style={{ '--k': i } as CSSProperties}>
-          <article className={`tidy-ai cl-card ${d.open ? 'thinking' : 'done'}`} aria-label={`${d.roomName} ${d.metric ? LABEL[d.metric] : '센서'} 오디 판단`}>
-            <button type="button" className="tidy-ai-head cl-card-head" onClick={() => onOpen(d.roomId)} aria-label={`${d.roomName} 자세히`}>
-              <span className="tidy-ai-odi"><Odi size={24} label="오디" /></span>
-              <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
-              <span className="tidy-ai-model">{d.roomName} · {d.metric ? LABEL[d.metric] : '센서'}</span>
-            </button>
-            <ol className="tidy-ai-acts tidy-ai-timeline" aria-label="오디가 판단한 과정">
-              {d.steps.map((s) => (
-                <li key={s.key} className={STEP_CLASS[s.status]}>
-                  <span className="mark" aria-hidden="true" />
-                  <span className="txt">
-                    {s.at && s.status !== 'RUNNING' && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
-                    <b className="cl-step">{STEP[s.key]}</b>
-                    {s.text}
-                    {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </article>
-        </li>
-      ))}
+      {list.map((d, i) => {
+        const n = Math.min(d.steps.length, shown(d.id))
+        const next = n < d.steps.length ? d.steps[n] : null
+        return (
+          <li key={d.id} style={{ '--k': i } as CSSProperties}>
+            <article className={`tidy-ai cl-card ${d.open || next ? 'thinking' : 'done'}`} aria-label={`${d.roomName} ${d.metric ? LABEL[d.metric] : '센서'} 오디 판단`} aria-busy={next ? true : undefined}>
+              <button type="button" className="tidy-ai-head cl-card-head" onClick={() => onOpen(d.roomId)} aria-label={`${d.roomName} 자세히`}>
+                <span className="tidy-ai-odi"><Odi size={24} label="오디" /></span>
+                <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
+                <span className="tidy-ai-model">{d.roomName} · {d.metric ? LABEL[d.metric] : '센서'}</span>
+              </button>
+              <ol className="tidy-ai-acts tidy-ai-timeline" aria-label="오디가 판단한 과정">
+                {d.steps.slice(0, n).map((s) => (
+                  <li key={s.key} className={`${STEP_CLASS[s.status]} ${next ? 'cl-new' : ''}`}>
+                    <span className="mark" aria-hidden="true" />
+                    <span className="txt">
+                      {s.at && s.status !== 'RUNNING' && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
+                      <b className="cl-step">{STEP[s.key]}</b>
+                      {s.text}
+                      {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
+                    </span>
+                  </li>
+                ))}
+                {next && (
+                  <li key={`${next.key}-think`} className="doing cl-think">
+                    <span className="mark" aria-hidden="true" />
+                    <span className="txt"><b className="cl-step">{STEP[next.key]}</b>{THINK[next.key]}<span className="cl-dots" aria-hidden="true"><i /><i /><i /></span></span>
+                  </li>
+                )}
+              </ol>
+            </article>
+          </li>
+        )
+      })}
     </ul>
   )
 }

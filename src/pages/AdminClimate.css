@@ -18,6 +18,11 @@
 .cl-card .tidy-ai-acts .fail .mark { background: #d9534f; }
 .cl-card .tidy-ai-acts .fail .mark::before { content: '!'; }
 
+/* 새 판단: 다음 단계 자리에 "하는 중…" 줄(점 셋이 차례로 뜀), 연 단계는 아래에서 살짝 올라옴 */
+.cl-think .txt { color: var(--navy-70); }
+.cl-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.cl-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+
 /* 작은 그래프: 관리자 화면은 그리는 움직임을 끄므로 점선 길이(pathLength) 대신 그냥 선으로. non-scaling-stroke와 같이 쓰면 크롬에서 선이 군데군데 끊겨 보인다 */
 .adm .ctl-tile:not(.tn-off) .sp-line { stroke-dasharray: none; }
 
@@ -29,5 +34,10 @@
   .adm .cl-card .tidy-ai-acts .doing .mark { animation: ai-spin 0.8s linear infinite !important; }
   .adm .cl-card .tidy-ai-acts .doing .txt { animation: ai-shimmer 1.4s linear infinite !important; }
   .adm .cl-card .tidy-ai-acts .ok .mark { animation: ai-pop 0.35s var(--ease-out) !important; }
+  .adm .cl-card .tidy-ai-acts li.cl-new, .adm .cl-card .tidy-ai-acts li.cl-think { animation: rise-in 0.3s var(--ease-out) backwards !important; }
+  .adm .cl-dots i { animation: cl-dot 1s ease-in-out infinite !important; }
+  .adm .cl-dots i:nth-child(2) { animation-delay: 0.15s !important; }
+  .adm .cl-dots i:nth-child(3) { animation-delay: 0.3s !important; }
 }
+@keyframes cl-dot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-3px); opacity: 1; } }
 @keyframes cl-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #16865a 50%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
