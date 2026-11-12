@@ -22,6 +22,8 @@ function when(iso: string) {
 }
 /** 경고를 철회할 수 있는 기간(경고 목록 API 범위) */
 const DAYS = 30
+/** 처리 기록을 한 번에 그리는 줄 수 */
+const PAGE = 30
 
 const LEVELS = [
   { level: 1, title: '제안만 해요', text: '사람이 [맞아요]를 눌러야 실행' },
@@ -88,6 +90,7 @@ export function AdminApprentice() {
   const [records, setRecords] = useState<AiRecord[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
+  const [shown, setShown] = useState(PAGE)
 
   useEffect(() => {
     const member = currentMemberId()
@@ -98,9 +101,9 @@ export function AdminApprentice() {
     Promise.all([getReports(null, ctrl.signal, member), getPenalties(DAYS, ctrl.signal, member)])
       .then(([reports, p]) => {
         if (stale) return
-        // 경고 목록이 최근 DAYS일만 오니 신고도 같은 기간만(그 전 신고를 "경고 없음"으로 잘못 보이지 않게)
+        // 경고 목록이 최근 DAYS일만 오니 신고도 판정 시각 기준 같은 기간만. 숫자는 전부로 세고, 목록은 PAGE개씩 펼친다
         const since = Date.now() - DAYS * 86_400_000
-        setRecords(aiRecords(reports.filter((r) => Date.parse(r.createdAt) >= since), p.warnings))
+        setRecords(aiRecords(reports.filter((r) => Date.parse(r.judgedAt ?? r.createdAt) >= since), p.warnings, Infinity))
         setError(null)
       })
       .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
@@ -155,9 +158,16 @@ export function AdminApprentice() {
           {records && (
             <div className="card ap-log-card">
               {records.length === 0 ? <p className="adm-small">아직 AI가 판정한 신고가 없어요.</p> : (
-                <ul className="ap-log">
-                  {records.map((r, i) => <RecordRow key={r.report.id} r={r} i={i} onChanged={() => setReload((x) => x + 1)} />)}
-                </ul>
+                <>
+                  <ul className="ap-log">
+                    {records.slice(0, shown).map((r, i) => <RecordRow key={r.report.id} r={r} i={i} onChanged={() => setReload((x) => x + 1)} />)}
+                  </ul>
+                  {records.length > shown && (
+                    <button type="button" className="adm-chip ap-more" onClick={() => setShown((n) => n + PAGE)}>
+                      {records.length - shown}건 더 보기
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
