@@ -138,7 +138,7 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
             <h3 id="rd-facts">예약·장치</h3>
             <dl className="rd-facts">
               <dt>지금 예약</dt>
-              <dd>{view.current ? `${timeRange(view.current.startAt, view.current.endAt)} · ${view.current.people}명 · #${view.current.reservationId}` : '없음'}</dd>
+              <dd>{view.current ? `${timeRange(view.current.startAt, view.current.endAt)} · ${view.current.people}명 · ${view.current.reservationId === 0 ? '가상 손님' : `#${view.current.reservationId}`}` : '없음'}</dd>
               <dt>다음 예약</dt>
               <dd>{view.nextAt ? seoulClock(new Date(view.nextAt)) : '없음'}</dd>
               <dt>재실</dt>
