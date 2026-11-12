@@ -309,7 +309,9 @@ function TidyJudgement({ row, recheck, score }: { row: TidyCheckRow; recheck: Ti
  */
 export function AdminTidyChecks() {
   const [days, setDays] = useState(7)
-  const [open, setOpen] = useState<string | null>(null)
+  // 펼친 줄들. 여러 줄을 같이 펼쳐 비교할 수 있다(11/12 재웅). 기간을 바꿔도 남은 줄 key만 쓰여 문제없다
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const toggle = (key: string) => setOpen((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next })
   const [rows, setRows] = useState<TidyCheckRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // 모델 시험 점수: 못 받아도(core API 전·오류) 목록은 그대로, 기록해 둔 값으로 보여 준다
@@ -358,7 +360,7 @@ export function AdminTidyChecks() {
             <ul className="pen-list">
               {rows.map((r) => {
                 const key = rowKey(r)
-                const isOpen = open === key
+                const isOpen = open.has(key)
                 const on = r.result !== 'CLEAN'
                 const pair = isOpen ? tidyPair(r) : null
                 return (
@@ -377,7 +379,7 @@ export function AdminTidyChecks() {
                       icon={isOpen ? 'close' : 'camera'}
                       label={isOpen ? '사진 닫기' : '비교 사진 보기'}
                       aria-expanded={isOpen}
-                      onClick={() => setOpen(isOpen ? null : key)}
+                      onClick={() => toggle(key)}
                     />
                     {pair && (
                       <div className="tidy-photos"><div className="evidence-grid">
