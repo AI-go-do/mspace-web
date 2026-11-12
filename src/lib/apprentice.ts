@@ -22,15 +22,19 @@ export interface Trainee {
 }
 
 /** 인사 기록 카드 값. 신고 판정·경고 철회 판단은 11/12 정확도 측정(core 점수판) 값, 나머지는 시연용 값 */
+/** 자동 처리 카드 아래 한 줄: 실제 센서 정확도로 읽히지 않게(수연 리뷰) */
+const FAKE300 = '가짜 사례 300개로 잰 값'
+
 export function initialTrainees(): Trainee[] {
   const t = (kind: string, name: string, level: 1 | 2 | 3, maxLevel: 1 | 2 | 3, streak: number, right: number, total: number, note?: string): Trainee =>
     ({ kind, name, level, maxLevel, streak, right, total, ...(note ? { note } : {}) })
   return [
-    t('vent', '미리 환기 안내', 2, 3, 6, 31, 32),
-    t('sensor', '센서 고장 알림', 1, 3, 9, 14, 15),
-    t('prep', '다음 예약 전 더움 안내', 1, 3, 4, 9, 10),
-    t('overtime', '시간 넘김 안내', 1, 3, 5, 11, 13),
-    t('unbooked', '예약 없는 사용 기록', 1, 3, 2, 4, 5),
+    // 자동 처리 규칙 5개: 처음 보는 가짜 사례 300개로 잰 채택 판 점수(core #139 README·점수판). 실제 센서 정확도가 아니다. 레벨은 그대로(11/12 지영)
+    t('vent', '미리 환기 안내', 2, 3, 6, 268, 300, FAKE300),
+    t('sensor', '센서 고장 알림', 1, 3, 9, 298, 300, FAKE300),
+    t('prep', '다음 예약 전 더움 안내', 1, 3, 4, 267, 300, FAKE300),
+    t('overtime', '시간 넘김 안내', 1, 3, 5, 282, 300, FAKE300),
+    t('unbooked', '예약 없는 사용 기록', 1, 3, 2, 290, 300, FAKE300),
     t('noshow', '억울한 노쇼 무르기', 1, 2, 3, 6, 8),
     // 신고 판정 98.9%(처음 보는 가짜 사례 30개×3번, 억울한 경고 0건), 경고 철회 판단 98.2%(사람이 쓴 글 37개×3번)
     t('report', '신고 판정', 3, 3, 0, 89, 90, '억울한 경고 0건 · 되돌리기는 경고 철회로'),
