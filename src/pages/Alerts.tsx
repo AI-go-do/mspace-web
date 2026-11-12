@@ -274,6 +274,8 @@ function AwayActions({ reservationId, checkoutTo, onUse }: { reservationId: numb
 
 /** 받은 찾으러 가기 QR. 30초마다 목록을 다시 받아도 펼친 QR이 접히지 않게 예약 번호로 기억한다 */
 const retrievePasses = new Map<number, RetrievePass>()
+/** 이미 문을 열어 새 QR을 못 받는 예약 (core #129). 화면을 다시 열어도 버튼을 다시 띄우지 않게 */
+const retrieveUsed = new Set<number>()
 
 /**
  * 두고 간 물건 알림의 [찾으러 갈게요] (FR-DEV-105, core #114).
@@ -284,6 +286,8 @@ function RetrieveAction({ reservationId, member, now, onUse }: { reservationId: 
   const [pass, setPass] = useState<RetrievePass | null>(() => retrievePasses.get(reservationId) ?? null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // core #129: 그 QR로 문을 한 번 열었고 10분이 지났으면 새 QR을 안 준다(409 RETRIEVE_ALREADY_USED) → 버튼 대신 안내만
+  const [used, setUsed] = useState(() => retrieveUsed.has(reservationId))
   // 화면 시계(30초)가 돌 때마다 지금 시각으로 다시 센다(시계 값은 최대 30초 늦어 남은 분이 10을 넘게 보일 수 있어서). 0이면 다시 받게 접는다
   void now
   const left = pass ? minutesLeft(pass.expiresAt) : 0
@@ -299,6 +303,11 @@ function RetrieveAction({ reservationId, member, now, onUse }: { reservationId: 
       retrievePasses.set(reservationId, p)
       setPass(p)
     } catch (e) {
+      if (e instanceof ApiError && e.code === 'RETRIEVE_ALREADY_USED') {
+        retrieveUsed.add(reservationId)
+        setUsed(true)
+        return
+      }
       setError(e instanceof ApiError && e.status !== 0 && e.status < 500 ? e.message : '연결이 고르지 않아요. 다시 눌러 주세요.')
     } finally {
       setSending(false)
@@ -312,6 +321,13 @@ function RetrieveAction({ reservationId, member, now, onUse }: { reservationId: 
           <QRCodeSVG value={pass.qrText} size={176} level="M" marginSize={2} bgColor="#ffffff" fgColor="#000000" />
         </div>
         <p className="alert-note retrieve-left" role="status"><b>{left}분</b> 안에 문에 비춰요</p>
+      </div>
+    )
+  }
+  if (used) {
+    return (
+      <div className="alert-actions">
+        <p className="alert-note" role="status">이미 찾으러 와서 문을 열었어요. 새 QR은 받을 수 없어요.</p>
       </div>
     )
   }
