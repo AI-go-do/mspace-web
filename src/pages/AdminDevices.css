@@ -1,0 +1,87 @@
+/* 방 칸을 크게: 1~4번은 두 줄 두 칸, 5번은 아래 넓게(재웅 11/12 "창작실 1~5 크게 크게", 칸 하나에 그 방 전부) */
+@media (min-width: 720px) { .adm .ctl-floor { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/*
+ * 창작실 칸 안의 기기 줄. 켜진 기기만 색이 차고 움직인다(냉방 파랑·난방 주황·제습 청록·환풍기 날개·공기청정기 물결).
+ * 오디가 방금 바꾼 칸은 보라 테두리가 반짝이고 ✦가 붙는다. 움직임 줄이기를 켠 사람은 색만 바뀐다
+ */
+.adm .ct-dev { position: relative; z-index: 0; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.adm .ctl-tile.big .ct-dev { grid-column: 1 / -1; }
+.adm .dv-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.adm .dv {
+  --dc: var(--navy-70); position: relative; display: grid; justify-items: center; gap: 1px; padding: 8px 2px 6px; border-radius: 12px;
+  background: var(--gray); color: var(--navy-70); transition: background-color 0.4s, color 0.4s, box-shadow 0.4s;
+}
+.adm .dv.none { opacity: 0.4; }
+.adm .dv-cool { --dc: #2f7cf6; } .adm .dv-heat { --dc: #e8692c; } .adm .dv-dry { --dc: #0f9d8f; }
+.adm .dv-fan { --dc: #4b63d8; } .adm .dv-purifier { --dc: #7b5cf0; }
+.adm .dv.on { background: color-mix(in srgb, var(--dc) 13%, var(--white)); color: var(--dc); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--dc) 55%, transparent); }
+.adm .dv-ic { position: relative; width: 26px; height: 26px; display: grid; place-items: center; }
+.adm .dv-ic svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.adm .dv-fan .dv-ic svg path, .adm .dv-fan .dv-ic svg circle { fill: currentColor; stroke: none; }
+.adm .dv-heat.on .dv-ic svg path, .adm .dv-dry.on .dv-ic svg path { fill: color-mix(in srgb, var(--dc) 30%, transparent); }
+.adm .dv-ring { opacity: 0; }
+.adm .dv-t { font-size: 11.5px; font-weight: 800; color: var(--navy); white-space: nowrap; }
+.adm .dv-s { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.adm .dv.on .dv-s { color: var(--dc); }
+.adm .dv-odi { position: absolute; top: 2px; right: 5px; font-size: 11px; color: #7b5cf0; }
+.adm .dv.fresh { box-shadow: inset 0 0 0 2px #7b5cf0; }
+/* 바람(냉방·난방): 아이콘 아래로 흐르는 짧은 선 셋 */
+.adm .dv-wind { position: absolute; left: 50%; bottom: -5px; display: flex; gap: 3px; transform: translateX(-50%); }
+.adm .dv-wind b { width: 2px; height: 6px; border-radius: 2px; background: var(--dc); opacity: 0.7; }
+
+/* 오디 한 줄: 이 방에서 마지막으로 기기를 다룬 판단 */
+.adm .dv-odi-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; color: var(--navy-70); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm .dv-odi-line b { flex: none; color: #6a4ee0; font-weight: 900; }
+.adm .dv-odi-line time { flex: none; color: var(--blue); font-weight: 800; font-variant-numeric: tabular-nums; }
+.adm .dv-odi-line.run { color: #6a4ee0; font-weight: 700; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .adm .dv.on .dv-spin { animation: dv-spin 3s linear infinite !important; transform-origin: 12px 12px; transform-box: view-box; }
+  .adm .dv-fan.on .dv-spin { animation-duration: 0.9s !important; }
+  .adm .dv-heat.on .dv-flame { animation: dv-flame 0.9s ease-in-out infinite alternate !important; transform-origin: 12px 20px; transform-box: view-box; }
+  .adm .dv-dry.on .dv-drop { animation: dv-bob 1.4s ease-in-out infinite !important; }
+  .adm .dv-purifier.on .dv-ring { animation: dv-ring 1.8s ease-out infinite !important; transform-origin: 12px 12px; transform-box: view-box; }
+  .adm .dv-purifier.on .dv-ring.r2 { animation-delay: 0.9s !important; }
+  .adm .dv-wind b { animation: dv-wind 0.9s ease-in infinite !important; }
+  .adm .dv-wind b:nth-child(2) { animation-delay: 0.3s !important; }
+  .adm .dv-wind b:nth-child(3) { animation-delay: 0.6s !important; }
+  .adm .dv.fresh { animation: dv-fresh 1.2s ease-in-out infinite !important; }
+  .adm .dv.on .dv-ic { animation: dv-pop 0.4s var(--ease-out) !important; }
+  .adm .dv-odi-line.run .cl-dots i { animation: cl-dot 1s ease-in-out infinite !important; }
+  .adm .dv-odi-line.run .cl-dots i:nth-child(2) { animation-delay: 0.15s !important; }
+  .adm .dv-odi-line.run .cl-dots i:nth-child(3) { animation-delay: 0.3s !important; }
+}
+@keyframes dv-spin { to { transform: rotate(360deg); } }
+@keyframes dv-flame { from { transform: scale(0.92, 0.88); } to { transform: scale(1.04, 1.08); } }
+@keyframes dv-bob { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(2px); } }
+@keyframes dv-ring { 0% { opacity: 0.8; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2.6); } }
+@keyframes dv-wind { 0% { opacity: 0; transform: translateY(-3px); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(5px); } }
+@keyframes dv-fresh { 0%, 100% { box-shadow: inset 0 0 0 2px #7b5cf0, 0 0 0 0 transparent; } 50% { box-shadow: inset 0 0 0 2px #7b5cf0, 0 0 0 5px color-mix(in srgb, #7b5cf0 25%, transparent); } }
+@keyframes dv-pop { from { transform: scale(0.6); } to { transform: none; } }
+
+/* 칸 맨 위 현황 줄: 인원 · 입실 · 퇴실 · 알림 (관제 화면처럼 한눈에, 재웅 11/12 17:46) */
+.adm .ct-now { position: relative; z-index: 0; display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 6px; pointer-events: none; }
+.adm .ct-now .cn { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 5px 8px; border-radius: 10px; background: var(--gray); line-height: 1.15; }
+.adm .ct-now .cn small { font-size: 10.5px; font-weight: 700; color: var(--navy-70); }
+.adm .ct-now .cn b { font-size: 14px; font-weight: 900; color: var(--navy); font-variant-numeric: tabular-nums; }
+.adm .ct-now .cn em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--blue); white-space: nowrap; }
+.adm .ct-now .cn-people { flex-direction: row; align-items: baseline; gap: 2px; padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--navy-70); }
+.adm .ct-now .cn-people b { font-size: 22px; }
+.adm .ct-now .cn-people.on { background: color-mix(in srgb, var(--blue) 10%, var(--white)); color: var(--blue); }
+.adm .ct-now .cn-people.on b { color: var(--blue); }
+.adm .ct-now .cn-alert.on { background: color-mix(in srgb, var(--yellow) 22%, var(--white)); }
+.adm .ct-now .cn-alert.on b { color: #a86a00; }
+
+/* 네 값 한 줄 */
+.adm .ct-strip { position: relative; z-index: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; pointer-events: none; }
+.adm .ct-strip span { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; padding: 4px 8px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--c-line); }
+.adm .ct-strip small { font-size: 10.5px; font-weight: 700; color: var(--navy-70); }
+.adm .ct-strip b { font-size: 13px; font-weight: 900; color: var(--navy); font-variant-numeric: tabular-nums; }
+.adm .ct-strip span.warn { background: color-mix(in srgb, var(--yellow) 18%, var(--white)); box-shadow: inset 0 0 0 1px var(--yellow); }
+.adm .ctl-tile.big .ct-now, .adm .ctl-tile.big .ct-strip { grid-column: 1 / -1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .adm .ct-now .cn-alert.on b { display: inline-block; animation: warn-beat 1.6s ease-in-out infinite !important; }
+  .adm .ct-now .cn-people.on b { display: inline-block; animation: dv-pop 0.4s var(--ease-out) !important; }
+}

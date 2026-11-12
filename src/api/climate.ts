@@ -57,6 +57,10 @@ export interface ClimateRoom {
   metrics: Partial<Record<MetricKey, ClimateMetric>>
   findings: { kind: string; metric: MetricKey | null; message: string; etaMinutes: number | null }[]
   appliances: ClimateAppliance[]
+  /** 지금 재실 상태가 시작된 시각(있음이면 입실 시각) */
+  occupiedSince?: string | null
+  /** 시뮬레이션 방만 인원. 실제 방은 센서가 인원을 못 세서 null */
+  people?: number | null
 }
 
 export interface SeriesPoint { at: string; value: number; lower: number | null; upper: number | null }

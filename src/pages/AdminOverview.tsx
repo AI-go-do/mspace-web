@@ -73,8 +73,8 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
   const lastT = Math.max(0, ...views.map((v) => Date.parse(v.times[v.times.length - 1] ?? '') || 0))
   const live = !!ticks && Object.keys(ticks).length > 0
   const now = live ? clock.getTime() : lastT || clock.getTime()
-  // 예측 칸은 실제 예측 길이만큼(없으면 기본 15분). 온도·습도는 예측이 없어 오른쪽 여백 1분
-  const ahead = metric === 'co2' ? Math.max(5, Math.min(ENV_RULES.forecastMinutes, ...views.map((v) => v.forecast.length).filter((n) => n > 0))) : 1
+  // 예측 칸은 가장 긴 예측 길이만큼(최대 15분, 최소 5분). 온도·습도는 예측이 없어 오른쪽 여백 1분
+  const ahead = metric === 'co2' ? Math.max(5, Math.min(ENV_RULES.forecastMinutes, Math.max(0, ...views.map((v) => v.forecast.length)))) : 1
   const t0 = now - PAST_MIN * 60_000
   const t1 = now + ahead * 60_000
   const limit = metric === 'co2' ? ENV_RULES.co2LimitPpm : metric === 'temp' ? ENV_RULES.hotC : metric === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct
@@ -126,7 +126,13 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
     return d
   }
   const area = (pts: (Pt | null)[], tip: Pt | null) => {
-    const ok = pts.filter((p): p is Pt => !!p && p.t >= t0 - 60_000)
+    // 칠하는 면은 지금에서 거꾸로 끊김 없이 이어진 구간만(센서가 3분 넘게 빈 곳을 가로질러 칠하지 않게)
+    const ok: Pt[] = []
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const p = pts[i]
+      if (!p || p.t < t0 - 60_000 || (ok.length && ok[0].t - p.t > 3 * 60_000)) break
+      ok.unshift(p)
+    }
     if (!ok.length || !tip) return ''
     const line = [...ok, tip].map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join('')
     return `${line}L${x(tip.t).toFixed(1)},${PAD.t + ih}L${x(ok[0].t).toFixed(1)},${PAD.t + ih}Z`

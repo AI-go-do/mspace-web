@@ -1,4 +1,6 @@
 import { type CSSProperties } from 'react'
+import { DeviceRow, type lastControl } from './AdminDevices'
+import type { ClimateAppliance } from '../api/climate'
 import { ENV_RULES } from '../config/adminRooms'
 import type { TipRules } from '../lib/climate'
 import type { Advice } from '../lib/roomAdvice'
@@ -90,8 +92,57 @@ function TileValue({ view, metric }: { view: RoomView; metric: TileMetric }) {
  * 평면도 칸 하나. 칸 전체가 상세 창을 여는 버튼이고(ct-hit), 아래 작은 단추로 이 방만 다른 값을 볼 수 있다.
  * 버튼 안에 버튼을 둘 수 없어서 칸은 div, 여는 버튼은 칸 전체를 덮게 깐다
  */
-export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, metric = 'co2', onMetric, onOpen }: {
+/** 관제 칸에 더 얹는 실시간 정보(climate가 있을 때만): 인원·입실 시각·기기·오디 마지막 제어·열린 판단 수 */
+export interface TileLive {
+  /** climate가 아는 재실(시뮬레이션 방은 시뮬레이터 값). null이면 칸의 재실 센서 값 */
+  occupied: boolean | null
+  people: number | null
+  since: string | null
+  devices: ClimateAppliance[]
+  control: ReturnType<typeof lastControl>
+  open: number
+  now: number
+}
+
+function hm(iso: string): string {
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
+}
+
+/** 칸 맨 위 현황: 인원 · 입실 · 퇴실(남은 분) · 알림 */
+function NowLine({ view, live, alerts }: { view: RoomView; live: TileLive; alerts: number }) {
+  const used = live.occupied ?? view.presence === 'OCCUPIED'
+  const people = live.people ?? view.current?.people ?? null
+  const inAt = view.current?.startAt ?? (used ? live.since : null)
+  const outAt = view.current?.endAt ?? null
+  const left = outAt ? Math.round((Date.parse(outAt) - live.now) / 60_000) : null
+  return (
+    <span className="ct-now">
+      <span className={`cn cn-people ${used ? 'on' : ''}`}><b>{used ? (people ?? '?') : 0}</b>명</span>
+      <span className="cn"><small>입실</small><b>{inAt ? hm(inAt) : '–'}</b></span>
+      <span className="cn"><small>퇴실</small><b>{outAt ? hm(outAt) : '–'}</b>{left !== null && left >= 0 && <em>{left}분 남음</em>}</span>
+      <span className={`cn cn-alert ${alerts ? 'on' : ''}`}><small>알림</small><b>{alerts}</b></span>
+    </span>
+  )
+}
+
+/** 네 값 한 줄(CO2·온도·습도·조도). 큰 숫자 하나만 보던 칸에서 나머지도 한눈에 */
+function MetricStrip({ view }: { view: RoomView }) {
+  const cells: { k: string; v: string | null; warn: boolean }[] = [
+    { k: 'CO2', v: view.co2 === null ? null : `${view.co2}`, warn: view.flags.co2Over || view.flags.co2Soon },
+    { k: '온도', v: view.temperatureC === null ? null : `${view.temperatureC.toFixed(1)}°`, warn: view.flags.hot },
+    { k: '습도', v: view.humidityPct === null ? null : `${Math.round(view.humidityPct)}%`, warn: view.flags.dry },
+    { k: '조도', v: view.light === null ? null : `${view.light}%`, warn: view.flags.lightLeftOn },
+  ]
+  return (
+    <span className="ct-strip">
+      {cells.map((c) => <span key={c.k} className={c.warn ? 'warn' : ''}><small>{c.k}</small><b>{c.v ?? '–'}</b></span>)}
+    </span>
+  )
+}
+
+export function RoomTile({ view, tone, advice, blocked, reports, i, big = false, metric = 'co2', onMetric, onOpen, live }: {
   view: RoomView
+  live?: TileLive
   /** 에어컨·공기청정기 권유 계산용. 아직 값이 없으면 칩을 안 그린다 */
   now?: Date | null
   rules?: TipRules
@@ -130,6 +181,7 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
           <span className={`ct-tag s-${view.status.tone}`}>{view.status.text}</span>
         </span>
       </span>
+      {live && <NowLine view={view} live={live} alerts={advice.length + live.open} />}
       <span className="ct-main">
         <span className="ct-co2">
           <TileValue key={metric} view={view} metric={metric} />
@@ -137,6 +189,8 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
         </span>
         <Spark view={view} metric={metric} wide={big} />
       </span>
+      {live && <MetricStrip view={view} />}
+      {live && <DeviceRow devices={live.devices} control={live.control} now={live.now} name={view.name} />}
       {onMetric && (
         <span className="ct-metric" role="group" aria-label={`${view.name}에서 볼 값`}>
           {TILE_METRICS.map((m) => (

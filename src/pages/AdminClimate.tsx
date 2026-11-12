@@ -45,6 +45,9 @@ function judge(m: ClimateMetric, v: number): ClimateMetric {
 /** 밀려온 값 하나를 방 카드·그래프에 붙인다(같은 분이면 갈아 끼움) */
 export function applyReading(rooms: ClimateRoom[], series: SeriesMap, r: Reading): { rooms: ClimateRoom[]; series: SeriesMap } {
   const vals: [MetricKey, number | null][] = [['CO2', r.co2], ['TEMPERATURE', r.temperatureC], ['HUMIDITY', r.humidityPct]]
+  // 방이 이미 더 새 값을 들고 있으면(늦게 도착한 값) 방도 그래프도 그대로
+  const cur = rooms.find((x) => x.roomId === r.roomId)
+  if (cur?.envAt && Date.parse(r.at) < Date.parse(cur.envAt)) return { rooms, series }
   const nextRooms = rooms.map((room) => {
     if (room.roomId !== r.roomId) return room
     const metrics = { ...room.metrics }
@@ -82,8 +85,8 @@ export function mergeRooms(prev: ClimateRoom[] | null, next: ClimateRoom[]): Cli
     for (const k of Object.keys(metrics) as MetricKey[]) {
       const pm = p.metrics[k]
       const nm = metrics[k]
-      // 밀려온 값이 더 새것이면 값과 그 값으로 낸 판정(넘음·남은 분)을 같이 둔다. 기준선은 다시 읽은 것
-      if (pm && nm && newer(pm.at, nm.at)) metrics[k] = { ...pm, baseline: nm.baseline }
+      // 밀려온 값이 더 새것이면 값·판정·기준선을 한 묶음으로 둔다(새 기준선과 옛 판정이 섞이지 않게. 기준선은 다음 다시 읽기에서 바뀜)
+      if (pm && nm && newer(pm.at, nm.at)) metrics[k] = pm
     }
     const fresher = newer(p.envAt, n.envAt)
     return { ...n, metrics, envAt: fresher ? p.envAt : n.envAt, offline: fresher ? p.offline : n.offline, source: fresher ? p.source : n.source }
@@ -183,6 +186,8 @@ export function useClimateLive(enabled: boolean) {
         } else if (e.event === 'decision') {
           const d = JSON.parse(e.data) as Decision
           setDecisions((l) => upsertDecision(l, d))
+          // 오디가 기기를 바꿨을 수 있다: 칸의 기기 줄이 1분 tick을 기다리지 않게 방(기기 상태)만 다시 읽는다
+          void reload(false).catch(() => undefined)
         } else if (e.event === 'tick') {
           // 1분 판단이 끝남: 기준선·예측·기기 상태를 다시 읽는다(그래프는 5분마다)
           void reload(new Date().getMinutes() % 5 === 0).catch(() => undefined)

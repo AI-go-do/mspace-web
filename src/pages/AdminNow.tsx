@@ -15,6 +15,7 @@ import { RoomTile, TILE_METRICS, type TileMetric } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
 import { ClimateFeed, useClimateLive } from './AdminClimate'
+import { lastControl } from './AdminDevices'
 import { overlayClimate } from '../lib/climateOverlay'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
@@ -178,8 +179,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
   // 가짜(시연) 값으로는 실제 기기에 명령을 보내지 않아요. 가짜 기기일 때만 자동 제어를 보여 줘요
-  // 녹화·시뮬레이션 값인 방은 이 화면의 자동 제어에서 뺀다(지난 값·가짜 값으로 실제 기기를 움직이지 않게. 그 방 기기는 climate가 맡음)
-  const notLiveKey = [...replay, ...sim].join(',')
+  // 녹화·시뮬레이션·추정 값인 방은 이 화면의 자동 제어에서 뺀다(지난 값·가짜 값으로 실제 기기를 움직이지 않게. 그 방 기기는 climate가 맡음)
+  const notLiveKey = [...replay, ...sim, ...derived].join(',')
   const autoViews = useMemo(() => {
     const skip = new Set(notLiveKey.split(',').filter(Boolean).map(Number))
     return views.filter((v) => !skip.has(v.roomId))
@@ -222,12 +223,22 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 위 "평균 CO2"와 아래 분석의 평균이 늘 같게 같은 계산을 쓴다
   const avg = useMemo(() => overview(views).avg, [views])
 
+  // 관제 칸에 얹을 climate 실시간 정보(인원·입실·기기·오디 제어). climate가 없으면 칸은 예전 그대로
+  const nowMs = now ? now.getTime() : 0
+  const liveOf = (roomId: number) => {
+    const r = climateOn ? climate.rooms?.find((x) => x.roomId === roomId) : undefined
+    if (!r) return undefined
+    return {
+      occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupiedSince ?? null, devices: r.appliances,
+      control: lastControl(climate.decisions, roomId), open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
+    }
+  }
   const tile = (v: RoomView, i: number, big = false) => {
     const list = adviceOf(v)
     return (
       <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)}
-        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} />
+        metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} live={liveOf(v.roomId)} />
     )
   }
   // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
