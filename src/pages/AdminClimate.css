@@ -1,89 +1,26 @@
-/* 관리자 "공기" 칸: 방마다 실시간 값 + 오디 판단 카드 (재웅 11/12). 글자는 숫자 위주로 적게 */
-.cl { grid-column: 1 / -1; min-width: 0; padding: 16px; border-radius: var(--radius); background: var(--white); box-shadow: var(--shadow-1); }
-.cl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.cl-head h2 { margin: 0; font-size: 17px; font-weight: 800; }
-.cl-live { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: var(--navy-70); }
+/* 관리자 "지금" 탭의 공기 실시간 표시와 오디 판단 줄. 단계 줄은 정리 확인 상자(.ca-steps) 모양을 쓰고, 이 칸은 경고 상자가 아니라 파란색 */
+.cl-live { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--navy-70); }
 .cl-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--taken); }
 .cl-live.s-live { color: #16865a; }
-.cl-live.s-live i { background: #16865a; box-shadow: 0 0 0 0 color-mix(in srgb, #16865a 50%, transparent); }
-.cl-live.s-retrying i { background: var(--yellow); }
-.cl-last { font-size: 12.5px; font-weight: 600; color: var(--navy-70); font-variant-numeric: tabular-nums; }
-.cl-tabs { margin-left: auto; display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--gray); }
-.cl-tabs button { min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 13px; font-weight: 800; color: var(--navy-70); cursor: pointer; }
-.cl-tabs button.on { background: var(--white); color: var(--navy); box-shadow: var(--shadow-1); }
+.cl-live.s-live i { background: #16865a; }
+.cl-live.s-retrying i, .cl-live.s-connecting i { background: var(--yellow); }
 
-.cl-body { display: grid; gap: 14px; margin-top: 12px; }
-@media (min-width: 1100px) { .cl-body { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); align-items: start; } }
+.adm .ctl-feed.cl-feed { margin-bottom: 12px; }
+.adm .ctl-feed .cl-steps { margin: -4px 0 0; padding: 0 14px 12px 54px; gap: 5px; }
+.adm .ctl-feed .cl-steps li + li { border-top: 0; }
+.adm .ctl-feed .cl-steps b { margin-right: 4px; font-weight: 800; }
+.adm .ctl-feed .cl-steps li.s-done i { background: var(--blue); }
+.adm .ctl-feed .cl-steps li.s-now i { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--blue) 22%, transparent); }
+.adm .ctl-feed .cl-steps li.s-now i::after { border-top-color: var(--blue); }
+.adm .ctl-feed .cl-steps li.s-fail { color: var(--alert); }
+.adm .ctl-feed .cl-steps li.s-fail i { background: var(--alert); box-shadow: none; }
+.adm .ctl-feed .cl-steps li.s-fail i::after { content: '!'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--white); font-size: 10px; font-weight: 800; }
 
-.cl-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); min-width: 0; }
-@media (max-width: 520px) { .cl { padding: 12px; } .cl-grid { gap: 8px; } .cl-room { padding: 10px; } .cl-big b { font-size: 24px; } .cl-sub { font-size: 11.5px; } .cl-tabs { margin-left: 0; } }
-.cl-room { position: relative; min-width: 0; padding: 12px; border-radius: 14px; background: var(--gray); border: 2px solid transparent; transition: border-color 0.3s; }
-.cl-room.skel { min-height: 170px; }
-.cl-room.st-SOON { border-color: color-mix(in srgb, var(--yellow) 80%, transparent); }
-.cl-room.st-OVER { border-color: #d9534f; }
-.cl-room.st-SENSOR { border-style: dashed; border-color: var(--taken); }
-.cl-room header { display: flex; align-items: center; gap: 6px; }
-.cl-no { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--navy); color: var(--white); font-size: 12px; font-weight: 900; }
-.cl-name { font-size: 13.5px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-src { padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 800; }
-.cl-src.real { background: color-mix(in srgb, #16865a 14%, var(--white)); color: #16865a; }
-.cl-src.sim { background: var(--white); color: var(--navy-70); }
-.cl-occ { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; }
-.cl-occ.o-in { background: var(--blue); }
-.cl-occ.o-out { background: var(--white); border: 2px solid var(--taken); }
-.cl-occ.o-unk { background: var(--taken); }
+/* 작은 그래프: 관리자 화면은 그리는 움직임을 끄므로 점선 길이(pathLength) 대신 그냥 선으로. non-scaling-stroke와 같이 쓰면 크롬에서 선이 군데군데 끊겨 보인다 */
+.adm .ctl-tile:not(.tn-off) .sp-line { stroke-dasharray: none; }
 
-.cl-big { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 3px; margin-top: 6px; }
-.cl-big b, .cl-big i { display: inline-block; }
-.cl-big .cl-soon { align-self: center; white-space: nowrap; }
-.cl-big b { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-.cl-big i { font-style: normal; font-size: 13px; font-weight: 700; color: var(--navy-70); }
-.cl-soon { margin-left: auto; padding: 2px 8px; border-radius: 999px; font-style: normal; font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--yellow) 40%, var(--white)); color: #8a5a00; }
-.st-OVER .cl-soon { background: color-mix(in srgb, #d9534f 16%, var(--white)); color: #b02a26; }
-
-.cl-spark { display: block; width: 100%; height: 56px; margin-top: 4px; overflow: visible; }
-.cl-spark.empty { display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--navy-70); }
-.cl-band { fill: color-mix(in srgb, var(--sky) 28%, transparent); }
-.cl-line { fill: none; stroke: var(--blue); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-.cl-fc { fill: none; stroke: var(--blue); stroke-width: 2; stroke-dasharray: 4 4; opacity: 0.6; vector-effect: non-scaling-stroke; }
-.cl-now { stroke: var(--taken); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.cl-dot { fill: var(--blue); stroke: var(--white); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.st-SOON .cl-line, .st-SOON .cl-fc { stroke: #c98a00; }
-.st-OVER .cl-line, .st-OVER .cl-fc { stroke: #d9534f; }
-
-.cl-sub { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12.5px; font-weight: 600; color: var(--navy-70); font-variant-numeric: tabular-nums; }
-.cl-sub b { color: var(--navy); font-weight: 800; }
-.cl-sub .cl-ago { margin-left: auto; }
-.cl-appl { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
-.cl-appl li { padding: 2px 8px; border-radius: 999px; background: var(--white); font-size: 12px; font-weight: 800; color: var(--blue); }
-
-.cl-odi { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cl-odi h3 { margin: 0; font-size: 15px; font-weight: 800; }
-.cl-odi h3 b { margin-left: 4px; color: var(--blue); }
-.cl-calm { margin: 0; padding: 12px; border-radius: 12px; background: var(--gray); font-size: 13.5px; font-weight: 700; }
-.cl-calm span { color: #16865a; margin-right: 4px; }
-.cl-card { margin-top: 0; }
-.cl-step { margin-right: 6px; font-weight: 900; }
-.tidy-ai-acts .skip { color: var(--navy-70); }
-.tidy-ai-acts .skip .mark { border: 2px dashed var(--taken); }
-.tidy-ai-acts .fail .mark { background: #d9534f; }
-.tidy-ai-acts .fail .mark::before { content: '!'; }
-
-/* 관리자 화면은 움직임을 끄지만(AdminPlain.css) 이 칸의 "새 값" 표시와 판단 카드는 켠다. 움직임 줄이기를 켠 사람은 그대로 끈다 */
+/* 실시간 점은 움직임을 켠다. 움직임 줄이기를 켠 사람은 그대로 끈다 */
 @media (prefers-reduced-motion: no-preference) {
   .adm .cl-live.s-live i { animation: cl-ping 1.6s ease-out infinite !important; }
-  .adm .cl-room.fresh { animation: cl-flash 1.2s var(--ease-out) !important; }
-  .adm .cl-big b.tick { animation: cl-tick 0.5s var(--ease-out) !important; }
-  .adm .cl-dot.pulse { animation: cl-dot 1.2s ease-out !important; }
-  .adm .cl-card { animation: rise-in 0.35s var(--ease-out) backwards, ai-border 6s linear infinite !important; }
-  .adm .cl-card.thinking .tidy-ai-odi { animation: ai-pulse 1s ease-out infinite !important; }
-  .adm .cl-card .tidy-ai-acts .doing .mark { animation: ai-spin 0.8s linear infinite !important; }
-  .adm .cl-card .tidy-ai-acts .doing .txt { animation: ai-shimmer 1.4s linear infinite !important; }
-  .adm .cl-card .tidy-ai-acts .ok .mark { animation: ai-pop 0.35s var(--ease-out) !important; }
 }
 @keyframes cl-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #16865a 50%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
-@keyframes cl-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sky) 70%, transparent); background: color-mix(in srgb, var(--sky) 22%, var(--gray)); } 100% { box-shadow: 0 0 0 10px transparent; } }
-@keyframes cl-tick { 0% { transform: translateY(-6px); opacity: 0.3; } 100% { transform: none; opacity: 1; } }
-@keyframes cl-dot { 0% { r: 6; } 100% { r: 3; } }
-.cl-more { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--navy-70); text-align: center; }
-.cl { margin: 0; }

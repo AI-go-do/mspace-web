@@ -1,29 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
-  climateMissing, getClimateRooms, getClimateSeries, getDecisions, METRICS, streamClimate,
+  climateMissing, getClimateRooms, getClimateSeries, getDecisions, streamClimate,
   type ClimateRoom, type Decision, type MetricKey, type Reading, type Series, type SeriesPoint, type SseEvent, type StreamState,
 } from '../api/climate'
 import { adminErrorMessage } from '../api/admin'
-import Odi from '../components/Odi'
 import './AdminClimate.css'
 
 /**
- * 관리자 "공기" 칸 (재웅 11/12: 센서 값은 들어오는 순간 바뀌고, 오디 판단은 정리 확인 AI 상자처럼 로딩 → 체크).
- * - 값: 처음 한 번 읽고, 그 뒤는 climate가 밀어 주는 reading으로 바로 바꾼다(물어보러 가지 않음)
- * - 그래프: 지난 2시간 실측 + 이 방 기준선 띠(평균 ± 2.5σ) + 앞으로 30분 예측 점선
- * - 오디 판단 카드: 탐지 → 예측 → 알림 → 제어 → 다시 확인. 단계 시각은 서버가 실제로 한 시각이고,
- *   돌아가는 표시는 아직 끝나지 않은 "다시 확인"뿐이다(정해 둔 시간으로 움직이는 연출 없음, 정리 확인 상자와 같은 규칙)
- * climate가 아직 없는 서버면(404·502·503) 이 칸을 숨긴다
+ * 관리자 "지금" 탭의 climate 연결 (재웅 11/12: 센서 값은 들어오는 순간 바뀌고, 오디 판단은 로딩 → 체크. 디자인은 기존 그대로).
+ * - 값: 처음 한 번 읽고, 그 뒤는 climate가 밀어 주는 reading으로 바로 바꾼다(물어보러 가지 않음). 화면은 lib/climateOverlay로
+ *   기존 방 타일·한 그래프에 그대로 얹는다
+ * - 오디 판단: 탐지 → 예측 → 알림 → 제어 → 다시 확인. 단계 시각은 서버가 실제로 한 시각이고,
+ *   도는 표시는 아직 끝나지 않은 "다시 확인"뿐이다(정해 둔 시간으로 움직이는 연출 없음, 정리 확인 상자와 같은 규칙)
+ * climate가 아직 없는 서버면(404·502·503) 아무것도 바꾸지 않는다
  */
 
 const MINUTES = 120
-/** 판단 카드는 이만큼만(글자가 많아지지 않게). 다시 확인 중인 카드가 먼저 온다 */
-const SHOWN = 4
 const LABEL: Record<MetricKey, string> = { CO2: 'CO2', TEMPERATURE: '온도', HUMIDITY: '습도' }
-const DIGITS: Record<MetricKey, number> = { CO2: 0, TEMPERATURE: 1, HUMIDITY: 0 }
+const GROUP: Record<Decision['group'], string> = { HIGH: '평소보다 높아요', LOW: '평소보다 낮아요', SENSOR: '센서가 이상해요' }
 const STEP: Record<Decision['steps'][number]['key'], string> = { DETECT: '탐지', PREDICT: '예측', NOTIFY: '알림', CONTROL: '제어', VERIFY: '다시 확인' }
 
-const fmt = (v: number | null | undefined, m: MetricKey) => (v === null || v === undefined ? '–' : DIGITS[m] ? v.toFixed(DIGITS[m]) : String(Math.round(v)))
 
 function clock(iso: string): string {
   return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date(iso))
@@ -72,7 +68,8 @@ export function upsertDecision(list: Decision[], d: Decision): Decision[] {
   return [d, ...rest].sort((a, b) => Number(b.open) - Number(a.open) || Date.parse(b.openedAt) - Date.parse(a.openedAt)).slice(0, 30)
 }
 
-function useClimateLive() {
+/** climate 실시간 값·판단 카드. enabled=false(시연 값)면 아무것도 읽지 않는다 */
+export function useClimateLive(enabled: boolean) {
   const [rooms, setRooms] = useState<ClimateRoom[] | null>(null)
   const [series, setSeries] = useState<SeriesMap>({})
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -90,6 +87,7 @@ function useClimateLive() {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
     const ctrl = new AbortController()
     const { signal } = ctrl
     const reload = async (withSeries: boolean) => {
@@ -134,156 +132,48 @@ function useClimateLive() {
       }
     })()
     return () => ctrl.abort()
-  }, [loadSeries])
+  }, [loadSeries, enabled])
 
   return { rooms, series, decisions, state, missing, error, flash, lastAt }
 }
 
-function useNow(ms = 1000) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), ms)
-    return () => clearInterval(t)
-  }, [ms])
-  return now
-}
+const STATUS_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 's-done', RUNNING: 's-now', SKIPPED: 's-next', FAILED: 's-fail' }
 
-/** 작은 그래프: 기준선 띠 + 실측 + 예측 점선 */
-function Spark({ s, metric, now, pulse }: { s: Series | undefined; metric: MetricKey; now: number; pulse: boolean }) {
-  const W = 240
-  const H = 56
-  if (!s || s.points.length === 0) return <div className="cl-spark empty" aria-hidden="true">값 기다리는 중</div>
-  const t0 = now - MINUTES * 60_000
-  const t1 = now + 30 * 60_000
-  const pts = s.points.filter((p) => Date.parse(p.at) >= t0)
-  const fc = s.forecast ?? []
-  const vals = [...pts.map((p) => p.value), ...fc.map((p) => p.value), ...pts.flatMap((p) => [p.lower, p.upper]).filter((v): v is number => v !== null)]
-  let lo = Math.min(...vals)
-  let hi = Math.max(...vals)
-  const pad = Math.max((hi - lo) * 0.12, metric === 'CO2' ? 20 : 0.3)
-  lo -= pad
-  hi += pad
-  const x = (iso: string) => ((Date.parse(iso) - t0) / (t1 - t0)) * W
-  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.at).toFixed(1)},${y(p.value).toFixed(1)}`).join('')
-  const banded = pts.filter((p) => p.lower !== null && p.upper !== null)
-  const band = banded.length > 1
-    ? `M${banded.map((p) => `${x(p.at).toFixed(1)},${y(p.upper!).toFixed(1)}`).join('L')}L${banded.slice().reverse().map((p) => `${x(p.at).toFixed(1)},${y(p.lower!).toFixed(1)}`).join('L')}Z`
-    : ''
-  const last = pts[pts.length - 1]
-  const fline = last && fc.length ? `M${x(last.at).toFixed(1)},${y(last.value).toFixed(1)}${fc.map((p) => `L${x(p.at).toFixed(1)},${y(p.value).toFixed(1)}`).join('')}` : ''
-  const nowX = x(new Date(now).toISOString())
+/**
+ * 오른쪽 "오디가 한 일" 안의 공기 판단 (기존 줄 모양 그대로). 한 줄 = 방 하나의 판단 하나, 아래에 다섯 단계.
+ * 단계 시각은 서버가 실제로 한 시각, 도는 표시는 아직 끝나지 않은 "다시 확인"뿐
+ */
+export function ClimateFeed({ decisions, onOpen, max = 4 }: { decisions: Decision[]; onOpen: (roomId: number) => void; max?: number }) {
+  const list = decisions.slice(0, max)
+  if (list.length === 0) return null
   return (
-    <svg className="cl-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      {band && <path d={band} className="cl-band" />}
-      <line x1={nowX} x2={nowX} y1="0" y2={H} className="cl-now" />
-      <path d={line} className="cl-line" />
-      {fline && <path d={fline} className="cl-fc" />}
-      {last && <circle key={pulse ? last.at : 'still'} cx={x(last.at)} cy={y(last.value)} r="3" className={`cl-dot${pulse ? ' pulse' : ''}`} />}
-    </svg>
-  )
-}
-
-const APPL: Record<string, string> = { AIRCON: '에어컨', PURIFIER: '공기청정기', VENTILATOR: '환풍기' }
-const MODE: Record<string, string> = { COOL: '냉방', HEAT: '난방', DRY: '제습' }
-
-function RoomAir({ room, series, metric, now, flashAt, i }: { room: ClimateRoom; series: Partial<Record<MetricKey, Series>> | undefined; metric: MetricKey; now: number; flashAt: number | undefined; i: number }) {
-  const m = room.metrics[metric]
-  const fresh = flashAt !== undefined && now - flashAt < 2500
-  const status = room.offline ? 'SENSOR' : m?.status ?? 'NONE'
-  const soon = m && m.status === 'SOON' && m.etaMinutes !== null ? `${m.etaMinutes}분 뒤 넘음` : m?.status === 'OVER' ? '넘음' : null
-  const on = room.appliances.filter((a) => a.power === 'ON')
-  return (
-    <article className={`cl-room st-${status}${fresh ? ' fresh' : ''}`} style={{ '--k': i } as CSSProperties}
-      aria-label={`${room.roomName} ${LABEL[metric]} ${fmt(m?.value, metric)}${m?.unit ?? ''}${soon ? `, ${soon}` : ''}`}>
-      <header>
-        <b className="cl-no">{room.roomId}</b>
-        <span className="cl-name">{room.roomName}</span>
-        <span className={`cl-src ${room.source === 'REAL' ? 'real' : 'sim'}`} title={room.source === 'REAL' ? '실제 센서 값' : '실습실 실제 값으로 만든 시뮬레이션 값'}>
-          {room.source === 'REAL' ? '실측' : '시뮬'}
-        </span>
-        <span className={`cl-occ o-${room.occupied === null ? 'unk' : room.occupied ? 'in' : 'out'}`} title={room.occupied === null ? '재실 모름' : room.occupied ? '사람 있음' : '빈 방'} aria-hidden="true" />
-      </header>
-      <div className="cl-big">
-        <b key={m?.at ?? 'x'} className={fresh ? 'tick' : ''}>{fmt(m?.value, metric)}</b><i>{m?.unit}</i>
-        {soon && <em className="cl-soon">{soon}</em>}
-      </div>
-      <Spark s={series?.[metric]} metric={metric} now={now} pulse={fresh} />
-      <div className="cl-sub">
-        {METRICS.filter((k) => k !== metric).map((k) => (
-          <span key={k}>{LABEL[k]} <b>{fmt(room.metrics[k]?.value, k)}</b>{room.metrics[k]?.unit}</span>
-        ))}
-        <span className="cl-ago">{room.offline ? '끊김' : ago(m?.at ?? null, now)}</span>
-      </div>
-      {on.length > 0 && (
-        <ul className="cl-appl">
-          {on.map((a) => <li key={a.applianceId}>{APPL[a.kind]}{a.mode ? ` ${MODE[a.mode]}` : ''}{a.targetC ? ` ${a.targetC}°` : ''}</li>)}
-        </ul>
-      )}
-    </article>
-  )
-}
-
-/** 오디 판단 카드 하나 (정리 확인 오디 AI 상자와 같은 모양) */
-export function DecisionCard({ d }: { d: Decision }) {
-  const warn = d.group !== 'LOW' && d.steps.some((s) => s.key === 'DETECT') && (d.kind === 'OVER' || d.steps.some((s) => s.status === 'FAILED'))
-  const what = d.metric ? LABEL[d.metric] : '센서'
-  return (
-    <div className={`tidy-ai cl-card ${d.open ? 'thinking' : 'done'}${warn ? ' t-warn' : ''}`}>
-      <div className="tidy-ai-head">
-        <span className="tidy-ai-odi"><Odi size={24} label="오디" /></span>
-        <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
-        <span className="tidy-ai-model">{d.roomName} · {what}</span>
-      </div>
-      <ol className="tidy-ai-acts tidy-ai-timeline">
-        {d.steps.map((s) => (
-          <li key={s.key} className={s.status === 'DONE' ? 'ok' : s.status === 'RUNNING' ? 'doing' : s.status === 'FAILED' ? 'fail' : 'skip'}>
-            <span className="mark" aria-hidden="true" />
-            <span className="txt">
-              {s.status !== 'RUNNING' && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
-              <b className="cl-step">{STEP[s.key]}</b>
-              {s.text}
-              {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
-            </span>
+    <ul className="ctl-feed cl-feed">
+      {list.map((d, i) => {
+        const detect = d.steps.find((s) => s.key === 'DETECT')
+        const control = d.steps.find((s) => s.key === 'CONTROL')
+        return (
+          <li key={d.id} style={{ '--k': i } as CSSProperties}>
+            <button type="button" className={`cf-item i-${d.open ? 'warn' : 'ok'}`} onClick={() => onOpen(d.roomId)}>
+              <span className="cf-no">{d.roomId}</span>
+              <span className="cf-text">
+                <small>{d.roomName} · {d.metric ? LABEL[d.metric] : '센서'} · {clock(d.openedAt).slice(0, 5)}</small>
+                <b>{detect?.text ?? ''}</b>
+                {control && control.status === 'DONE' && <span className="cf-auto">오디: {control.text}</span>}
+              </span>
+              <span className="cf-go" aria-hidden="true">›</span>
+            </button>
+            <ol className="ca-steps cl-steps" aria-label="오디가 판단한 과정">
+              {d.steps.map((s) => (
+                <li key={s.key} className={STATUS_CLASS[s.status]}>
+                  <i aria-hidden="true" />
+                  <span><b>{STEP[s.key]}</b> {s.key === 'DETECT' && s.status === 'DONE' ? GROUP[d.group] : s.text}</span>
+                  {s.status === 'RUNNING' && <span className="sr-only"> (진행 중)</span>}
+                </li>
+              ))}
+            </ol>
           </li>
-        ))}
-      </ol>
-    </div>
-  )
-}
-
-export function AdminClimate() {
-  const { rooms, series, decisions, state, missing, error, flash, lastAt } = useClimateLive()
-  const [metric, setMetric] = useState<MetricKey>('CO2')
-  const now = useNow()
-  if (missing) return null
-  return (
-    <section className="cl" aria-labelledby="cl-h">
-      <header className="cl-head">
-        <h2 id="cl-h">공기</h2>
-        <span className={`cl-live s-${state}`} role="status">
-          <i aria-hidden="true" />{state === 'live' ? '실시간' : state === 'connecting' ? '연결 중' : '다시 연결 중'}
-        </span>
-        {lastAt && <span className="cl-last">새 값 {ago(lastAt, now)}</span>}
-        <div className="cl-tabs" role="tablist" aria-label="지표">
-          {METRICS.map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={metric === k} className={metric === k ? 'on' : ''} onClick={() => setMetric(k)}>{LABEL[k]}</button>
-          ))}
-        </div>
-      </header>
-      {error && <p role="alert" className="adm-msg err">{error}</p>}
-      <div className="cl-body">
-        <div className="cl-grid">
-          {!rooms && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className="cl-room skel" />)}
-          {rooms?.map((r, i) => <RoomAir key={r.roomId} room={r} series={series[r.roomId]} metric={metric} now={now} flashAt={flash[r.roomId]} i={i} />)}
-        </div>
-        <aside className="cl-odi" aria-labelledby="cl-odi-h">
-          <h3 id="cl-odi-h">오디 판단 <b>{decisions.filter((d) => d.open).length}</b></h3>
-          {decisions.length === 0 && rooms && <p className="cl-calm"><span aria-hidden="true">✓</span> 모든 방 공기가 평소 범위예요</p>}
-          {decisions.slice(0, SHOWN).map((d) => <DecisionCard key={d.id} d={d} />)}
-          {decisions.length > SHOWN && <p className="cl-more">지난 판단 {decisions.length - SHOWN}건 더</p>}
-        </aside>
-      </div>
-    </section>
+        )
+      })}
+    </ul>
   )
 }

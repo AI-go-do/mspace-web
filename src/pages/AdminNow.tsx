@@ -14,7 +14,8 @@ import type { TodoCounts } from './AdminTodo'
 import { RoomTile, TILE_METRICS, type TileMetric } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
-import { AdminClimate } from './AdminClimate'
+import { ClimateFeed, useClimateLive } from './AdminClimate'
+import { overlayClimate } from '../lib/climateOverlay'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
 import { Judge, Steps, STEP_MS } from '../components/OdiSteps'
@@ -151,14 +152,19 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     }
   }, [fast])
 
+  // 공기 값은 climate가 밀어 주는 대로 바로 얹는다(시연 값일 때는 안 씀). climate가 없는 서버면 core 값 그대로
+  const climate = useClimateLive(!sample)
+  const shown = useMemo(() => (data && !sample && climate.rooms ? overlayClimate(data, climate.rooms, climate.series) : data),
+    [data, sample, climate.rooms, climate.series])
+
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
-    if (!data) return []
-    const now = new Date(data.now)
-    return data.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
-  }, [data])
+    if (!shown) return []
+    const now = new Date(shown.now)
+    return shown.rooms.map((r) => toRoomView(r, ADMIN_ROOMS.find((c) => c.roomId === r.roomId), now))
+  }, [shown])
 
-  const now = useMemo(() => (data ? new Date(data.now) : null), [data])
+  const now = useMemo(() => (shown ? new Date(shown.now) : null), [shown])
   const { auto } = useAppliances()
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
@@ -230,6 +236,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
       <div className="ctl-bar">
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
+        {!sample && climate.rooms && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
             {fast ? <>빨리 감는 중 · 시연 시각 <b>{now ? seoulClock(now) : '–'}</b></> : '빨리 감기 ×60'}
@@ -237,9 +244,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         )}
       </div>
       {error && <p role="alert" className="adm-msg err">{error}{data ? ` 마지막 값(${readAt ? seoulClock(readAt) : ''})을 보여 주고 있어요.` : ''}</p>}
-
-      {/* 공기: climate가 밀어 주는 실시간 값 + 오디 판단 카드. climate가 없는 서버면 숨는다. 실제 값이라 시연(sample) 화면에서도 보인다 */}
-      <AdminClimate />
 
       <div className="ctl-grid">
         <section className="ctl-floor" aria-label="방 평면도 (누르면 자세히)">
@@ -259,7 +263,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
-          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length : '–'}</b></h2>
+          <h2 id="ctl-issues-h"><span className={`ctl-pulse ${issues.length ? 'on' : ''}`} aria-hidden="true" />오디가 한 일 <b>{now ? issues.length + climate.decisions.filter((d) => d.open).length : '–'}</b></h2>
+          {!sample && <ClimateFeed decisions={climate.decisions} onOpen={setOpenRoom} />}
           {issues.length > 0 && <ActionFeed issues={issues} onOpen={setOpenRoom} sample={sample} checks={reads} />}
           {known && issues.length === 0 && unknownRooms === 0 && (
             <p className="ctl-allok" role="status"><span aria-hidden="true">✓</span> 모든 방이 괜찮아요. 오디가 지켜보고 있어요.</p>
