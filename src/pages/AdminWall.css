@@ -59,19 +59,31 @@
   .adm .admin-now .ctl-side h2 { font-size: 20px; }
 }
 
+/* 벽 화면: 칸 안 설명 글은 한 줄로(여러 방이 동시에 붐비면 두 줄 글 때문에 칸 줄이 길어져 스크롤이 생겼다, 11/12 가상 손님 방) */
+@media (min-width: 1800px) {
+  .adm .admin-now .ct-co2 em,
+  .adm .admin-now .ro-why { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .adm .admin-now .ro-now { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* 32인치 전체 화면(1440): 여러 방에서 오디가 동시에 판단 중이면 판단 칸이 커져 20px쯤 넘쳤다. 그래프·칸 사이만 조금 줄임 */
+@media (min-width: 1800px) and (max-height: 1500px) {
+  .adm .admin-now .ctl-tile { gap: 8px; }
+  .adm .admin-now .ctl-spark { height: 72px; }
+}
+
 /* 같은 32인치라도 전체 화면이 아니면(브라우저 주소창·탭) 세로가 1300px 안팎: 칸 안 여백·그래프·기기 단추만 조금 줄여 스크롤 없이 */
 @media (min-width: 1800px) and (max-height: 1400px) {
   .adm .admin-now .ctl-floor { gap: 12px; padding: 14px; }
-  .adm .admin-now .ctl-tile { padding: 12px 16px; gap: 7px; }
-  .adm .admin-now .ctl-spark { height: 70px; }
+  .adm .admin-now .ctl-tile { padding: 12px 16px; gap: 6px; }
+  .adm .admin-now .ctl-spark { height: 62px; }
   .adm .admin-now .ct-co2 b { font-size: 50px; }
   .adm .admin-now .dv { padding: 8px 4px 6px; }
-  .adm .admin-now .dv-ic { width: 30px; height: 30px; }
-  .adm .admin-now .dv-ic svg { width: 26px; height: 26px; }
+  .adm .admin-now .dv-ic { width: 26px; height: 26px; }
+  .adm .admin-now .dv-ic svg { width: 22px; height: 22px; }
   .adm .admin-now .ro { padding: 9px 14px 10px; gap: 6px; }
   .adm .admin-now .ctl-top .ctl-big { padding-top: 6px; padding-bottom: 6px; }
   .adm .admin-now .ct-now .cn { padding: 3px 10px; }
   .adm .admin-now .ct-now .cn-people { padding: 3px 14px; }
-  .adm .admin-now .ct-now .cn-people b { font-size: 28px; }
+  .adm .admin-now .ct-now .cn-people b { font-size: 24px; }
   .adm .admin-now .ct-strip span { padding: 5px 12px; }
 }
