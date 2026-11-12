@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { getMyPenalty, penaltySummary, type MyPenalty } from '../api/penalties'
 import { useAuth } from '../auth/AuthProvider'
+import { NoShowHistory } from '../components/NoShowHistory'
 import { PenaltyHistory } from '../components/PenaltyHistory'
 import { demoOn } from '../lib/demo'
 import { useMemberId } from '../lib/useMemberId'
@@ -24,6 +25,7 @@ export default function MyWarningsPage() {
         <h1>내 경고</h1>
       </header>
       <MyPenaltyCard />
+      <MyNoShows />
       <MyWarnings />
     </main>
   )
@@ -38,6 +40,14 @@ function MyPenaltyCard() {
   const member = useMemberId()
   if (status !== 'in' || member === null) return null
   return <PenaltyFor key={member} member={member} />
+}
+
+/** 노쇼 기록 (11/12 지영): 로그인했을 때, 회원이 바뀌면 새로 받는다 */
+function MyNoShows() {
+  const { status } = useAuth()
+  const member = useMemberId()
+  if (status !== 'in' || member === null) return null
+  return <NoShowHistory key={member} member={member} />
 }
 
 /** 경고 목록·철회 요청: core #111 API가 없어 예시 화면(?demo=1)에서 로그인했을 때만 */
