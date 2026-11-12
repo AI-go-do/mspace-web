@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tidyReason } from './AdminInsights'
+import { tidyPair, tidyReason } from './AdminInsights'
 
 const base = { result: 'LEFT_ITEMS' as const, leftItems: [], items: [{ name: 'cup', confidence: 0.55 }] }
 
@@ -24,5 +24,17 @@ describe('정리 확인 판단 글', () => {
     const r = tidyReason({ result: 'NEEDS_CLEANING', leftItems: [], items: [], phase: 'FIRST', reportId: 12 })
     expect(r.verdict).toBe('치워야 해요')
     expect(r.actions.map((a) => a.done)).toEqual(['신고 #12 만들었어요'])
+  })
+})
+
+describe('정리 확인 비교 사진', () => {
+  it('퇴실 직후 줄은 같은 예약의 입실 직전 사진과 퇴실 뒤 사진을 나란히 둔다', () => {
+    const [before, after] = tidyPair({ reservationId: 7, phase: 'FIRST' })
+    expect([before.reservationId, before.phase, before.label]).toEqual([7, 'ENTRY', '입실 전'])
+    expect([after.reservationId, after.phase, after.label]).toEqual([7, 'FIRST', '퇴실 뒤'])
+  })
+
+  it('3시간 뒤 줄은 퇴실 직후와 3시간 뒤 사진', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'RECHECK' }).map((s) => s.phase)).toEqual(['FIRST', 'RECHECK'])
   })
 })

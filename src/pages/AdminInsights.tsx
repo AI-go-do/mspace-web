@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import {
   adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhotoPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -125,29 +125,23 @@ export function AdminPenalties() {
 const rowKey = (r: Pick<TidyCheckRow, 'reservationId' | 'phase'>) => `${r.reservationId}-${r.phase}`
 
 /** 비교 사진 한 칸: 어느 예약의 어느 단계 사진인지와 아래 글 */
-interface Shot { reservationId: number; phase: TidyPhase; label: string; when: string }
+interface Shot { reservationId: number; phase: TidyPhotoPhase; label: string }
 
 /**
- * 펼친 줄의 비교 사진 두 장.
- * - 퇴실 직후 줄: 같은 방 바로 앞 예약의 퇴실 직후 사진 ↔ 이번 퇴실 직후 사진.
- *   AI가 비교에 쓰는 입실 직전 사진은 젯슨 안에만 두고 지운다(Q-22). 관리자는 서버에 남은 퇴실 사진(10차·core #115)만 보므로
- *   큰 이름은 "입실 전"(재웅 11/11), 아래에 그 사진이 찍힌 시각을 적는다(바로 앞 예약인지는 정리 확인 목록만으로 알 수 없다)
+ * 펼친 줄의 비교 사진 두 장. 모두 같은 예약의 사진이다.
+ * - 퇴실 직후 줄: 입실 직전 빈 방(ENTRY, core #119·Q-27) ↔ 퇴실 직후. AI가 비교한 기준과 같은 순간이다
  * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
  */
-export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
+export function tidyPair(r: Pick<TidyCheckRow, 'reservationId' | 'phase'>): [Shot, Shot] {
   if (r.phase === 'RECHECK') {
     return [
-      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후', when: '' },
-      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: '' },
+      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후' },
+      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤' },
     ]
   }
-  // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째. 카메라 결과가 없는 예약은 목록에 없어
-  // 바로 앞 예약이 아닐 수 있으므로 "앞 팀"이라 단정하지 않고 찍힌 시각을 적는다. core가 입실 직전 사진(ENTRY, Q-27)을 주면 그걸로 바꾼다
-  const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
-    && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `${stamp(before.observedAt)} 이전 퇴실 사진` } : null,
-    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: '' },
+    { reservationId: r.reservationId, phase: 'ENTRY', label: '입실 전' },
+    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤' },
   ]
 }
 
@@ -185,9 +179,9 @@ export function tidyReason(row: Pick<TidyCheckRow, 'phase' | 'result' | 'leftIte
           ] }
   }
   return clean
-    ? { verdict: '깨끗해요', why: '앞 팀 사진과 달라진 곳이 없어요', warn: false,
+    ? { verdict: '깨끗해요', why: '입실 전 사진과 달라진 곳이 없어요', warn: false,
         actions: [{ doing: '다음 팀 기준 사진으로 저장하는 중', done: '다음 팀 기준 사진으로 저장했어요' }] }
-    : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `앞 팀 사진엔 없던 물품 ${n}개` : '앞 팀 사진엔 없던 물품', warn: true,
+    : { verdict: '두고 간 물품이 있어요', why: n > 0 ? `입실 전엔 없던 물품 ${n}개` : '입실 전엔 없던 물품', warn: true,
         actions: [
           { doing: '학생에게 알림 보내는 중', done: '대표자·참여자에게 알림 보냈어요' },
           rechecked
@@ -304,7 +298,7 @@ export function AdminTidyChecks() {
                 const key = rowKey(r)
                 const isOpen = open === key
                 const on = r.result !== 'CLEAN'
-                const pair = isOpen ? tidyPair(rows, r) : null
+                const pair = isOpen ? tidyPair(r) : null
                 return (
                   <li key={key} className={`pen-row tidy-row ${on ? 'on' : ''}`}>
                     <span className="pen-who"><b>{r.roomName}</b><span className="muted">예약 #{r.reservationId}</span></span>
@@ -328,11 +322,11 @@ export function AdminTidyChecks() {
                         {pair.map((shot, i) => (
                           <figure key={i} className="evidence-cell">
                             <AuthPhoto
-                              url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
-                              empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
-                              alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
+                              url={tidyPhotoUrl(shot.reservationId, shot.phase)}
+                              empty="사진 없음"
+                              alt={`${r.roomName} ${shot.label} 사진`}
                             />
-                            <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
+                            <figcaption><b>{shot.label}</b></figcaption>
                           </figure>
                         ))}
                       </div><TidyJudgement row={r} rechecked={r.phase === 'FIRST' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK')} /></div>

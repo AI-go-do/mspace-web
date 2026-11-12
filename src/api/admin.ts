@@ -192,8 +192,11 @@ export function getTidyChecks(days: number, signal?: AbortSignal, member?: numbe
 /** 정리 확인 단계: FIRST 퇴실 직후 · RECHECK 두고 간 물건 다시 확인 */
 export type TidyPhase = 'FIRST' | 'RECHECK'
 
+/** 정리 확인 사진 단계: 정리 확인 단계 + ENTRY 입실 직전 빈 방 (core #119, Q-27) */
+export type TidyPhotoPhase = TidyPhase | 'ENTRY'
+
 /** 방 카메라가 올린 빈 방 사진 (core #115). 대표자·참여자·관리자만, 없으면 404 PHOTO_NOT_FOUND. Bearer가 필요해 Blob으로 받는다 */
-export function tidyPhotoUrl(reservationId: number, phase: TidyPhase): string {
+export function tidyPhotoUrl(reservationId: number, phase: TidyPhotoPhase): string {
   return `/api/reservations/${reservationId}/tidy-photos/${phase}`
 }
 
