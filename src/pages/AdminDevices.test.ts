@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { deviceSlots, FRESH_MS, lastControl } from './AdminDevices'
-import type { ClimateAppliance, Decision } from '../api/climate'
+import { deviceSlots, FRESH_MS } from './AdminDevices'
+import type { ClimateAppliance } from '../api/climate'
 
 const ap = (kind: ClimateAppliance['kind'], power: 'ON' | 'OFF', extra: Partial<ClimateAppliance> = {}): ClimateAppliance => ({
   applianceId: `${kind}-1`, roomId: 1, kind, brand: '가상', adapter: 'virtual', power, mode: null, targetC: null, changedAt: null, by: null, ...extra,
@@ -24,18 +24,5 @@ describe('deviceSlots', () => {
     const s = deviceSlots([], NOW)
     expect(s.every((x) => !x.have)).toBe(true)
     expect(s.find((x) => x.key === 'fan')?.detail).toBe('없음')
-  })
-})
-
-describe('lastControl', () => {
-  const dec = (id: string, room: number, status: 'DONE' | 'RUNNING' | 'SKIPPED', at: string, text: string): Decision => ({
-    id, roomId: room, roomName: `${room}번 방`, metric: 'CO2', group: 'HIGH', kind: 'OVER', open: true, openedAt: at, closedAt: null,
-    steps: [{ key: 'CONTROL', status, text, at }],
-  } as unknown as Decision)
-  it('하는 중인 제어가 먼저, 아니면 가장 최근 제어', () => {
-    const list = [dec('a', 1, 'DONE', '2026-11-12T17:40:00+09:00', '환풍기 켬'), dec('b', 1, 'DONE', '2026-11-12T17:50:00+09:00', '에어컨 냉방 24°C'), dec('c', 2, 'RUNNING', '2026-11-12T17:51:00+09:00', '고르는 중')]
-    expect(lastControl(list, 1)).toEqual({ text: '에어컨 냉방 24°C', at: '2026-11-12T17:50:00+09:00', running: false })
-    expect(lastControl(list, 2)?.running).toBe(true)
-    expect(lastControl([dec('d', 3, 'SKIPPED', '2026-11-12T17:50:00+09:00', '빈 방')], 3)).toBeNull()
   })
 })

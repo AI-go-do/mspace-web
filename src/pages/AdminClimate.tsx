@@ -18,7 +18,7 @@ import './AdminClimate.css'
 
 const MINUTES = 120
 const LABEL: Record<MetricKey, string> = { CO2: 'CO2', TEMPERATURE: '온도', HUMIDITY: '습도' }
-const STEP: Record<Decision['steps'][number]['key'], string> = { DETECT: '탐지', PREDICT: '예측', NOTIFY: '알림', CONTROL: '제어', VERIFY: '다시 확인' }
+export const STEP: Record<Decision['steps'][number]['key'], string> = { DETECT: '탐지', PREDICT: '예측', NOTIFY: '알림', CONTROL: '제어', VERIFY: '다시 확인' }
 
 
 function clock(iso: string): string {
@@ -217,12 +217,12 @@ export function useClimateLive(enabled: boolean) {
   return { rooms: live.rooms, series: live.series, decisions, state, missing, error, flash, lastAt, ticks }
 }
 
-const STEP_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 'ok', RUNNING: 'doing', SKIPPED: 'skip', FAILED: 'fail' }
+export const STEP_CLASS: Record<Decision['steps'][number]['status'], string> = { DONE: 'ok', RUNNING: 'doing', SKIPPED: 'skip', FAILED: 'fail' }
 
 /** 새 판단이 오면 단계를 이만큼씩 하나씩 연다(재웅 11/12 17:29 "오디 AI도 실시간으로 파악하는, 로딩하면서 하는 느낌") */
 export const REVEAL_MS = 900
 /** 아직 안 연 단계 자리에 보이는 "하는 중" 문구 */
-const THINK: Record<Decision['steps'][number]['key'], string> = {
+export const THINK: Record<Decision['steps'][number]['key'], string> = {
   DETECT: '값을 평소와 견주는 중', PREDICT: '앞으로 30분을 계산하는 중', NOTIFY: '방 사람에게 알릴지 보는 중',
   CONTROL: '켤 기기를 고르는 중', VERIFY: '다시 재는 중',
 }
@@ -234,7 +234,7 @@ const FRESH_MS = 20_000
  * 판단마다 처음 본 시각. 이미 지난 판단은 0(다 연 상태), 방금 탐지한 판단은 처음 본 시각부터 단계를 하나씩 연다.
  * 여는 동안만 0.2초마다 다시 그린다
  */
-function useReveal(list: Decision[]): (id: string) => number {
+export function useReveal(list: Decision[]): (id: string) => number {
   const born = useRef(new Map<string, number>())
   const [now, setNow] = useState(() => Date.now())
   const map = born.current

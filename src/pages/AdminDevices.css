@@ -1,5 +1,11 @@
-/* 방 칸을 크게: 1~4번은 두 줄 두 칸, 5번은 아래 넓게(재웅 11/12 "창작실 1~5 크게 크게", 칸 하나에 그 방 전부) */
+/*
+ * 방 칸 자리(재웅 11/12 "창작실 1~5 크게", 18:00 "카드 사이즈를 맞춰서", "32인치 화면에 맞춰 크게크게").
+ * 방 다섯 칸은 모두 같은 크기, 여섯째 자리는 방 1~5 한 그래프. 폰 1줄 · 보통 화면 2칸 · 32인치(1800px 이상) 3칸 2줄로 한 화면
+ */
+.adm .ctl-floor { grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 720px) { .adm .ctl-floor { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.adm .ctl-floor > .ctl-ov { position: relative; z-index: 1; grid-column: auto; min-width: 0; border-radius: 20px; }
+@media (max-width: 719px) { .adm .ctl-floor > .ctl-ov { grid-column: 1 / -1; } }
 
 /*
  * 창작실 칸 안의 기기 줄. 켜진 기기만 색이 차고 움직인다(냉방 파랑·난방 주황·제습 청록·환풍기 날개·공기청정기 물결).
@@ -30,11 +36,6 @@
 .adm .dv-wind { position: absolute; left: 50%; bottom: -5px; display: flex; gap: 3px; transform: translateX(-50%); }
 .adm .dv-wind b { width: 2px; height: 6px; border-radius: 2px; background: var(--dc); opacity: 0.7; }
 
-/* 오디 한 줄: 이 방에서 마지막으로 기기를 다룬 판단 */
-.adm .dv-odi-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; color: var(--navy-70); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.adm .dv-odi-line b { flex: none; color: #6a4ee0; font-weight: 900; }
-.adm .dv-odi-line time { flex: none; color: var(--blue); font-weight: 800; font-variant-numeric: tabular-nums; }
-.adm .dv-odi-line.run { color: #6a4ee0; font-weight: 700; }
 
 @media (prefers-reduced-motion: no-preference) {
   .adm .dv.on .dv-spin { animation: dv-spin 3s linear infinite !important; transform-origin: 12px 12px; transform-box: view-box; }
@@ -48,9 +49,6 @@
   .adm .dv-wind b:nth-child(3) { animation-delay: 0.6s !important; }
   .adm .dv.fresh { animation: dv-fresh 1.2s ease-in-out infinite !important; }
   .adm .dv.on .dv-ic { animation: dv-pop 0.4s var(--ease-out) !important; }
-  .adm .dv-odi-line.run .cl-dots i { animation: cl-dot 1s ease-in-out infinite !important; }
-  .adm .dv-odi-line.run .cl-dots i:nth-child(2) { animation-delay: 0.15s !important; }
-  .adm .dv-odi-line.run .cl-dots i:nth-child(3) { animation-delay: 0.3s !important; }
 }
 @keyframes dv-spin { to { transform: rotate(360deg); } }
 @keyframes dv-flame { from { transform: scale(0.92, 0.88); } to { transform: scale(1.04, 1.08); } }
@@ -85,3 +83,13 @@
   .adm .ct-now .cn-alert.on b { display: inline-block; animation: warn-beat 1.6s ease-in-out infinite !important; }
   .adm .ct-now .cn-people.on b { display: inline-block; animation: dv-pop 0.4s var(--ease-out) !important; }
 }
+
+/* 여섯째 자리 그래프 칸: 방 단추는 번호와 값만(칸이 좁아 이름을 빼도 색·번호로 구분) */
+.adm .ctl-floor > .ctl-ov .ov-rooms { gap: 6px; }
+.adm .ctl-floor > .ctl-ov .ov-room-n { display: none; }
+.adm .ctl-floor > .ctl-ov .ov-rooms button { min-height: 0; padding: 8px 10px; }
+.adm .ctl-floor > .ctl-ov .ov-room-v { font-size: 20px; white-space: nowrap; }
+.adm .ctl-floor > .ctl-ov .ov-room-v small { font-size: 11px; }
+.adm .ctl-floor > .ctl-ov .ov-rooms button { grid-template-columns: auto; justify-items: center; gap: 4px; }
+.adm .ctl-floor > .ctl-ov .ov-rooms button i { grid-row: auto; width: 26px; height: 26px; font-size: 14px; border-radius: 8px; }
+.adm .ctl-floor > .ctl-ov .ov-room-v small { display: none; }

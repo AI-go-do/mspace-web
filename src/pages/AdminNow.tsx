@@ -15,7 +15,6 @@ import { RoomTile, TILE_METRICS, type TileMetric } from './AdminFloor'
 import { AdminOverview } from './AdminOverview'
 import { AdminSensorBoard } from './AdminSensorBoard'
 import { ClimateFeed, useClimateLive } from './AdminClimate'
-import { lastControl } from './AdminDevices'
 import { overlayClimate } from '../lib/climateOverlay'
 import { overview } from '../lib/roomOverview'
 import { RoomDetail } from './AdminRoomDetail'
@@ -26,6 +25,7 @@ import { useClimateAuto } from '../lib/useClimateAuto'
 import '../components/Climate.css'
 import './AdminNow.css'
 import './AdminLive.css'
+import './AdminWall.css'
 
 const REQUEST_TIMEOUT_MS = 8_000
 
@@ -230,20 +230,17 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     if (!r) return undefined
     return {
       occupied: r.source === 'SIM' ? r.occupied : null, people: r.people ?? null, since: r.occupiedSince ?? null, devices: r.appliances,
-      control: lastControl(climate.decisions, roomId), open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
+      decision: climate.decisions.find((d) => d.roomId === roomId) ?? null, open: climate.decisions.filter((d) => d.open && d.roomId === roomId).length, now: nowMs,
     }
   }
-  const tile = (v: RoomView, i: number, big = false) => {
+  const tile = (v: RoomView, i: number) => {
     const list = adviceOf(v)
     return (
-      <RoomTile key={v.roomId} i={i} big={big} view={v} tone={cardTone(v, list)} advice={list}
+      <RoomTile key={v.roomId} i={i} view={v} tone={cardTone(v, list)} advice={list}
         blocked={blockedOf(v.roomId)} reports={todo.byRoom[v.roomId] ?? 0} now={now} rules={climateRules} onOpen={() => setOpenRoom(v.roomId)}
         metric={own[v.roomId] ?? metric} own={own[v.roomId] !== undefined} live={liveOf(v.roomId)} />
     )
   }
-  // 평면도: 1~4번은 위 한 줄, 큰 방(마지막 방)은 아래 넓게. 방이 하나뿐이면 작은 칸 하나로
-  const small = views.length === 1 ? views : views.slice(0, -1)
-  const wide = views.length > 1 ? views[views.length - 1] : null
   // 방 목록이 비어 오면 0이 아니라 '모름'으로. 재실을 모르는 방이 있으면 '모두 괜찮음'이라 하지 않는다
   const known = data !== null && views.length > 0
   // 설정에 있는데 응답에 빠진 방도 모르는 방으로 센다
@@ -286,9 +283,10 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
             {Object.keys(own).length > 0 && <button type="button" className="ctl-metric-reset" onClick={() => setOwn({})}>방마다 고른 것 풀기</button>}
           </div>
           <span className="ctl-scan" aria-hidden="true" />
-          {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className={`ctl-tile skel ${i === 4 ? 'big' : ''}`} />)}
-          {small.map((v, i) => tile(v, i))}
-          {wide && tile(wide, views.length - 1, true)}
+          {!data && !error && Array.from({ length: 5 }, (_, i) => <div key={i} className="ctl-tile skel" />)}
+          {/* 방 칸은 모두 같은 크기(재웅 11/12 18:00 "카드 사이즈를 맞춰서"). 여섯째 자리에 방 1~5 한 그래프 */}
+          {views.map((v, i) => tile(v, i))}
+          {views.length > 0 && <AdminOverview views={views} compact ticks={climateOn ? climate.ticks : undefined} />}
         </section>
 
         <aside className="ctl-side" aria-labelledby="ctl-issues-h">
@@ -316,7 +314,6 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           )}
         </aside>
 
-        {views.length > 0 && <AdminOverview views={views} compact ticks={climateOn ? climate.ticks : undefined} />}
         {/* 방별 센서 그래프·열지도는 접어 둔다. 첫 화면은 대시보드만(11/10 재웅 "정신 사납다") */}
         {views.length > 0 && (
           <details className="ctl-more">

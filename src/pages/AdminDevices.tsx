@@ -1,10 +1,10 @@
-import type { ClimateAppliance, Decision } from '../api/climate'
+import type { ClimateAppliance } from '../api/climate'
 import './AdminDevices.css'
 
 /**
  * 창작실 칸 안의 기기 줄(재웅 11/12 17:44 "에어컨·환풍기·난방·공기청정기 다 넣어서 오디 AI가 실시간으로 제어하는지 눈으로").
  * 에어컨 한 대의 냉방·난방·제습과 환풍기·공기청정기를 다섯 칸으로 늘 보여 준다. 켜진 칸은 움직이고,
- * 오디가 방금 바꾼 칸은 보라 테두리가 반짝인다. 맨 아래 한 줄은 이 방의 마지막 오디 제어(하는 중이면 하는 중)
+ * 오디가 방금 바꾼 칸은 보라 테두리가 반짝인다. 오디가 하는 일은 그 아래 큰 칸(AdminRoomOdi)
  */
 
 /** 오디가 "방금" 바꿨다고 보는 시간 */
@@ -37,19 +37,6 @@ export function deviceSlots(list: ClimateAppliance[], now: number): Slot[] {
     one('VENTILATOR', 'fan', '환풍기'), one('PURIFIER', 'purifier', '공기청정기')]
 }
 
-/** 이 방에서 오디가 마지막으로 기기를 다룬 판단: 하는 중이 먼저, 그다음 가장 최근 */
-export function lastControl(decisions: Decision[], roomId: number): { text: string; at: string | null; running: boolean } | null {
-  let best: { text: string; at: string | null; running: boolean } | null = null
-  for (const d of decisions) {
-    if (d.roomId !== roomId) continue
-    const s = d.steps.find((x) => x.key === 'CONTROL')
-    if (!s || (s.status !== 'DONE' && s.status !== 'RUNNING' && s.status !== 'FAILED')) continue
-    if (s.status === 'RUNNING') return { text: s.text, at: s.at, running: true }
-    if (!best || (s.at && best.at && s.at > best.at)) best = { text: s.text, at: s.at, running: false }
-  }
-  return best
-}
-
 function Icon({ k }: { k: SlotKey }) {
   switch (k) {
     case 'cool':
@@ -79,13 +66,8 @@ function Icon({ k }: { k: SlotKey }) {
   }
 }
 
-function clock(iso: string): string {
-  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
-}
-
-export function DeviceRow({ devices, control, now, name }: {
+export function DeviceRow({ devices, now, name }: {
   devices: ClimateAppliance[]
-  control: ReturnType<typeof lastControl>
   now: number
   name: string
 }) {
@@ -103,14 +85,6 @@ export function DeviceRow({ devices, control, now, name }: {
           </span>
         ))}
       </span>
-      {control && (
-        <span className={`dv-odi-line ${control.running ? 'run' : ''}`}>
-          <b>✦ 오디 AI</b>
-          {control.running
-            ? <>{control.text}<span className="cl-dots" aria-hidden="true"><i /><i /><i /></span></>
-            : <>{control.at && <time dateTime={control.at}>{clock(control.at)}</time>}{control.text}</>}
-        </span>
-      )}
     </span>
   )
 }
