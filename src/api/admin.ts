@@ -147,7 +147,7 @@ export interface Warning {
   reportId: number
   reservationId: number | null
   createdAt: string
-  /** 철회된 시각. core 목록이 아직 안 주면 빠진다(그때는 철회 버튼을 눌러 409로 안다) */
+  /** 철회된 시각 (core #123, AI 판단기·관리자 철회 모두). 살아 있는 경고면 null, 예전 core는 칸이 없다 */
   withdrawnAt?: string | null
 }
 

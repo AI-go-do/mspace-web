@@ -226,7 +226,8 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
   // 칸이 없으면(가짜 값·예전 core) 위에서 화면이 센 값을 쓴다
   const core = env.lightLeftOn
   if (core) lightOnEmptyMinutes = Math.max(0, Math.floor((now.getTime() - Date.parse(core.since)) / 60_000))
-  const lightLeftOn = core !== undefined ? core !== null : !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes
+  // 조도 센서를 안 단 방(설정)은 core가 켜짐이라 해도 표시하지 않는다(카드에는 "센서 없음"이 보이므로)
+  const lightLeftOn = sensors.has('light') && (core !== undefined ? core !== null : !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes)
 
   const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor, lightLeftOn }
   const tone: Tone = offline || stuck ? 'off'

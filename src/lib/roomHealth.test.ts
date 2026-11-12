@@ -352,6 +352,9 @@ describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
     // core가 null이면 화면이 센 값(12분)이 넘어도 켜짐으로 보지 않는다
     const off = toRoomView({ ...lit(() => 620, (i) => i < 18), lightLeftOn: null }, cfg, now)
     expect(off.flags.lightLeftOn).toBe(false)
+    // 조도 센서를 안 단 방이면 core가 켜짐이라 해도 표시하지 않는다
+    const noLight = { ...cfg, sensors: cfg.sensors.filter((k) => k !== 'light') }
+    expect(toRoomView({ ...lit(() => 620, () => false), lightLeftOn: { since } }, noLight, now).flags.lightLeftOn).toBe(false)
   })
 
   it('core가 분마다 재실을 안 주면 지금 빈 방인 것으로 대신 센다', () => {

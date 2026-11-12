@@ -50,14 +50,16 @@ function Tile({ label, value, rate, sub, hero, i = 0 }: { label: string; value: 
  * 경고 한 줄 + 철회 (core #123, 11/12 지영 "AI·카메라가 틀렸을 때 사람이 바로 풀 길"). [철회]를 누르면 이유 칸이 열리고,
  * 보내면 core가 경고를 빼고 그 경고로 걸린 정지도 풀고 학생에게 이유와 함께 알린다. 이유는 학생 알림에 그대로 보인다
  */
-function WarningRow({ w }: { w: Warning }) {
+function WarningRow({ w, onChanged }: { w: Warning; onChanged: () => void }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<string | null>(w.withdrawnAt ? '철회됨' : null)
   const [msg, setMsg] = useState<string | null>(null)
   const text = reason.trim()
-  const tooLong = text.length > MAX_WITHDRAW_REASON
+  // core는 글자를 코드 포인트로 센다(이모지 1개 = 1자, core #123)
+  const count = [...text].length
+  const tooLong = count > MAX_WITHDRAW_REASON
 
   const send = async (e: FormEvent) => {
     e.preventDefault()
@@ -68,8 +70,11 @@ function WarningRow({ w }: { w: Warning }) {
       const r = await withdrawWarning(w.id, text, currentMemberId())
       setDone(['철회됨', r.suspensionLifted ? '정지 풀림' : '', r.appealClosed ? '학생 철회 요청 닫힘' : ''].filter(Boolean).join(' · '))
       setOpen(false)
+      // 정지가 풀렸을 수 있어 위 정지 목록·숫자를 조용히 다시 받는다
+      onChanged()
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'WARNING_ALREADY_WITHDRAWN') { setDone('철회됨'); setOpen(false) }
+      // 다른 관리자가 먼저 철회했으면 그쪽에서 정지도 풀었을 수 있다
+      if (err instanceof ApiError && err.code === 'WARNING_ALREADY_WITHDRAWN') { setDone('철회됨'); setOpen(false); onChanged() }
       else setMsg(adminErrorMessage(err))
     } finally {
       setBusy(false)
@@ -92,7 +97,7 @@ function WarningRow({ w }: { w: Warning }) {
           <label htmlFor={`withdraw-${w.id}`} className="adm-small">철회 이유 (학생 알림에 그대로 보여요)</label>
           <textarea id={`withdraw-${w.id}`} rows={2} value={reason} disabled={busy} autoFocus
             maxLength={MAX_WITHDRAW_REASON + 50} placeholder="예: 카메라가 잘못 봤어요" onChange={(e) => setReason(e.target.value)} />
-          <span className={`adm-small${tooLong ? ' err' : ''}`}>{text.length}/{MAX_WITHDRAW_REASON}</span>
+          <span className={`adm-small${tooLong ? ' err' : ''}`}>{count}/{MAX_WITHDRAW_REASON}</span>
           {msg && <p role="alert" className="adm-msg err">{msg}</p>}
           <div className="warn-withdraw-btns">
             <button type="button" className="btn-line" disabled={busy} onClick={() => { setOpen(false); setMsg(null) }}>취소</button>
@@ -109,11 +114,14 @@ export function AdminPenalties() {
   const [days, setDays] = useState(30)
   const [data, setData] = useState<Penalties | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 경고를 철회한 뒤 다시 받기. 목록을 비우지 않아(뼈대 없이) 줄마다 보이는 "철회됨"이 그대로 남는다
+  const [reload, setReload] = useState(0)
+  const [loadedDays, setLoadedDays] = useState(days)
 
   useEffect(() => {
     const memberId = currentMemberId()
     if (memberId === null) return
-    setData(null)
+    if (loadedDays !== days) { setData(null); setLoadedDays(days) }
     setError(null)
     const ctrl = new AbortController()
     // 정리(cleanup)에서만 켠다. 시간 초과로 끊긴 건 오류로 보여 줘야 해서 signal.aborted로 가리지 않는다
@@ -124,7 +132,7 @@ export function AdminPenalties() {
       .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
       .finally(() => clearTimeout(timer))
     return () => { stale = true; clearTimeout(timer); ctrl.abort() }
-  }, [days])
+  }, [days, reload])
 
   const active = data?.suspensions.filter((s) => s.active) ?? []
   const ended = data?.suspensions.filter((s) => !s.active) ?? []
@@ -161,7 +169,7 @@ export function AdminPenalties() {
             <h2>경고</h2>
             {data.warnings.length === 0 && <p className="adm-small">이 기간에 경고가 없어요.</p>}
             <ul className="pen-list">
-              {data.warnings.map((w) => <WarningRow key={w.id} w={w} />)}
+              {data.warnings.map((w) => <WarningRow key={w.id} w={w} onChanged={() => setReload((n) => n + 1)} />)}
             </ul>
           </section>
           </div>
