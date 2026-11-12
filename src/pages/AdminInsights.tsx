@@ -52,7 +52,7 @@ function Tile({ label, value, rate, sub, hero, i = 0 }: { label: string; value: 
  * 경고 한 줄 + 철회 (core #123, 11/12 지영 "AI·카메라가 틀렸을 때 사람이 바로 풀 길"). [철회]를 누르면 이유 칸이 열리고,
  * 보내면 core가 경고를 빼고 그 경고로 걸린 정지도 풀고 학생에게 이유와 함께 알린다. 이유는 학생 알림에 그대로 보인다
  */
-function WarningRow({ w, onChanged }: { w: Warning; onChanged: () => void }) {
+export function WarningRow({ w, onChanged }: { w: Warning; onChanged: () => void }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)

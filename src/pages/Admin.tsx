@@ -7,7 +7,6 @@ import { AdminApprentice } from './AdminApprentice'
 import { AdminBlocks } from './AdminBlocks'
 import { AdminTodo, useTodoCounts } from './AdminTodo'
 import { ForceCheckoutForm } from './AdminReports'
-import { useApprenticeFeed } from '../api/apprentice'
 import { envSource } from '../api/environment'
 import { useMemberId } from '../lib/useMemberId'
 import { seoulClockSec } from '../lib/time'
@@ -28,7 +27,7 @@ const SECTIONS = [
     icon: <><path d="M4 12.5 9 17.5 20 6.5" /></>,
   },
   {
-    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: '믿을 만해진 일만 AI가 먼저 처리',
+    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: 'AI가 처리하고, 관리자는 결과만 봐요',
     icon: <><rect x="4" y="7" width="16" height="12" rx="4" /><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5" /></>,
   },
   {
@@ -100,8 +99,6 @@ export default function Admin() {
   const [params, setParams] = useSearchParams()
   // 회원이 바뀌면 칸 내용을 통째로 새로 그린다(앞 회원이 받은 목록·통계와 진행 중 요청을 버림)
   const member = useMemberId()
-  // 어느 칸에 있든 새 AI 처리안을 확인해 "할 일" 숫자를 맞춘다
-  useApprenticeFeed()
   const counts = useTodoCounts()
 
   const raw = params.get('tab') ?? 'now'
