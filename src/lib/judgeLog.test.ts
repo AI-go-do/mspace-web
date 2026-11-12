@@ -21,17 +21,23 @@ describe('오디 판단 기록', () => {
     expect(r.time).toBe('10:01')
     expect(r.day).toBeNull()
     expect(r.sure).toBeNull()
+    // 판정기 기록이 없으면 누가 했는지 모른다(비상시 관리자 직접 판정일 수 있음)
+    expect(r.by).toBeNull()
   })
 
   it('판정 전 신고는 판정 중, 카메라 신고 허위는 경고 없음', () => {
     expect(reportRow(report({ verdict: 'OPEN', judgedAt: null }), room, now).verdict).toBe('판정 중')
-    expect(reportRow(report({ verdict: 'FALSE', reporterReservationId: null }), room, now).verdict).toBe('허위 · 경고 없음')
+    const cam = reportRow(report({ verdict: 'FALSE', reporterReservationId: null }), room, now)
+    expect(cam.verdict).toBe('허위 · 경고 없음')
+    expect(cam.tone).toBe('ok')
+    expect(reportRow(report({ verdict: 'FALSE' }), room, now).tone).toBe('warn')
   })
 
   it('core가 판정기 확신도·근거를 붙이면 그대로 보인다', () => {
     const r = reportRow(report({ judgement: { judge: 'gemini', confidence: 0.873, reasons: '퇴실 사진에 컵 3개' } }), room, now)
     expect(r.sure).toBe(87)
     expect(r.why).toBe('퇴실 사진에 컵 3개')
+    expect(r.by).toBe('오디')
   })
 
   it('어제 기록은 날짜가 붙는다', () => {
@@ -52,9 +58,21 @@ describe('오디 판단 기록', () => {
     expect(tidyRow(tidy({ phase: 'RECHECK' }), now).verdict).toBe('치워짐')
   })
 
+  it('11/10 전 기록(치워야 함)은 알림이 아니라 자동 신고로 보인다', () => {
+    expect(tidyRow(tidy({ result: 'NEEDS_CLEANING', reportId: 5 }), now).verdict).toBe('치워야 함 · 신고 #5')
+  })
+
   it('두 기록을 최근 순으로 합치고 소음 신고는 뺀다', () => {
     const rows = judgeRows([report({}), report({ id: 8, category: 'NOISE' })], [tidy({})], room, now)
     expect(rows.map((r) => r.key)).toEqual(['t90-FIRST', 'r7'])
     expect(judgeCounts(rows)).toEqual({ done: 2, warned: 1, waiting: 0 })
+  })
+
+  it('7일보다 오래된 신고는 빼고, 줄 수는 자르지 않는다', () => {
+    const old = report({ id: 9, judgedAt: '2026-11-01T10:00:00+09:00' })
+    const many = Array.from({ length: 70 }, (_, i) => tidy({ reservationId: 1000 + i }))
+    const rows = judgeRows([old], many, room, now)
+    expect(rows).toHaveLength(70)
+    expect(rows.some((r) => r.key === 'r9')).toBe(false)
   })
 })

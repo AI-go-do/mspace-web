@@ -17,14 +17,15 @@ export interface JudgeRow {
   day: string | null
   time: string
   room: string
-  /** 누가 판단했나 */
-  by: '오디' | '방 카메라 AI'
+  /** 누가 판단했나. 판정기 기록이 없는 신고는 사람이 했는지 알 수 없어 null */
+  by: '오디' | '방 카메라 AI' | null
   what: string
   verdict: string
   /** 0–100. 모르면 null */
   sure: number | null
   why: string | null
-  tone: 'warn' | 'ok' | 'wait'
+  /** off는 시연 예시의 장치 고장 */
+  tone: 'warn' | 'ok' | 'wait' | 'off'
 }
 
 /** 신고 판정기 기록 (core가 붙이면). 없으면 빠진다 */
@@ -51,13 +52,15 @@ export function reportRow(r: JudgedReport, roomName: (id: number) => string, now
   const camera = r.reporterReservationId === null
   const what = `${categoryLabel(r.category)} 신고${camera ? ' (방 카메라)' : ''} #${r.id}`
   const at = r.judgedAt ?? r.createdAt
-  const base = { key: `r${r.id}`, at, ...when(at, now), room: roomName(r.roomId), by: '오디' as const, what,
+  const base = { key: `r${r.id}`, at, ...when(at, now), room: roomName(r.roomId),
+    // 판정기 기록(judgement)이 있을 때만 오디로. 비상시 관리자가 직접 판정한 것과 섞이지 않게
+    by: r.judgement ? ('오디' as const) : null, what,
     sure: pct(r.judgement?.confidence), why: r.judgement?.reasons?.trim() || null }
   switch (r.verdict) {
     case 'CONFIRMED':
       return { ...base, verdict: camera ? '사실 · 대표자 경고 1회' : '사실 · 앞 팀 대표자 경고 1회', tone: 'warn' }
     case 'FALSE':
-      return { ...base, verdict: camera ? '허위 · 경고 없음' : '허위 · 신고자 경고 1회', tone: 'warn' }
+      return { ...base, verdict: camera ? '허위 · 경고 없음' : '허위 · 신고자 경고 1회', tone: camera ? 'ok' : 'warn' }
     case 'UNVERIFIED':
       return { ...base, verdict: '확인 불가 · 벌칙 없음', tone: 'ok' }
     default:
@@ -70,9 +73,12 @@ export function tidyRow(t: TidyCheckRow, now: Date): JudgeRow {
   const seen = seenItemsSummary(t.items)
   const left = t.result !== 'CLEAN' || t.leftItems.length > 0
   const recheck = t.phase === 'RECHECK'
+  const report = t.reportId !== null ? ` · 신고 #${t.reportId}` : ''
   const verdict = recheck
-    ? (t.reportId !== null ? `3시간 뒤에도 남음 · 신고 #${t.reportId}` : left ? '3시간 뒤에도 남음' : '치워짐')
-    : (left ? `${TIDY_LABEL.LEFT_ITEMS} · 대표자에게 알림` : TIDY_LABEL.CLEAN)
+    ? (left ? `3시간 뒤에도 남음${report}` : '치워짐')
+    // 11/10 전 기록(NEEDS_CLEANING)은 알림이 아니라 바로 자동 신고였다
+    : t.result === 'NEEDS_CLEANING' ? `${TIDY_LABEL.NEEDS_CLEANING}${report}`
+    : left ? `${TIDY_LABEL.LEFT_ITEMS} · 대표자에게 알림` : TIDY_LABEL.CLEAN
   return {
     key: `t${t.reservationId}-${t.phase}`,
     at: t.observedAt,
@@ -87,13 +93,17 @@ export function tidyRow(t: TidyCheckRow, now: Date): JudgeRow {
   }
 }
 
-/** 두 기록을 최근 순으로 합친다. 소음 신고는 판정하지 않으니(보기만) 뺀다 */
-export function judgeRows(reports: JudgedReport[], tidy: TidyCheckRow[], roomName: (id: number) => string, now: Date, limit = 60): JudgeRow[] {
+/**
+ * 두 기록을 최근 순으로 전부 합친다(자르는 건 화면이). 소음 신고는 판정하지 않으니(보기만) 빼고,
+ * 신고도 정리 확인과 같은 최근 days일만 남겨 맨 위 숫자가 같은 기간을 센다
+ */
+export function judgeRows(reports: JudgedReport[], tidy: TidyCheckRow[], roomName: (id: number) => string, now: Date, days = 7): JudgeRow[] {
+  const from = now.getTime() - days * 24 * 60 * 60 * 1000
   const rows = [
-    ...reports.filter((r) => r.category !== 'NOISE').map((r) => reportRow(r, roomName, now)),
+    ...reports.filter((r) => r.category !== 'NOISE').map((r) => reportRow(r, roomName, now)).filter((r) => Date.parse(r.at) >= from),
     ...tidy.map((t) => tidyRow(t, now)),
   ]
-  return rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, limit)
+  return rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
 }
 
 /** 맨 위 숫자: 판정한 수, 그중 경고로 이어진 수, 판정 중 */

@@ -239,6 +239,7 @@
 .adm .jl-sure { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; color: var(--navy); padding-top: 2px; }
 .adm .jl-item time small { display: block; font-size: 11.5px; color: var(--navy-70); }
 .adm .jl-item.t-wait b { color: var(--navy-70); }
+.adm .jl-more { display: block; margin: 10px auto 0; }
 .adm .jl-skel { min-height: 180px; }
 .adm .jl-sum { display: flex; gap: 8px; margin: 0 0 10px; }
 .adm .jl-sum span { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--c-line); border-radius: 8px; background: var(--white); font-size: 12.5px; color: var(--navy-70); }

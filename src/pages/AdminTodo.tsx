@@ -85,11 +85,21 @@ const SAMPLE_JUDGEMENTS: Judgement[] = [
   { at: '10:05', room: '창작실 5', what: '경고 철회 요청', verdict: '철회 · 경고 지움', sure: 72, why: '확신도가 기준(80%)보다 낮아 "확인 불가 = 철회" 규칙', tone: 'ok' },
 ]
 
-/** 실제 판정 기록: 신고(최근 전부)와 방 카메라 정리 확인(7일). 1분마다 다시 읽는다 */
+/** 실제 판정 기록: 신고와 방 카메라 정리 확인(최근 7일). 1분마다 다시 읽는다 */
 const JUDGE_DAYS = 7
-function useJudgeRows(): { rows: JudgeRow[] | null; error: string | null } {
+/** 한 번에 그리는 줄 수. 넘으면 [더 보기] */
+const JUDGE_PAGE = 60
+type JudgeSource = 'reports' | 'tidy'
+const SOURCE_LABEL: Record<JudgeSource, string> = { reports: '신고 판정', tidy: '방 카메라 정리 확인' }
+type JudgeState = { member: number | null; rows: JudgeRow[] | null; failed: JudgeSource[]; error: string | null }
+
+/**
+ * 두 창구를 따로 기다린다. 하나가 실패해도 다른 쪽 기록은 보여 주고, 실패한 쪽은 옛 값을 쓰지 않고 빠졌다고 알린다
+ * (숫자가 전부인 것처럼 보이지 않게)
+ */
+function useJudgeRows(): Omit<JudgeState, 'member'> {
   const member = useMemberId()
-  const [state, setState] = useState<{ member: number | null; rows: JudgeRow[] | null; error: string | null }>({ member: null, rows: null, error: null })
+  const [state, setState] = useState<JudgeState>({ member: null, rows: null, failed: [], error: null })
   useEffect(() => {
     if (member === null) return
     let stale = false
@@ -100,12 +110,24 @@ function useJudgeRows(): { rows: JudgeRow[] | null; error: string | null } {
       const mine = new AbortController()
       ctrl = mine
       const timer = setTimeout(() => mine.abort(), 15_000)
-      Promise.all([getReports(null, mine.signal, member), getTidyChecks(JUDGE_DAYS, mine.signal, member)])
+      Promise.allSettled([getReports(null, mine.signal, member), getTidyChecks(JUDGE_DAYS, mine.signal, member)])
         .then(([reports, tidy]) => {
           if (stale || ctrl !== mine) return
-          setState({ member, rows: judgeRows(reports, tidy, roomName, new Date()), error: null })
+          const failed: JudgeSource[] = []
+          if (reports.status === 'rejected') failed.push('reports')
+          if (tidy.status === 'rejected') failed.push('tidy')
+          const firstError = reports.status === 'rejected' ? reports.reason : tidy.status === 'rejected' ? tidy.reason : null
+          if (failed.length === 2) {
+            // 둘 다 못 받았으면 줄은 비우고 오류만
+            setState({ member, rows: null, failed, error: adminErrorMessage(firstError) })
+            return
+          }
+          const rows = judgeRows(
+            reports.status === 'fulfilled' ? reports.value : [],
+            tidy.status === 'fulfilled' ? tidy.value : [],
+            roomName, new Date(), JUDGE_DAYS)
+          setState({ member, rows, failed, error: null })
         })
-        .catch((e) => { if (!stale && ctrl === mine) setState((p) => ({ member, rows: p.member === member ? p.rows : null, error: adminErrorMessage(e) })) })
         .finally(() => clearTimeout(timer))
     }
     load()
@@ -113,7 +135,7 @@ function useJudgeRows(): { rows: JudgeRow[] | null; error: string | null } {
     const stop = onReportsChanged(load)
     return () => { stale = true; clearInterval(t); ctrl?.abort(); stop() }
   }, [member])
-  return state.member === member ? { rows: state.rows, error: state.error } : { rows: null, error: null }
+  return state.member === member ? { rows: state.rows, failed: state.failed, error: state.error } : { rows: null, failed: [], error: null }
 }
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `${id}번 방`
@@ -125,7 +147,7 @@ function JudgeItem({ j }: { j: Pick<JudgeRow, 'day' | 'time' | 'room' | 'by' | '
       <div className="jl-main">
         <small>{j.room} · {j.what}</small>
         <b>{j.verdict}</b>
-        <span>{j.by}{j.why ? ` · ${j.why}` : ''}</span>
+        {(j.by || j.why) && <span>{[j.by, j.why].filter(Boolean).join(' · ')}</span>}
       </div>
       {j.sure !== null && <span className="jl-sure" title="확신도">{j.sure}%</span>}
     </li>
@@ -133,12 +155,13 @@ function JudgeItem({ j }: { j: Pick<JudgeRow, 'day' | 'time' | 'room' | 'by' | '
 }
 
 function JudgeLog() {
-  const { rows, error } = useJudgeRows()
+  const { rows, failed, error } = useJudgeRows()
+  const [all, setAll] = useState(false)
   if (demoOn()) {
     return (
       <ol className="jl">
         {SAMPLE_JUDGEMENTS.map((j) => (
-          <JudgeItem key={j.at + j.room} j={{ day: null, time: j.at, room: j.room, by: '오디', what: j.what, verdict: j.verdict, sure: j.sure, why: j.why, tone: j.tone === 'off' ? 'wait' : j.tone }} />
+          <JudgeItem key={j.at + j.room} j={{ day: null, time: j.at, room: j.room, by: '오디', what: j.what, verdict: j.verdict, sure: j.sure, why: j.why, tone: j.tone }} />
         ))}
       </ol>
     )
@@ -148,18 +171,23 @@ function JudgeLog() {
       ? <p role="alert" className="adm-msg err">{error}</p>
       : <div className="jl jl-skel" aria-busy="true" aria-label="불러오는 중" />
   }
+  // 숫자는 자르기 전 전체로 센다
   const n = judgeCounts(rows)
+  const shown = all ? rows : rows.slice(0, JUDGE_PAGE)
   return (
     <>
-      <div className="jl-sum" role="group" aria-label={`최근 ${JUDGE_DAYS}일`}>
-        <span><b>{n.done}</b>판정</span>
-        <span><b>{n.warned}</b>경고·신고</span>
-        <span><b>{n.waiting}</b>판정 중</span>
+      <div className="jl-sum" role="group" aria-label={`최근 ${JUDGE_DAYS}일${failed.length ? ' (일부만)' : ''}`}>
+        <span><b>{n.done}{failed.length ? '+' : ''}</b>판정</span>
+        <span><b>{n.warned}{failed.length ? '+' : ''}</b>경고·신고</span>
+        <span><b>{n.waiting}{failed.length ? '+' : ''}</b>판정 중</span>
       </div>
-      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {failed.length > 0 && <p role="alert" className="adm-msg err">{failed.map((f) => SOURCE_LABEL[f]).join('·')} 기록을 못 불러왔어요. 잠시 뒤 다시 읽어요.</p>}
       {rows.length === 0
         ? <div className="adm-empty"><b>아직 판정한 일이 없어요</b></div>
-        : <ol className="jl">{rows.map((j) => <JudgeItem key={j.key} j={j} />)}</ol>}
+        : <ol className="jl">{shown.map((j) => <JudgeItem key={j.key} j={j} />)}</ol>}
+      {rows.length > shown.length && (
+        <button type="button" className="adm-link jl-more" onClick={() => setAll(true)}>{rows.length - shown.length}건 더 보기</button>
+      )}
     </>
   )
 }
