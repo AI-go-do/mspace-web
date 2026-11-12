@@ -11,6 +11,10 @@ describe('인사 기록 카드', () => {
   it('신고 판정·경고 철회 판단은 측정한 정확도, 소수 한 자리로', () => {
     const t = initialTrainees()
     expect(['report', 'withdraw'].map((k) => rateOf(t.find((x) => x.kind === k)!))).toEqual([98.9, 98.2])
+    // 자동 처리 5개는 가짜 사례 300개로 잰 값(core #139)
+    const ops = ['vent', 'sensor', 'prep', 'overtime', 'unbooked'].map((k) => t.find((x) => x.kind === k)!)
+    expect(ops.map(rateOf)).toEqual([89.3, 99.3, 89, 94, 96.7])
+    expect(ops.every((x) => x.total === 300 && x.note === '가짜 사례 300개로 잰 값')).toBe(true)
   })
   it('카드 아래 한 줄', () => {
     const t = initialTrainees()
