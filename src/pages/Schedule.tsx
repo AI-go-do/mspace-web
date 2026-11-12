@@ -7,6 +7,7 @@ import {
 } from '../api/schedule'
 import { ACCEPT, shrinkImage } from '../lib/shrinkImage'
 import './Schedule.css'
+import { IconButton } from '../components/IconAction'
 
 type Row = ScheduleClass & { key: number }
 let nextKey = 1
@@ -41,6 +42,11 @@ export default function Schedule() {
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 한 번만 (다시 부르기는 버튼)
   useEffect(load, [])
+  // 저장이 막히면 문제 칸으로 옮겨 준다. 긴 목록에서 칸 아래 글만 뜨면 "저장이 안 된다"로 보여서
+  useEffect(() => {
+    if (problem?.index == null) return
+    document.querySelectorAll('.sc-edit')[problem.index]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [problem])
 
   const reset = () => { setMsg(null); setDone(null); setProblem(null); setAskDelete(false) }
   const edit = () => { reset(); setDraft(null); setRows(saved ? toRows(saved.classes) : [blank()]) }
@@ -167,7 +173,7 @@ export default function Schedule() {
           <div className="sc-col sc-sec">
             <button type="button" className="btn-primary" disabled={busy !== null} onClick={edit}>고치기</button>
             {capture}
-            {!askDelete && <button type="button" className="sc-link" onClick={() => { reset(); setAskDelete(true) }}>전체 지우기</button>}
+            {!askDelete && <IconButton icon="trash" label="시간표 전체 지우기" className="sc-trash" onClick={() => { reset(); setAskDelete(true) }} />}
             {askDelete && (
               <div className="card sc-col sc-confirm" role="group" aria-label="전체 지우기 확인">
                 <b>시간표를 모두 지울까요?</b>
@@ -204,7 +210,7 @@ export default function Schedule() {
                 <input className="sc-name" aria-label="과목명" placeholder="과목명 (예: 자료구조)" maxLength={MAX_NAME}
                   value={r.name} onChange={(e) => change(r.key, { name: e.target.value })} />
                 <button type="button" className="btn-line sc-del" aria-label={`${i + 1}번째 수업 빼기`}
-                  onClick={() => { setProblem(null); setRows(rows.filter((x) => x.key !== r.key)) }}>빼기</button>
+                  onClick={() => { setProblem(null); setRows((rs) => rs && rs.filter((x) => x.key !== r.key)) }}>빼기</button>
               </div>
               <div className="sc-row">
                 <input type="time" aria-label="시작" value={r.startTime} onChange={(e) => change(r.key, { startTime: e.target.value })} />

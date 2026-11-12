@@ -1,0 +1,138 @@
+/* 에어컨·공기청정기 권유와 켜기·끄기 (관리자 방 상세 창 · 학생 홈 카드) */
+.cl { display: flex; flex-direction: column; gap: 10px; }
+.cl-tips { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.cl-tip {
+  display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: 14px;
+  background: color-mix(in srgb, var(--sky) 16%, var(--white)); box-shadow: inset 4px 0 0 var(--sky);
+  animation: cl-in 0.35s var(--ease-out) backwards;
+}
+.cl-tip.urgent { background: color-mix(in srgb, var(--yellow) 18%, var(--white)); box-shadow: inset 4px 0 0 var(--yellow); }
+.cl-tip.w-idle { background: var(--gray); box-shadow: inset 4px 0 0 var(--navy-70); }
+.cl-tip.w-heat { box-shadow: inset 4px 0 0 #e8743b; }
+.cl-tip:nth-child(2) { animation-delay: 70ms; }
+.cl-tip:nth-child(3) { animation-delay: 140ms; }
+.cl-tip-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cl-tip-text b { font-size: 14.5px; letter-spacing: -0.01em; }
+.cl-tip-text span { font-size: 12.5px; color: var(--navy-70); line-height: 1.45; }
+.cl-tip.urgent .cl-tip-text b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 4px; background: #e8743b; vertical-align: 2px; animation: pulse 1.6s ease-in-out infinite; }
+.cl-go {
+  flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--blue); color: var(--white);
+  font: inherit; font-size: 13px; font-weight: 800; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: var(--shadow-blue); transition: transform 0.12s var(--ease-out);
+}
+.cl-go:active { transform: scale(0.95); }
+.cl-go:disabled { opacity: 0.75; cursor: default; }
+.cl-tip.urgent .cl-go { background: var(--yellow); color: var(--navy); box-shadow: none; }
+.cl-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: cl-rot 0.7s linear infinite; }
+
+.cl-devs { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.cl-dev {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--gray);
+  transition: background 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.cl-dev.on { background: color-mix(in srgb, var(--sky) 26%, var(--white)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--blue) 30%, transparent); }
+.cl-dev-ico { flex: none; width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--white); color: var(--navy-70); }
+.cl-dev.on .cl-dev-ico { color: var(--blue); }
+.cl-dev.busy .cl-dev-ico { animation: cl-blink 0.45s ease-in-out infinite alternate; }
+.cl-dev-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cl-dev-text b { font-size: 14px; }
+.cl-dev-text small { font-size: 12px; color: var(--navy-70); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-ico.spin { animation: cl-rot 1.2s linear infinite; }
+.cl-ico.spin-slow { animation: cl-rot 6s linear infinite; }
+
+/* 켜기·끄기 스위치 */
+.cl-sw {
+  flex: none; position: relative; width: 48px; height: 28px; border: 0; border-radius: 14px; padding: 0; cursor: pointer;
+  background: color-mix(in srgb, var(--navy) 22%, var(--white)); transition: background 0.25s var(--ease-out);
+}
+.cl-sw i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--white); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform 0.3s var(--ease-spring); }
+.cl-sw.on { background: var(--blue); }
+.cl-sw.on i { transform: translateX(20px); }
+.cl-sw:disabled { opacity: 0.6; cursor: default; }
+.cl-sw:focus-visible, .cl-go:focus-visible { outline: 3px solid color-mix(in srgb, var(--blue) 45%, transparent); outline-offset: 2px; }
+
+.cl-foot { margin: 0; font-size: 12px; color: var(--navy-70); min-height: 1.4em; }
+.cl-ok { color: var(--blue); font-weight: 800; animation: cl-in 0.3s var(--ease-out); display: inline-block; }
+.cl-err { color: #c0392b; font-weight: 700; }
+
+/* 학생 홈 "내 방 공기" 카드 */
+.cl-card { margin: 12px 12px 0; padding: 16px; display: flex; flex-direction: column; gap: 12px; animation: cl-in 0.45s var(--ease-spring) backwards; }
+.cl-card-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.cl-eyebrow { font-size: 12px; font-weight: 800; color: var(--blue); }
+.cl-badge { padding: 4px 10px; border-radius: 12px; background: var(--yellow); color: var(--navy); font-size: 12.5px; font-weight: 900; animation: cl-beat 1.6s ease-in-out infinite; }
+.cl-card.l-over .cl-badge { background: #e8743b; color: var(--white); }
+.cl-card-now { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: end; }
+.cl-big { display: flex; flex-direction: column; }
+.cl-big small, .cl-small small { font-size: 11px; font-weight: 700; color: var(--navy-70); }
+.cl-big b { font-size: 34px; line-height: 1.05; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.cl-big b i { font-style: normal; font-size: 14px; margin-left: 3px; color: var(--navy-70); }
+.cl-big em { font-style: normal; font-size: 12px; color: var(--navy-70); }
+.cl-card.l-soon .cl-big b { color: #b9770e; }
+.cl-card.l-over .cl-big b { color: #d35400; }
+.cl-small { display: flex; gap: 14px; }
+.cl-small span { display: flex; flex-direction: column; }
+.cl-small b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.cl-gauge { grid-column: 1 / -1; position: relative; height: 8px; border-radius: 4px; background: var(--gray); overflow: visible; }
+.cl-gauge i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: linear-gradient(90deg, var(--sky), var(--yellow) 70%, #e8743b); transition: width 0.6s var(--ease-out); }
+.cl-gauge span { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--navy); border-radius: 1px; }
+.cl.compact .cl-devs { grid-template-columns: 1fr; }
+/* 급할 때는 방 현황보다 먼저: 첫 카드면 머리 위로 겹쳐 올라오고, 다른 카드 뒤면 띄운다 */
+.cl-card.cl-top { margin-top: -28px; }
+.relay + .cl-top, .butler + .cl-top, .apology + .cl-top { margin-top: 12px; }
+.cl-top + .today { margin-top: 12px; }
+
+/* 관리자 지금 화면 방 줄의 작은 표시 */
+.cl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 10px; font-size: 12px; font-weight: 800; background: var(--gray); color: var(--navy); }
+.cl-chip.on { background: color-mix(in srgb, var(--sky) 30%, var(--white)); color: var(--blue); }
+.cl-chip.tip { background: color-mix(in srgb, var(--yellow) 30%, var(--white)); }
+.cl-auto { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.cl-auto .cl-sw { width: 40px; height: 24px; }
+.cl-auto .cl-sw i { width: 18px; height: 18px; }
+.cl-auto .cl-sw.on i { transform: translateX(16px); }
+.cl-log { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.cl-log li { display: flex; gap: 8px; animation: cl-in 0.3s var(--ease-out) backwards; }
+.cl-log time { flex: none; color: var(--navy-70); font-variant-numeric: tabular-nums; }
+
+@keyframes cl-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes cl-rot { to { transform: rotate(360deg); } }
+@keyframes cl-blink { from { opacity: 1; } to { opacity: 0.45; } }
+@keyframes cl-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) {
+  .cl-ico.spin, .cl-ico.spin-slow, .cl-badge, .cl-dev.busy .cl-dev-ico { animation: none; }
+}
+
+/* 방 상세 창: 아래 줄에 넓게 */
+.rd-climate { grid-column: 1 / -1; order: 3; }
+.rd-climate h3 small { font-size: 12px; font-weight: 700; margin-left: 6px; }
+
+/* 에어컨 냉방·난방 고르기 */
+.cl-mode { flex-basis: 100%; display: flex; gap: 6px; padding-left: 46px; }
+.cl-mode button {
+  flex: 1; height: 30px; border: 0; border-radius: 10px; background: var(--white); color: var(--navy-70);
+  font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+}
+.cl-mode button.on { background: var(--blue); color: var(--white); }
+.cl-mode button:nth-child(2).on { background: #e8743b; }
+.cl-mode button:disabled { cursor: default; }
+
+/* 바깥 날씨 칩: "바깥 -9.5°C · 한파" */
+.cl-weather {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--gray) 14%, var(--white)); color: var(--navy-70);
+}
+.cl-weather::before { content: '☁'; font-size: 11px; }
+.cl-weather.cold { background: color-mix(in srgb, var(--blue) 14%, var(--white)); color: var(--blue-deep); }
+.cl-weather.cold::before { content: '❄'; }
+.cl-weather.hot { background: color-mix(in srgb, #dc2626 14%, var(--white)); color: #b91c1c; }
+.cl-weather.hot::before { content: '☀'; }
+.cl > .cl-weather { align-self: flex-start; }
+.cl-small .cl-weather { flex-direction: row; align-self: center; margin-left: auto; }
+
+/* AI가 배운 것 (방 상세 창). 근거를 그대로 보여 준다 */
+.cl-ai { display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; color: #fff; background: linear-gradient(135deg, #5B5BD6, #9D4EDD); border-radius: 5px; padding: 1px 5px; margin-right: 6px; vertical-align: 1px; }
+.cl-learn { border: 1px dashed color-mix(in srgb, #7B4FD8 45%, transparent); background: color-mix(in srgb, #7B4FD8 6%, transparent); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+.cl-learn b { display: block; margin-bottom: 4px; }
+.cl-learn ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.cl-tip-text .cl-tip-ai { display: block; font-size: 12px; color: #6A3FC7; margin-top: 3px; }

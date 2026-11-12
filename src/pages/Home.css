@@ -23,8 +23,7 @@
 }
 .campus { position: absolute; right: -40px; bottom: 18px; opacity: 0.16; }
 .home-top { position: relative; display: flex; align-items: center; justify-content: space-between; }
-.home-brand { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 6px; }
-.home-brand::before { content: ''; width: 8px; height: 8px; border-radius: 3px; background: var(--yellow); transform: rotate(45deg); }
+.home-brand { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
 .icon-btn {
   position: relative;
   width: var(--touch); height: var(--touch);
@@ -160,3 +159,44 @@
   background-size: 200% 100%; animation: shimmer 1.3s linear infinite;
 }
 .sk-line { display: block; width: 46%; height: 10px; border-radius: 5px; }
+
+/* AI로 간단히 예약하기 (FR-AGT-105) */
+/* 오디 패널(11/10 시안): 머리 위로 겹쳐 올라오는 첫 카드. 얼굴 · 이름 · 할 말 → 큰 부탁 버튼 */
+.odi-panel {
+  position: relative; margin: -28px 12px 0; padding: 16px; border-radius: 24px; box-shadow: var(--shadow-2);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.odi-panel-head { display: flex; align-items: center; gap: 12px; }
+.odi-panel-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.odi-panel-text h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.odi-panel-text .muted { font-size: 13px; }
+.odi-news {
+  flex: none; height: 32px; padding: 0 12px; border-radius: 16px; display: flex; align-items: center;
+  background: color-mix(in srgb, var(--blue) 8%, var(--white)); color: var(--blue); font-size: 13px; font-weight: 700;
+}
+.odi-ask { gap: 8px; text-decoration: none; }
+.odi-hint { font-size: 12px; color: var(--navy-70); text-align: center; margin-top: -4px; }
+
+/* 구역 이름: 카드들이 널려 보이지 않게 무엇끼리 묶였는지 먼저 말한다 */
+.home-section { margin: 20px 20px 8px; font-size: 15px; font-weight: 700; color: var(--navy); letter-spacing: -0.02em; }
+/* 릴레이·비서·사과·급한 공기 카드는 원래 머리 위로 겹쳐 올라오니(-28px) 구역 이름 아래에서는 붙여 쌓는다 */
+.home-section ~ .relay, .home-section ~ .butler, .home-section ~ .apology, .home-section ~ .cl-card.cl-top { margin-top: 0; }
+.home-section ~ :is(.relay, .butler, .apology, .cl-card.cl-top) + :is(.relay, .butler, .apology, .cl-card.cl-top) { margin-top: 8px; }
+.home-section + .mine-card, .home-section + .today { margin-top: 0; }
+.today-now { font-size: 13px; font-weight: 700; color: var(--navy-70); font-variant-numeric: tabular-nums; }
+
+/* 오늘 브리핑 (11/10): 오늘 수업 + 수업 끝난 뒤 빈 방 하나 */
+.brief { margin: 0 12px; padding: 16px; border-radius: 20px; display: flex; flex-direction: column; gap: 12px; }
+.brief-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.brief-row { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 10px; font-size: 14.5px; }
+.brief-time { color: var(--navy-70); font-variant-numeric: tabular-nums; }
+.brief-name { padding: 8px 10px; border-radius: 8px; background: var(--gray); font-weight: 600; display: flex; justify-content: space-between; }
+.brief-name em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--blue); }
+.brief-row.is-done { opacity: 0.45; }
+.brief-row.is-now .brief-time { color: var(--blue); font-weight: 700; }
+.brief-row.is-now .brief-name { background: color-mix(in srgb, var(--blue) 9%, var(--white)); color: var(--blue); }
+.brief-pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px solid rgba(21, 35, 61, 0.1); color: var(--navy); text-decoration: none; }
+.brief-pick-text { display: flex; flex-direction: column; gap: 2px; }
+.brief-pick-text small { font-size: 12.5px; color: var(--navy-70); }
+.brief-pick-text b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.brief-go { flex: none; min-height: 44px; padding: 0 16px; border-radius: 12px; background: var(--blue); color: var(--white); font-weight: 700; font-size: 14.5px; display: inline-flex; align-items: center; }

@@ -1,6 +1,7 @@
 /**
- * 벌점 해명 카드 (웹 화면만, 11/8 재웅 승인). 학생이 경고 옆에서 "왜 받았는지"와 근거 기록을 보고 해명을 적어 보낸다.
- * core에 경고 내역·해명 API가 아직 없어서 지금은 주소에 ?demo=1일 때만 예시로 보여 준다(api/appeal.ts).
+ * 경고 철회 요청 (FR-RPT-105, 11/10 지영 제안·재웅 확정. 11/8 벌점 해명 카드를 이어 씀).
+ * 학생이 경고마다 "왜 받았는지"와 근거 기록을 보고, 받은 뒤 7일 안에 철회를 요청한다. **다시 보는 쪽은 AI**(관리자는 정하지 않음).
+ * core에 경고 목록·요청 API가 아직 없어서(core #111) 지금은 주소에 ?demo=1일 때만 예시로 보여 준다(api/appeal.ts).
  * 화면과 예시 저장소가 같이 쓰는 순수 함수만 둔다(시각은 밖에서 받는다)
  */
 import { seoulClock } from './time'
@@ -16,15 +17,16 @@ export const WARNING_LABEL: Record<WarningKind, string> = {
   NOISE: '소란',
 }
 
-/** 근거 기록 한 줄. for=학생에게 유리한 기록(해명에 쓸 만함), neutral=판정에 쓰인 기록 */
+/** 근거 기록 한 줄. for=학생에게 유리한 기록(철회 요청에 쓸 만함), neutral=판정에 쓰인 기록 */
 export interface Evidence {
   at: string
-  /** 어디서 남은 기록인지 ("문 장치", "예약", "신고", "관리자") */
+  /** 어디서 남은 기록인지 ("입실 사진", "방 카메라", "예약", "신고", "AI") */
   source: string
   text: string
   tone: 'for' | 'neutral'
 }
 
+/** SENT = AI가 다시 보는 중, ACCEPTED = 철회됨(core WITHDRAWN), REJECTED = 경고 유지(core KEPT) */
 export type AppealStatus = 'SENT' | 'ACCEPTED' | 'REJECTED'
 
 export interface Appeal {
@@ -33,14 +35,18 @@ export interface Appeal {
   sentAt: string
   /** 같이 보낸 근거 (Evidence 순서 번호) */
   evidence: number[]
-  /** 관리자 답 (받아들임·거절일 때) */
+  /** AI 답 (철회·유지일 때) */
   answer: string | null
+  /** AI 확신도 0–1 (판단마다 남겨 정확도를 잰다, FR-RPT-105 "신뢰도 기록"). 모르면 없음 */
+  confidence?: number | null
 }
 
 export interface WarningRecord {
   id: number
   kind: WarningKind
   roomId: number
+  /** 경고가 걸린 예약. 내 예약 > 지난 예약 카드에 버튼을 붙이는 데 쓴다. 예시·모르면 null */
+  reservationId: number | null
   /** 경고가 걸린 예약 시간 */
   startAt: string
   endAt: string
@@ -52,23 +58,42 @@ export interface WarningRecord {
 }
 
 export const APPEAL_RULES = {
-  /** 경고를 받은 뒤 며칠 안에 해명할 수 있는지 (가짜 단계 가정. core가 정하면 그 값을 쓴다) */
+  /** 경고를 받은 뒤 며칠 안에 철회를 요청할 수 있는지 (FR-RPT-105 7일, 설정값. core가 appealableUntil을 주면 그 값을 쓴다) */
   days: 7,
   minChars: 10,
   maxChars: 500,
 }
 
-/** 해명할 수 있는지: 아직 안 보냈고, 받은 지 정해진 날 안 */
+/** 철회를 요청할 수 있는지: 아직 안 보냈고, 받은 지 정해진 날 안 */
 export function canAppeal(w: WarningRecord, now: Date, rules = APPEAL_RULES): boolean {
   if (w.appeal) return false
   return now.getTime() - Date.parse(w.issuedAt) < rules.days * 86_400_000
 }
 
-/** 해명 마감까지 남은 날 (오늘 마감이면 0). 이미 지났으면 null */
+/** 요청 마감까지 남은 온전한 날 (하루가 안 남았으면 0). 이미 지났으면 null */
 export function daysLeft(w: WarningRecord, now: Date, rules = APPEAL_RULES): number | null {
   const left = Date.parse(w.issuedAt) + rules.days * 86_400_000 - now.getTime()
   if (left <= 0) return null
   return Math.floor(left / 86_400_000)
+}
+
+/**
+ * 남은 시간 글 (배달 앱 리뷰처럼). 받자마자 "7일 남음", 하루 안 남으면 "5시간 남음", 1시간 안이면 "곧 마감".
+ * 이미 지났으면 null
+ */
+export function leftLabel(w: WarningRecord, now: Date, rules = APPEAL_RULES): string | null {
+  const left = Date.parse(w.issuedAt) + rules.days * 86_400_000 - now.getTime()
+  if (left <= 0) return null
+  if (left >= 86_400_000) return `${Math.ceil(left / 86_400_000)}일 남음`
+  if (left >= 3_600_000) return `${Math.floor(left / 3_600_000)}시간 남음`
+  return '곧 마감'
+}
+
+/** 내 예약 카드 버튼 글: "경고 철회 요청 (7일 남음)". 보낼 수 없으면 null */
+export function appealButtonLabel(w: WarningRecord, now: Date, rules = APPEAL_RULES): string | null {
+  if (!canAppeal(w, now, rules)) return null
+  const left = leftLabel(w, now, rules)
+  return left ? `경고 철회 요청 (${left})` : null
 }
 
 const clock = (iso: string) => seoulClock(new Date(iso))
@@ -105,23 +130,42 @@ export function appealProblem(text: string, rules = APPEAL_RULES): string | null
   const t = text.trim()
   if (t.length < rules.minChars) return `${rules.minChars}자 넘게 적어 주세요.`
   if (t.length > rules.maxChars) return `${rules.maxChars}자까지 쓸 수 있어요.`
-  // 관리자는 예약 번호로 찾는다. 전화번호·학번은 적지 않게 막는다(개인정보를 남기지 않는 원칙)
-  if (PHONE.test(t) || LONG_NUMBER.test(dropRealDates(t).replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. 관리자는 예약 번호로 찾아요.'
+  // 요청 글은 AI에게 넘어간다. 전화번호·학번은 적지 않게 막는다(외부 AI에 개인정보를 보내지 않는 원칙). AI는 예약 기록으로 다시 본다
+  if (PHONE.test(t) || LONG_NUMBER.test(dropRealDates(t).replace(/[-\s]/g, ''))) return '전화번호·학번은 빼고 적어 주세요. AI는 예약 기록으로 다시 봐요.'
   return null
 }
 
 /** 카드에 붙는 상태 글 */
 export function statusLabel(w: WarningRecord, now: Date, rules = APPEAL_RULES): { text: string; tone: 'open' | 'wait' | 'done' | 'no' | 'closed' } {
-  if (w.appeal?.status === 'SENT') return { text: '검토 중', tone: 'wait' }
-  if (w.appeal?.status === 'ACCEPTED') return { text: '무름', tone: 'done' }
-  if (w.appeal?.status === 'REJECTED') return { text: '그대로', tone: 'no' }
-  const left = daysLeft(w, now, rules)
-  if (left === null) return { text: '해명 기간 끝남', tone: 'closed' }
-  return { text: left === 0 ? '오늘까지 해명' : `${left}일 안 해명`, tone: 'open' }
+  if (w.appeal?.status === 'SENT') return { text: 'AI가 다시 보는 중', tone: 'wait' }
+  if (w.appeal?.status === 'ACCEPTED') return { text: '철회됨', tone: 'done' }
+  if (w.appeal?.status === 'REJECTED') return { text: '경고 유지', tone: 'no' }
+  const left = leftLabel(w, now, rules)
+  if (left === null) return { text: '요청 기간 끝남', tone: 'closed' }
+  return { text: `철회 요청 ${left}`, tone: 'open' }
 }
 
-/** 해명 진행 세 칸: 보냄 → 관리자 확인 → 결과 (몇 칸까지 찼는지) */
+/** 철회 요청 진행 세 칸: 보냄 → AI가 다시 비교 → 결과 (몇 칸까지 찼는지) */
 export function appealStep(a: Appeal | null): 0 | 1 | 2 | 3 {
   if (!a) return 0
   return a.status === 'SENT' ? 1 : 3
+}
+
+/** 확신도 글: 0.93 → "확신 93%" */
+export function confidenceLabel(c: number | null | undefined): string | null {
+  if (c == null || !Number.isFinite(c)) return null
+  return `확신 ${Math.round(Math.min(1, Math.max(0, c)) * 100)}%`
+}
+
+/**
+ * 예시 화면용 AI 판단 (실제는 core #111이 AI에게 맡긴다). 학생에게 유리한 기록을 같이 보냈으면 철회, 없으면 유지.
+ * 이유는 고른 기록의 시각·내용만으로 쓴다(지어내지 않게)
+ */
+export function demoDecision(w: WarningRecord, picked: number[]): Pick<Appeal, 'status' | 'answer' | 'confidence'> {
+  const helpful = picked.map((i) => w.evidence[i]).filter((e): e is Evidence => !!e && e.tone === 'for')
+  if (helpful.length > 0) {
+    const why = helpful.map((e) => `${clock(e.at)} ${e.source} 기록(${e.text.replace(/[.。]$/, '')})`).join(', ')
+    return { status: 'ACCEPTED', confidence: 0.91, answer: `${why}을 경고 근거와 다시 비교했어요. ${WARNING_LABEL[w.kind]} 경고를 이 예약 탓으로 보기 어려워 철회했어요.` }
+  }
+  return { status: 'REJECTED', confidence: 0.84, answer: '같이 보낸 기록에서 경고 근거와 다른 점을 찾지 못했어요. 경고는 그대로예요.' }
 }

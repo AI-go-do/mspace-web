@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { canListen, canSpeak, listenOnce, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { canListen, canSpeak, joinHeard, listenOnce, MAX_RESTARTS, SILENCE_MS, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
 
 /** 테스트용 가짜 음성 인식. 만든 것을 last에 둔다 */
 class FakeRecognition implements Recognition {
@@ -12,8 +12,9 @@ class FakeRecognition implements Recognition {
   onerror: ((e: { error: string }) => void) | null = null
   onend: (() => void) | null = null
   started = false
+  starts = 0
   constructor() { FakeRecognition.last = this }
-  start() { this.started = true }
+  start() { this.started = true; this.starts += 1 }
   stop() { this.onend?.() }
   abort() { this.onerror?.({ error: 'aborted' }); this.onend?.() }
   say(parts: { t: string; final: boolean }[]) {
@@ -25,6 +26,16 @@ class FakeRecognition implements Recognition {
 function handlers() {
   return { onInterim: vi.fn(), onFinal: vi.fn(), onError: vi.fn(), onEnd: vi.fn() }
 }
+
+afterEach(() => { vi.useRealTimers() })
+
+describe('조각 잇기', () => {
+  it('안드로이드처럼 앞 조각을 또 넣어 줘도 한 번만 잇는다', () => {
+    expect(joinHeard(['내일', '내일 오후 2시', '빈 방'])).toBe('내일 오후 2시 빈 방')
+    expect(joinHeard(['내일 오후', ' 2시 ', ' 2시'])).toBe('내일 오후 2시 2시') // 따로 들린 같은 말은 지우지 않는다
+    expect(joinHeard(['', '  '])).toBe('')
+  })
+})
 
 describe('음성 기능 찾기', () => {
   it('표준 이름이 없으면 webkit 접두사 이름을 쓰고, 둘 다 없으면 마이크 버튼을 숨긴다(파이어폭스)', () => {
@@ -47,21 +58,133 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
-  it('한국어로 듣고, 말하는 중 글은 입력 칸에, 끝나면 마지막 글을 한 번만 보낸다', () => {
+  it('한국어로 이어 듣고, 말하는 중 글은 입력 칸에, 다 말하고 조용해지면 한 번만 보낸다', () => {
+    vi.useFakeTimers()
     const h = handlers()
     listenOnce(h, FakeRecognition)
     const r = FakeRecognition.last!
     expect(r.lang).toBe('ko-KR')
     expect(r.interimResults).toBe(true)
+    expect(r.continuous).toBe(true)
     expect(r.started).toBe(true)
     r.say([{ t: '내일 오후', final: false }])
     expect(h.onInterim).toHaveBeenLastCalledWith('내일 오후')
     r.say([{ t: '내일 오후 2시 빈 방 있어', final: true }])
-    r.onend!()
+    vi.advanceTimersByTime(SILENCE_MS - 1)
+    expect(h.onFinal).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
     r.onend!() // 브라우저가 두 번 불러도 한 번만
     expect(h.onFinal).toHaveBeenCalledTimes(1)
     expect(h.onFinal).toHaveBeenCalledWith('내일 오후 2시 빈 방 있어')
     expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('말하다 잠깐 쉬어도 보내지 않고, 이어 말한 것까지 모아 보낸다(11/11 중간에 보내짐)', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내일', final: true }])
+    vi.advanceTimersByTime(1200)
+    r.say([{ t: '내일', final: true }, { t: ' 오후 2시 빈 방', final: false }])
+    vi.advanceTimersByTime(1200)
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onInterim).toHaveBeenLastCalledWith('내일 오후 2시 빈 방')
+    r.say([{ t: '내일', final: true }, { t: ' 오후 2시 빈 방', final: true }])
+    vi.advanceTimersByTime(SILENCE_MS)
+    expect(h.onFinal).toHaveBeenCalledWith('내일 오후 2시 빈 방')
+  })
+
+  it('브라우저가 짧은 쉼에서 스스로 끝내면 다시 켜서 이어 듣는다(모바일)', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '수업 끝나고', final: true }])
+    r.onend!()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).not.toHaveBeenCalled()
+    expect(r.starts).toBe(2)
+    r.say([{ t: '2시간 잡아 줘', final: true }])
+    expect(h.onInterim).toHaveBeenLastCalledWith('수업 끝나고 2시간 잡아 줘')
+    // 다시 켠 뒤 조용해서 난 no-speech는 실패가 아니다
+    r.onerror!({ error: 'no-speech' })
+    vi.advanceTimersByTime(SILENCE_MS)
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onFinal).toHaveBeenCalledWith('수업 끝나고 2시간 잡아 줘')
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('다시 켠 판에서 같은 말을 또 해도 지우지 않는다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '2시', final: true }])
+    r.onend!()
+    r.say([{ t: '2시', final: true }])
+    vi.advanceTimersByTime(SILENCE_MS)
+    expect(h.onFinal).toHaveBeenCalledWith('2시 2시')
+  })
+
+  it('조용해진 뒤 브라우저가 끝내면 다시 켜지 않고 보낸다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내 예약 보여 줘', final: true }])
+    vi.setSystemTime(Date.now() + SILENCE_MS + 10)
+    r.onend!()
+    expect(r.starts).toBe(1)
+    expect(h.onFinal).toHaveBeenCalledWith('내 예약 보여 줘')
+  })
+
+  it('브라우저가 계속 끊어도 정해진 횟수까지만 다시 켜고 들린 말을 보낸다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    for (let i = 0; i <= MAX_RESTARTS; i++) {
+      r.say([{ t: `말${i}`, final: true }])
+      r.onend!()
+    }
+    expect(r.starts).toBe(MAX_RESTARTS + 1)
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).toHaveBeenCalledWith(Array.from({ length: MAX_RESTARTS + 1 }, (_, i) => `말${i}`).join(' '))
+  })
+
+  it('멈춘 뒤 브라우저가 onend를 안 주면 잠시 뒤 듣기만 끝내고, 덜 된 말은 보내지 않는다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    const stop = listenOnce(h, FakeRecognition)!
+    const r = FakeRecognition.last!
+    r.stop = () => { /* onend를 주지 않는 브라우저 */ }
+    r.abort = () => { /* 이것도 아무 일 없음 */ }
+    r.say([{ t: '지금 빈', final: false }])
+    stop()
+    expect(h.onEnd).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1500)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).not.toHaveBeenCalled()
+    // 마지막 결과·onend가 늦게 와도 보내지 않고 입력 칸 글도 바꾸지 않는다
+    const interimCalls = h.onInterim.mock.calls.length
+    r.say([{ t: '지금 빈 방', final: true }])
+    r.onend!()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onInterim).toHaveBeenCalledTimes(interimCalls)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('한참 말해도 최대 길이가 되면 그때까지 들린 말로 끝낸다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition, { maxMs: 5000 })
+    const r = FakeRecognition.last!
+    for (let i = 0; i < 6; i++) {
+      r.say([{ t: '음 그러니까', final: false }])
+      vi.advanceTimersByTime(1000)
+    }
+    expect(h.onFinal).toHaveBeenCalledWith('음 그러니까')
   })
 
   it('아무 말도 안 하면 보내지 않고 안내만 한다', () => {

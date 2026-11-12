@@ -189,7 +189,7 @@ export default function Instant() {
   // 시작 버튼이 있는 화면(방 고르기·함께 쓰는 사람)마다 버튼 가까이에 알린다
   const warn = (
     <p className="in-warn">
-      취소할 수 있으면 다음 화면에서 마감 시각을 알려 드려요. 취소하지 못할 수도 있어요. <b>10분 안</b>에 QR이나 키패드로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
+      취소할 수 있으면 다음 화면에서 마감 시각을 알려 드려요. 취소하지 못할 수도 있어요. <b>10분 안</b>에 QR로 입실하지 않으면 예약이 풀리고 노쇼로 기록돼요. 30일 안에 노쇼 2번이면 14일 동안 예약이 막혀요.
     </p>
   )
 
@@ -214,15 +214,13 @@ export default function Instant() {
         <div className="rs-title">
           <button type="button" className="back" aria-label="뒤로" disabled={busy} onClick={() => navigate(-1)}><BackIcon /></button>
           <div>
-            <h1>지금 바로 쓰기</h1>
-            <span className="muted sub">지금 {seoulClock(now)}부터 시작해요</span>
+            <h1>빈 방 바로 쓰기</h1>
           </div>
         </div>
       </header>
 
       <section className="card in-rooms" aria-labelledby="free-title">
         <h2 id="free-title">지금 비어 있는 방{sample && <span className="sample">예시</span>}</h2>
-        {sample && <p role="status" className="muted">서버에 닿지 않아 예시를 보여 주고 있어요. 지금은 시작할 수 없어요.</p>}
         {error && <p role="alert" className="muted">방 현황을 못 불러왔어요. {error}</p>}
         {rooms && free.length === 0 && <p className="muted">지금 비어 있는 방이 없어요. 홈에서 다른 시간을 골라 주세요.</p>}
         {/* 주소로 고른 방이든 화면에서 고른 방이든, 다시 받아 보니 지금 쓸 수 없게 됐으면 이유와 갈 곳을 알려 준다 */}
@@ -238,7 +236,7 @@ export default function Instant() {
               <span className="in-no">{r.roomId}</span>
               <span className="in-text">
                 <b>창작실 {r.roomId}</b>
-                <span className="muted">{r.minPeople}–{r.maxPeople}명 · {!ok ? '곧 다음 예약이 있어요' : until ? `${until}까지 비어 있어요` : '오늘 남은 예약이 없어요'}</span>
+                <span className="muted">{r.minPeople}–{r.maxPeople}명 · {!ok ? '곧 다음 예약이 있어요' : until ? `${until}까지 빔` : '오늘 계속 빔'}</span>
               </span>
             </button>
           )

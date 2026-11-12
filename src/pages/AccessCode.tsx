@@ -213,7 +213,7 @@ export default function AccessCode() {
   if (error) {
     return (
       <main className="key-page">
-        <div className="key-top"><span className="key-title">입실 번호</span></div>
+        <div className="key-top"><span className="key-title">입실 QR</span></div>
         <div className="ticket"><div className="ticket-body">
           <p role="alert">{error}</p>
           <button type="button" className="btn-primary" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>다시 시도</button>
@@ -237,13 +237,14 @@ export default function AccessCode() {
   const time = `${seoulClock(new Date(r.startAt))}–${seoulClock(new Date(r.endAt))}`
   const roomName = `창작실 ${r.room.id}`
   const active = isActive(r.status)
-  const showCode = r.owner && active && !!r.accessCode
+  // 입실은 QR만(11/10 재웅: 키패드·NFC 뺌). 번호는 화면에 보이지 않는다
+  const showCode = r.owner && active && !!r.qrText
   const deadline = deadlineOf(r, state.instant)
   // 지금 바로 쓰기를 잘못 눌렀으면 여기서 바로 취소하러 간다 (시작 후에도 취소되는 예약만, core #84)
   const undo = canCancel(r, now.getTime()) && cancelDeadline(r).getTime() > Date.parse(r.startAt)
 
   async function share() {
-    const text = `M-space ${roomName} · ${when} ${time}\n입실 번호 ${r!.accessCode} (방 앞 키패드에 누르고 #)`
+    const text = `M-space ${roomName} · ${when} ${time}\n대표자 QR로 같이 들어가요`
     if (navigator.share) {
       try {
         await navigator.share({ title: 'M-space 예약', text })
@@ -257,7 +258,7 @@ export default function AccessCode() {
       await navigator.clipboard.writeText(text)
       setShared('복사했어요. 메신저에 붙여 넣어 보내 주세요.')
     } catch {
-      setShared('보내지 못했어요. 번호를 직접 알려 주세요.')
+      setShared('보내지 못했어요. 시간을 직접 알려 주세요.')
     }
   }
 
@@ -265,14 +266,15 @@ export default function AccessCode() {
     <main className="key-page">
       <div className={`key-top ${justCreated && r.status === 'BOOKED' ? 'done' : ''}`}>
         <Spacey size={80} />
-        <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 번호' : STATUS_LABEL[r.status]}</span>
+        <span className="key-title">{justCreated && r.status === 'BOOKED' ? '예약 완료' : r.status === 'IN_USE' ? '사용 중' : active ? '입실 QR' : STATUS_LABEL[r.status]}</span>
         <span className="key-sub">
           {entered ? '입실했어요. 마이로 넘어가요'
             : showCode
-            ? (r.status === 'BOOKED' && r.qrText ? '문 앞 카메라에 QR을 비추거나 키패드에 번호를 눌러 주세요 · 화면이 꺼지지 않아요' : '방 앞 키패드에 이 번호를 눌러 주세요')
-            : !r.owner ? '번호는 대표자에게만 보여요'
+            ? (r.status === 'BOOKED' ? '문 앞 카메라에 QR을 비춰 주세요 · 화면이 꺼지지 않아요' : '잠깐 나갔다 와도 같은 QR로 열려요')
+            : !r.owner ? 'QR은 대표자에게만 보여요. 대표자와 같이 들어가요'
+            : active ? '입실 QR을 아직 못 받았어요. 잠시 뒤 다시 열어 주세요'
             : r.status === 'NO_SHOW' ? '입실 시간이 지나 예약이 풀렸어요'
-            : '끝난 예약이라 번호가 꺼졌어요'}
+            : '끝난 예약이라 QR이 꺼졌어요'}
         </span>
       </div>
 
@@ -294,28 +296,25 @@ export default function AccessCode() {
           {(showCode || entered) && (
             <>
               {/* 문 앞 웹캠이 읽는 입실 QR. 흰 바탕에 검은 칸, 화면 폭의 60% 넘게. 밝기를 올려 두면 더 잘 읽힌다 */}
-              {r.status === 'BOOKED' && r.qrText && (
+              {(r.status === 'BOOKED' || r.status === 'IN_USE') && r.qrText && (
                 <div className="code-qr" role="img" aria-label="입실 QR. 문 앞 카메라에 비춰 주세요">
                   <QRCodeSVG value={r.qrText} size={256} level="M" marginSize={2} bgColor="#ffffff" fgColor="#000000" />
                 </div>
               )}
-              <div className="code-digits" role="img" aria-label={`입실 번호 ${r.accessCode!.split('').join(' ')}`}>
-                {r.accessCode!.split('').map((d, i) => <span key={i}>{d}</span>)}
-              </div>
               {r.status === 'BOOKED'
                 ? <>
                     {/* 1초마다 바뀌는 카운트다운은 읽어 주지 않고(aria-live off), 마감이 지난 순간만 따로 알린다 */}
                     <span className="deadline" aria-live="off">{deadlineText(deadline, r.startAt, now.getTime())}</span>
                     {now.getTime() > deadline.getTime() && <span className="sr-only" role="status">입실 마감이 지났어요</span>}
                   </>
-                : <span className="deadline calm">입실했어요. 잠깐 나갔다 와도 같은 번호로 열려요</span>}
+                : <span className="deadline calm">입실했어요. 잠깐 나갔다 와도 같은 QR로 열려요</span>}
             </>
           )}
         </div>
         <div className="ticket-cut" aria-hidden="true"><span /><span /></div>
         <ol className="steps">
           <li><span>1</span>방 앞으로<br />가요</li>
-          <li><span>2</span>번호 6자리<br />누르고 #</li>
+          <li><span>2</span>카메라에<br />QR 비추기</li>
           <li><span>3</span>불이 켜지면<br />입실 완료</li>
           <li><span>4</span>방 사진<br />한 장 찍기</li>
         </ol>

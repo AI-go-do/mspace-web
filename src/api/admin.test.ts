@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { adminErrorMessage, judgeConfirm, JUDGE_OPTIONS, stillInRoom } from './admin'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clearTokens, saveTokens } from '../auth/tokens'
+import { adminErrorMessage, getTidyChecks, itemPercents, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -62,5 +63,60 @@ describe('judgeConfirm', () => {
     expect(judgeConfirm(opt('UNVERIFIED'), true)).toContain('알림은 가지 않아요')
     expect(judgeConfirm(opt('FALSE'), true)).toContain('경고는 가지 않아요')
     expect(judgeConfirm(opt('CONFIRMED'), true)).toBe(opt('CONFIRMED').confirm)
+  })
+})
+
+describe('카메라 정리 확인 (core #110)', () => {
+  it('결과와 두고 간 귀중품을 한 줄로', () => {
+    expect(tidySummary({ result: 'CLEAN', leftItems: [] })).toBe('깨끗함')
+    expect(tidySummary({ result: 'NEEDS_CLEANING', leftItems: ['BAG', 'LAPTOP'] })).toBe('치워야 함 · 두고 간 것: 가방·노트북')
+    expect(tidySummary({ result: 'SOMETHING_NEW', leftItems: ['UMBRELLA'] })).toBe('SOMETHING_NEW · 두고 간 것: UMBRELLA')
+  })
+
+  it('퇴실 직후 줄로 물건 남음·깨끗함을, 다시 확인 줄로 경고를 센다', () => {
+    const rows: Parameters<typeof tidyCounts>[0] = [
+      { phase: 'FIRST', result: 'LEFT_ITEMS', leftItems: [], reportId: null },
+      { phase: 'RECHECK', result: 'LEFT_ITEMS', leftItems: [], reportId: 12 },
+      { phase: 'FIRST', result: 'CLEAN', leftItems: [], reportId: null },
+      { phase: 'FIRST', result: 'CLEAN', leftItems: ['PHONE'], reportId: null },
+      { phase: 'FIRST', result: 'NEEDS_CLEANING', leftItems: [], reportId: 3 },
+    ]
+    expect(tidyCounts(rows)).toEqual({ left: 3, clean: 1, warned: 1 })
+  })
+
+  it('AI 판단 줄은 같은 물건을 묶고 가장 높은 확신도만 낸다', () => {
+    expect(seenItemsSummary([{ name: 'cup', confidence: 0.71 }, { name: 'cup', confidence: 0.88 }, { name: 'backpack', confidence: 0.6 }, { name: 'stapler', confidence: null }]))
+      .toEqual({ text: '컵 2개 · 가방 · stapler', top: 0.88 })
+    expect(seenItemsSummary([])).toEqual({ text: '', top: null })
+  })
+
+  it('남은 물건은 확신도 높은 순으로, 확신도 없으면 이름만', () => {
+    expect(seenItemsLabel([{ name: 'cup', confidence: 0.61 }, { name: 'umbrella', confidence: 0.934 }, { name: 'bag', confidence: null }]))
+      .toBe('umbrella 93% · cup 61% · bag')
+  })
+
+  afterEach(() => { vi.unstubAllGlobals(); clearTokens() })
+  it('목록은 관리자 주소로 받고 기간은 1–92일로 자른다', async () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+    saveTokens({ accessToken: 't', expiresAt: new Date(Date.now() + 3_600_000).toISOString(), memberId: 1 })
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(String(url))
+      return new Response(JSON.stringify({ items: [{ reservationId: 40, roomId: 2, roomName: '창작실 2', endedAt: null, result: 'CLEAN', items: [], leftItems: [], reportId: null, observedAt: '2026-11-09T21:00:00+09:00' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    const rows = await getTidyChecks(365)
+    expect(calls[0]).toContain('/api/tidy-checks?days=92')
+    expect(rows[0].roomName).toBe('창작실 2')
+  })
+})
+
+describe('물품별 확신도', () => {
+  it('높은 순 %로, 확신도 없는 물품은 뺀다', () => {
+    expect(itemPercents([{ name: 'cup', confidence: 0.714 }, { name: 'unknown', confidence: null }, { name: 'cell phone', confidence: 0.82 }])).toEqual([82, 71])
   })
 })

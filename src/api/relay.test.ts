@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { countdown, DEMO_HOLD_MS, DEMO_OFFER_AFTER_MS, demoAddWait, demoOffers, demoWaits, finishDemoOffer, offerPick, openOfferSlots, takenRunEnd } from './relay'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearTokens, saveTokens } from '../auth/tokens'
+import {
+  _setRelayApiForTest, addWait, cancelWait, countdown, declineOffer, DEMO_HOLD_MS, DEMO_OFFER_AFTER_MS, demoAddWait, demoOffers, demoWaits,
+  finishDemoOffer, getMyOffers, getMyWaits, isDemoOffer, offerPick, openOfferSlots, relayOn, takenRunEnd,
+} from './relay'
 import type { Slot } from './rooms'
 
 const store = new Map<string, string>()
@@ -68,5 +72,76 @@ describe('예시 릴레이 (?demo=1)', () => {
     const a = demoAddWait(1, 3, start, start, t0)
     finishDemoOffer(1, a.id)
     expect(demoOffers(1, t0 + DEMO_OFFER_AFTER_MS)).toHaveLength(0)
+  })
+})
+
+describe('빈방 릴레이 core API (core #101)', () => {
+  const json = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  let fetchMock: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    _setRelayApiForTest(true)
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    saveTokens({ accessToken: 't', expiresAt: new Date(Date.now() + 3_600_000).toISOString(), memberId: 1 })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearTokens()
+    store.clear()
+    _setRelayApiForTest(null)
+  })
+  const call = (i = 0) => {
+    const [url, init] = fetchMock.mock.calls[i] as [string, RequestInit]
+    return { url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : undefined }
+  }
+
+  it('api로 빌드하면 보통 학생 화면에도 보이고, 서버 번호는 예시로 보지 않는다', () => {
+    expect(relayOn()).toBe(true)
+    expect(isDemoOffer(-1)).toBe(false)
+  })
+  it('기다리기 걸기는 방·칸 시작만 보낸다(놓일 구간 흉내는 보내지 않음)', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, { id: 3, roomId: 2, startAt: '2026-11-10T14:00:00+09:00', order: 1 }))
+    const w = await addWait(1, 2, '2026-11-10T14:00:00+09:00', '2026-11-10T16:00:00+09:00')
+    expect(w).toEqual({ id: 3, roomId: 2, startAt: '2026-11-10T14:00:00+09:00', order: 1 })
+    expect(call()).toMatchObject({ method: 'POST', body: { roomId: 2, startAt: '2026-11-10T14:00:00+09:00' } })
+    expect(call().url).toContain('/api/relay/waits')
+    // 예시 저장소에는 아무것도 남지 않는다
+    expect(store.size).toBe(0)
+  })
+  it('목록·그만두기·넘길게요는 core 주소로 간다', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, [{ id: 3, roomId: 2, startAt: '2026-11-10T14:00:00+09:00', order: 2 }]))
+      .mockResolvedValueOnce(json(200, [{ id: 7, roomId: 2, startAt: '2026-11-10T14:00:00+09:00', endAt: '2026-11-10T15:00:00+09:00', expiresAt: '2026-11-10T13:05:00+09:00', order: 1 }]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    expect((await getMyWaits(1))[0].order).toBe(2)
+    expect((await getMyOffers(1))[0].id).toBe(7)
+    await cancelWait(1, 3)
+    await declineOffer(1, 7)
+    expect(fetchMock.mock.calls.map((_, i) => `${call(i).method} ${new URL(call(i).url, 'http://x').pathname}`)).toEqual([
+      'GET /api/relay/waits/me', 'GET /api/relay/offers/me', 'POST /api/relay/waits/3/cancel', 'POST /api/relay/offers/7/decline',
+    ])
+  })
+  it('기다리기 3개 넘음 같은 서버 거절은 메시지와 함께 그대로 실패한다', async () => {
+    fetchMock.mockResolvedValueOnce(json(409, { code: 'RELAY_WAIT_LIMIT', message: '기다리기는 한 사람당 동시에 3개까지예요' }))
+    await expect(addWait(1, 2, '2026-11-10T14:00:00+09:00', '')).rejects.toThrow('3개까지')
+  })
+  it('예시 화면(?demo=1)은 api 빌드에서도 예시를 쓴다', async () => {
+    store.set('mspace:demo', '1')
+    const w = await addWait(1, 2, '2026-11-10T14:00:00+09:00', '2026-11-10T15:00:00+09:00')
+    expect(w.id).toBeLessThan(0)
+    expect(isDemoOffer(w.id)).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('릴레이를 쓰지 않는 빌드', () => {
+  afterEach(() => { store.clear(); _setRelayApiForTest(null) })
+  it('보통 화면에서는 숨기고, ?demo=1에서만 보인다', () => {
+    _setRelayApiForTest(false)
+    expect(relayOn()).toBe(false)
+    store.set('mspace:demo', '1')
+    expect(relayOn()).toBe(true)
   })
 })

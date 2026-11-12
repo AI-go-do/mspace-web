@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  _resetBlocksForTest, blockConflicts, cancelConflicts, createBlock, mockReservations, releaseBlock, resetBlocks,
+  _resetBlocksForTest, blockConflicts, cancelConflicts, createBlock, mockReservations, previewReservations, releaseBlock, resetBlocks,
 } from '../api/roomBlocks'
 import { blockNow, conflictsOf, isActive, reasonStatus, validateBlock, type BlockInput, type RoomBlock } from './roomBlocks'
 
@@ -87,7 +87,7 @@ describe('conflictsOf · blockNow · isActive', () => {
 
 describe('가짜 기간 막기 저장소', () => {
   beforeEach(() => {
-    _resetBlocksForTest()
+    _resetBlocksForTest('mock')
     resetBlocks()
   })
 
@@ -105,29 +105,33 @@ describe('가짜 기간 막기 저장소', () => {
     expect(new Set(today.map((r) => r.reservationId)).size).toBe(today.length)
   })
 
-  it('막으면 겹친 예약을 지우지 않고 보여 주고, 확인 뒤 취소하면 목록에서 빠진다', () => {
+  it('막으면 겹친 예약을 지우지 않고 보여 주고, 확인 뒤 취소하면 목록에서 빠진다', async () => {
     // 1번 방 내일 13~15시 예약이 있다
-    const r = createBlock(input({ startAt: t('2026-11-09T12:00:00'), endAt: t('2026-11-09T16:00:00') }), now)
+    const r = await createBlock(input({ startAt: t('2026-11-09T12:00:00'), endAt: t('2026-11-09T16:00:00') }), now)
     if ('error' in r) throw new Error(r.error)
     expect(r.conflicts.length).toBe(1)
     expect(blockConflicts(r.block.id, now).length).toBe(1)
-    expect(cancelConflicts(r.block.id, now)).toBe(1)
+    expect(await cancelConflicts(r.block.id, now)).toBe(1)
     expect(blockConflicts(r.block.id, now)).toEqual([])
     // 두 번 눌러도 다시 취소하지 않는다
-    expect(cancelConflicts(r.block.id, now)).toBe(0)
+    expect(await cancelConflicts(r.block.id, now)).toBe(0)
   })
 
-  it('틀린 값은 { error }로 돌려주고 저장하지 않는다', () => {
-    const r = createBlock(input({ endAt: t('2026-11-09T09:00:00') }), now)
+  it('틀린 값은 { error }로 돌려주고 저장하지 않는다', async () => {
+    const r = await createBlock(input({ endAt: t('2026-11-09T09:00:00') }), now)
     expect('error' in r).toBe(true)
   })
 
-  it('풀면 겹친 예약 목록도 사라지고 같은 시간을 다시 막을 수 있다', () => {
-    const r = createBlock(input({ startAt: t('2026-11-09T12:00:00'), endAt: t('2026-11-09T16:00:00') }), now)
+  it('풀면 겹친 예약 목록도 사라지고 같은 시간을 다시 막을 수 있다', async () => {
+    const r = await createBlock(input({ startAt: t('2026-11-09T12:00:00'), endAt: t('2026-11-09T16:00:00') }), now)
     if ('error' in r) throw new Error(r.error)
-    expect('error' in createBlock(input({ startAt: t('2026-11-09T13:00:00'), endAt: t('2026-11-09T14:00:00') }), now)).toBe(true)
-    releaseBlock(r.block.id, now)
+    expect('error' in await createBlock(input({ startAt: t('2026-11-09T13:00:00'), endAt: t('2026-11-09T14:00:00') }), now)).toBe(true)
+    expect(await releaseBlock(r.block.id, now)).toBeNull()
     expect(blockConflicts(r.block.id, now)).toEqual([])
-    expect('error' in createBlock(input({ startAt: t('2026-11-09T13:00:00'), endAt: t('2026-11-09T14:00:00') }), now)).toBe(false)
+    expect('error' in await createBlock(input({ startAt: t('2026-11-09T13:00:00'), endAt: t('2026-11-09T14:00:00') }), now)).toBe(false)
+  })
+
+  it('가짜 저장소에서는 막기 전 겹칠 예약을 미리 센다', () => {
+    expect(previewReservations(now).length).toBeGreaterThan(0)
   })
 })

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { continueReservation, getMyReservations, isActive, STATUS_LABEL, type MyReservation } from '../api/reservations'
+import { AppealSheet } from '../components/PenaltyHistory'
+import { LooseWarningCard, matchWarnings, openAppealCount, useMyWarnings, WarningRow } from '../components/PastWarnings'
 import { BackIcon, newKey } from '../components/ReserveSteps'
+import type { WarningRecord } from '../lib/appeal'
 import { canContinueAt, minutesLabel, remainLabel, timeRange, whenLabel } from '../lib/format'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import { useStillHere } from './Alerts'
 import './Mine.css'
+import { IconLink } from '../components/IconAction'
 
 const Chevron = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
@@ -19,7 +23,7 @@ export const REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * 다른 화면에서도 쓰는 내 예약 목록 받기.
- * 화면이 열려 있는 동안 30초마다, 그리고 화면으로 돌아올 때 다시 받는다(키패드로 입실하면 상태가 바뀌므로).
+ * 화면이 열려 있는 동안 30초마다, 그리고 화면으로 돌아올 때 다시 받는다(QR로 입실하면 상태가 바뀌므로).
  * 요청은 한 번에 하나만 보내고, 진행 중에 또 오면 끝난 뒤 한 번만 다시 받는다.
  */
 export function useMyReservations() {
@@ -86,13 +90,20 @@ export function useMyReservations() {
  * FR-WEB-002 내 예약 목록 (시안 Mine, 마이 탭 > 내 예약): 사용 중인 예약은 맨 위 카드(남은 시간 + 진행 막대 + 퇴실),
  * 다가오는 예약은 눌러서 상세(취소), 지난 예약은 따로.
  * 사용 중 카드의 "방에 문제가 있나요?"는 신고 화면(FR-RPT-101)으로 간다.
- * 이용 규칙·시간표·친구·관리자·로그아웃은 마이 탭(MyPage)으로 옮겼다(11/6 재웅)
+ * 이용 규칙·시간표·친구·관리자·로그아웃은 마이 탭(MyPage)으로 옮겼다(11/6 재웅).
+ * 경고 받은 지난 예약에는 배달 앱 리뷰처럼 "경고 철회 요청 (N일 남음)" 버튼을 붙인다(FR-RPT-105, PastWarnings).
+ * `?tab=past`로 열면 지난 탭부터(경고 알림에서 바로 오게)
  */
 export default function MyReservations() {
   const { list, error, stale, reload } = useMyReservations()
   const navigate = useNavigate()
   const now = useNow()
-  const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<'upcoming' | 'past'>(() => (params.get('tab') === 'past' ? 'past' : 'upcoming'))
+  const warnings = useMyWarnings()
+  const [writing, setWriting] = useState<WarningRecord | null>(null)
+  const [justSent, setJustSent] = useState<number | null>(null)
+  const openAppeals = openAppealCount(warnings, now)
   // 연장하면 새 예약(새 id)으로 카드가 바뀌므로, 알림은 카드 밖에 두고 새 예약 id에 붙인다
   const [extended, setExtended] = useState<{ id: number; text: string } | null>(null)
 
@@ -100,6 +111,9 @@ export default function MyReservations() {
   const past = (list ?? []).filter((r) => !isActive(r.status))
   const inUse = active.find((r) => r.status === 'IN_USE')
   const upcoming = active.filter((r) => r !== inUse)
+  const { byReservation, loose } = matchWarnings(warnings, past.map((r) => r.id))
+  // 시트를 연 뒤 상태가 바뀌어도(보냄 → AI 판단) 최신 경고를 넘긴다
+  const writingNow = writing ? warnings.find((w) => w.id === writing.id) ?? writing : null
 
   return (
     <main className="mine">
@@ -110,7 +124,10 @@ export default function MyReservations() {
         </div>
         <div className="seg-tabs" role="group" aria-label="보기">
           <button type="button" aria-pressed={tab === 'upcoming'} onClick={() => setTab('upcoming')}>다가오는</button>
-          <button type="button" aria-pressed={tab === 'past'} onClick={() => setTab('past')}>지난</button>
+          <button type="button" aria-pressed={tab === 'past'} onClick={() => setTab('past')}
+            aria-label={openAppeals > 0 ? `지난, 철회 요청할 수 있는 경고 ${openAppeals}건` : undefined}>
+            지난{openAppeals > 0 && <i className="pw-dot" aria-hidden="true" />}
+          </button>
         </div>
       </header>
 
@@ -120,6 +137,12 @@ export default function MyReservations() {
 
       {list && tab === 'upcoming' && (
         <>
+          {openAppeals > 0 && (
+            <button type="button" className="pw-banner" onClick={() => setTab('past')}>
+              <b>경고 {openAppeals}건 · 철회 요청 가능</b>
+              <span className="muted" aria-hidden="true">›</span>
+            </button>
+          )}
           {inUse && <InUseCard key={inUse.id} r={inUse} onChanged={reload}
             notice={extended && extended.id === inUse.id ? extended.text : null}
             onExtended={(id, text) => setExtended({ id, text })} />}
@@ -145,18 +168,36 @@ export default function MyReservations() {
 
       {list && tab === 'past' && (
         <>
-          {past.map((r) => (
-            <Link key={r.id} to={`/me/${r.id}`} className="card mine-item past">
-              <span className="mine-item-text">
-                <span className="muted">{STATUS_LABEL[r.status]} · {r.owner ? '대표자' : '참여자'}</span>
-                <b>{whenLabel(r.startAt, now)} · 창작실 {r.room.id}</b>
-                <span className="muted">{timeRange(r.startAt, r.endAt)}</span>
-              </span>
-              <Chevron />
-            </Link>
+          {loose.map((w) => (
+            <LooseWarningCard key={`w${w.id}`} w={w} now={now} fresh={justSent === w.id} onWrite={() => setWriting(w)} />
           ))}
-          {past.length === 0 && <p className="card mine-msg muted">지난 예약이 없어요.</p>}
+          {past.map((r) => {
+            const item = (
+              <Link key={r.id} to={`/me/${r.id}`} className="card mine-item past">
+                <span className="mine-item-text">
+                  <span className="muted">{STATUS_LABEL[r.status]} · {r.owner ? '대표자' : '참여자'}</span>
+                  <b>{whenLabel(r.startAt, now)} · 창작실 {r.room.id}</b>
+                  <span className="muted">{timeRange(r.startAt, r.endAt)}</span>
+                </span>
+                <Chevron />
+              </Link>
+            )
+            const w = byReservation.get(r.id)
+            if (!w) return item
+            // 버튼은 링크 밖에 둔다(링크 안 버튼은 누를 때 상세로 넘어가 버림)
+            return (
+              <div key={r.id} className="pw-wrap">
+                {item}
+                <WarningRow w={w} now={now} fresh={justSent === w.id} onWrite={() => setWriting(w)} />
+              </div>
+            )
+          })}
+          {past.length === 0 && loose.length === 0 && <p className="card mine-msg muted">지난 예약이 없어요.</p>}
         </>
+      )}
+
+      {writingNow && (
+        <AppealSheet w={writingNow} onClose={() => setWriting(null)} onSent={() => setJustSent(writingNow.id)} />
       )}
 
     </main>
@@ -201,7 +242,7 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
       const res = await continueReservation(r.id, new Date(end + minutes * 60_000).toISOString(), key.current.value)
       key.current = { minutes: 0, value: newKey() }
       setPicking(false)
-      onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 번호가 새로 나왔어요.`)
+      onExtended(res.id, `${seoulClock(new Date(res.endAt))}까지 연장했어요. 입실 QR이 새로 나왔어요.`)
       onChanged()
     } catch (e) {
       setNote(e instanceof ApiError ? e.message : '잠시 후 다시 눌러 주세요')
@@ -235,7 +276,8 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
           <div className="inuse-row">
             <button type="button" className="inuse-btn2" disabled={!canContinue || sending} aria-expanded={picking}
               onClick={() => { setNote(null); setPicking((v) => !v) }}>
-              연장하기
+              {/* 아직 못 하면 문장 대신 버튼에 언제부터인지만(11/10 재웅 "글자 많다") */}
+              {!canContinue && end > now.getTime() ? `연장 ${seoulClock(new Date(end - 10 * 60_000))}부터` : '연장하기'}
             </button>
             {still.state.kind !== 'done' && (
               <button type="button" className="inuse-btn2" disabled={still.state.kind === 'sending'} onClick={() => void still.press()}>
@@ -243,7 +285,6 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
               </button>
             )}
           </div>
-          {!canContinue && end > now.getTime() && <span className="inuse-note">연장은 끝나기 10분 전부터 할 수 있어요</span>}
           {picking && canContinue && (
             <div className="inuse-steps" role="group" aria-label="얼마나 더 쓸까요">
               {CONTINUE_STEPS.map((m) => (
@@ -262,9 +303,9 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
         <span className="inuse-note">퇴실·연장은 대표자가 해요</span>
       )}
       <div className="inuse-links">
-        {r.owner && <Link to={`/reservations/${r.id}`} className="inuse-link">입실 번호 다시 보기</Link>}
-        <Link to={`/me/${r.id}`} className="inuse-link">예약 자세히 보기</Link>
-        <Link to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} className="inuse-link">방에 문제가 있나요?</Link>
+        {r.owner && <IconLink to={`/reservations/${r.id}`} icon="qr" label="입실 QR" className="inuse-link" />}
+        <IconLink to={`/me/${r.id}`} icon="info" label="예약 자세히" className="inuse-link" />
+        <IconLink to={`/report?roomId=${r.room.id}&reservationId=${r.id}`} icon="flag" label="방에 문제가 있나요? 신고하기" className="inuse-link" />
       </div>
     </section>
   )

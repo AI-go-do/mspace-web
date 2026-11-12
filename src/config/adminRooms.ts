@@ -4,7 +4,7 @@
  * 예: 실습실에 먼저 단 센서를 시연에서 "M-space 창작실 1"로 보여 줄 때 이름과 sensors만 바꾸면 된다.
  * 방 번호(roomId)는 core 방 번호와 같아야 한다(실제 API로 바꾸면 이 번호로 이름·센서를 붙인다)
  */
-export type SensorKind = 'co2' | 'temperature' | 'humidity' | 'presence' | 'door'
+export type SensorKind = 'co2' | 'temperature' | 'humidity' | 'presence' | 'door' | 'light'
 
 export interface AdminRoomConfig {
   roomId: number
@@ -13,10 +13,11 @@ export interface AdminRoomConfig {
 }
 
 /**
- * 장치 하나(SCD40)가 CO2·온도·습도를 같이 잰다. 재실은 PIR·조도. 문 열림은 문틀 리드 스위치(door).
+ * 장치 하나(SCD40)가 CO2·온도·습도를 같이 잰다. 재실은 PIR, 조도(light)는 우노 A0의 CDS(0~1023, 밝을수록 큼, lux 아님).
+ * 문 열림은 문틀 리드 스위치(door).
  * 방 안 사람 수(카메라)는 Q-17(카메라 인원 세기) 팀 결정 전이라 보여 주지 않는다
  */
-const FULL: readonly SensorKind[] = ['co2', 'temperature', 'humidity', 'presence', 'door']
+const FULL: readonly SensorKind[] = ['co2', 'temperature', 'humidity', 'presence', 'door', 'light']
 
 export const ADMIN_ROOMS: readonly AdminRoomConfig[] = [
   { roomId: 1, name: '창작실 1', sensors: FULL },
@@ -30,11 +31,22 @@ export const ADMIN_ROOMS: readonly AdminRoomConfig[] = [
 export const ENV_RULES = {
   /** 환기 기준 (FR-DEV-104와 같은 1000ppm) */
   co2LimitPpm: 1000,
+  /** 최근 이 분 동안 계속 기준 이상일 때만 "넘음" (1 = 지금 값 하나만. 순간 튄 값 거르기, 오디 판단 채점으로 고름) */
+  co2OverHoldMinutes: 1,
+  /** 판단에 쓰는 CO2를 최근 이 분 가운데값으로 (1 = 그대로). 숨 한 번 같은 순간 값 거르기 */
+  co2MedianOf: 3,
+  /**
+   * 학생에게 불이익이 가는 판단(시간 넘김·입실 안 함)은 분마다 재실이 최근 이 분 동안 같을 때만(1 = 지금 값만).
+   * 재실 센서 한 번 깜빡임으로 경고하지 않게. 분마다 재실이 없으면(core가 아직 안 줌) 지금 값으로 본다. 오디 판단 채점으로 고름
+   */
+  presenceHoldMinutes: 3,
+  /** 1 = 빈 방(사람·걸린 예약 없음)도 CO2 알림, 0 = 알릴 사람이 있을 때만. 오디 판단 채점으로 고름 */
+  co2AlertWhenEmpty: 0,
   /** 이 시간 안에 기준을 넘을 것 같으면 노란 표시 */
   warnWithinMinutes: 15,
-  /** 이 온도 이상이면 "더움" */
+  /** 이 온도 이상이면 방 상세 창에 참고로 보인다(사람마다 느낌이 달라 경고는 아님) */
   hotC: 27.5,
-  /** 이 습도 미만이면 "건조" */
+  /** 이 습도 미만이면 방 상세 창에 참고로 보인다(경고는 아님) */
   dryPct: 40,
   /** CO2가 이만큼 똑같으면 센서 고장 의심(빨간 표시) */
   stuckMinutes: 20,
@@ -47,6 +59,13 @@ export const ENV_RULES = {
   /** 예약이 시작되고 이만큼 지나도 아무도 없으면 "입실 안 함" (노쇼는 core가 15분에 처리) */
   noEntryWarnMinutes: 5,
   noShowMinutes: 15,
+  /**
+   * 밝기(조도 원시값 0~1023을 0~100%로 바꾼 값)가 이 % 이상이면 "불 켜짐". 임시값이라
+   * 실제 방에서 불을 켜고 끈 값을 재서 고친다(확인 필요, CDS 위치·햇빛에 따라 다름)
+   */
+  lightOnPct: 50,
+  /** 빈 방에 불이 이만큼 켜져 있으면 "불 켜짐" 표시 */
+  lightLeftOnMinutes: 10,
   /** 이 시각(서울)부터 다음 날 nightTo 전까지 문이 열리면 바로 알린다 */
   nightFromHour: 22,
   nightToHour: 7,

@@ -21,6 +21,7 @@
 .alert.urgent { border: 2px solid var(--yellow); }
 /* 방의 사과(Q-19): 경고가 물러졌다는 내 일이라 노랑 띠 */
 .alert.apology-alert { border-left: 6px solid var(--yellow); }
+.alert.co2-alert { border-left: 6px solid #E0663A; }
 .alert-sample { font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }
 .alert-top { display: flex; align-items: center; gap: 8px; }
 .alert-top .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }
@@ -41,3 +42,10 @@
   background: linear-gradient(90deg, var(--gray) 0%, color-mix(in srgb, var(--gray) 40%, var(--white)) 50%, var(--gray) 100%);
   background-size: 200% 100%; animation: shimmer 1.3s linear infinite;
 }
+
+/* 두고 간 물건: 찾으러 가는 10분 QR */
+.alert-actions.retrieve { align-items: center; gap: 8px; padding-top: 4px; }
+.retrieve-qr { padding: 8px; border-radius: 16px; background: #ffffff; box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--sky) 40%, var(--white)); }
+.retrieve-qr svg { display: block; }
+.retrieve-left { text-align: center; }
+.retrieve-left b { font-size: 18px; font-variant-numeric: tabular-nums; }

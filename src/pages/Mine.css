@@ -56,8 +56,9 @@
 }
 .inuse-step small { font-size: 12px; font-weight: 500; opacity: 0.75; }
 .inuse-step:disabled { opacity: 0.6; }
-.inuse-links { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
-.inuse-link { min-height: var(--touch); display: flex; align-items: center; font-size: 14px; text-decoration: underline; }
+.inuse-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+/* 그림 단추 모양은 공통 .icon-act (tokens.css) */
+.inuse-link { width: 100%; }
 
 .sub-head { background: var(--white); padding: 52px 16px 14px; border-radius: 0 0 24px 24px; box-shadow: var(--shadow-1); display: flex; align-items: center; gap: 8px; }
 .sub-head h1 { margin: 0; font-size: 22px; font-weight: 700; }

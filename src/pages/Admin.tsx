@@ -1,41 +1,42 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
-import { AdminPenalties, AdminStats } from './AdminInsights'
+import { AdminPenalties, AdminStats, AdminTidyChecks } from './AdminInsights'
 import { AdminNow } from './AdminNow'
 import { AdminApprentice } from './AdminApprentice'
 import { AdminBlocks } from './AdminBlocks'
 import { AdminTodo, useTodoCounts } from './AdminTodo'
 import { ForceCheckoutForm } from './AdminReports'
 import { useApprenticeFeed } from '../api/apprentice'
-import { ENV_SOURCE } from '../api/environment'
+import { envSource } from '../api/environment'
 import { useMemberId } from '../lib/useMemberId'
-import { seoulClock } from '../lib/time'
+import { seoulClockSec } from '../lib/time'
 import './Admin.css'
+import './AdminPlain.css'
 
 /**
  * 관리자 화면 (FR-WEB-101, FR-RPT-103·104) 다섯 칸. 주소 ?tab=으로 남겨 새로고침해도 같은 칸.
- * 지금(방 상태) · 할 일(신고 판정 + AI 제안을 한 줄로) · AI 수습사원(레벨·아침 보고) · 방 관리(기간 막기·강제 퇴실) · 기록(통계·경고·정지)
+ * 지금(방 상태) · 할 일(신고 판정 + AI 제안을 한 줄로) · AI 수습사원(레벨·아침 보고) · 방 관리(기간 막기·강제 퇴실) · 기록(통계·경고·정지·카메라 정리 확인)
  */
 const SECTIONS = [
   {
-    id: 'now', label: '지금', title: '지금 방 상태', sub: '방 5개의 공기와 예약을 한눈에. 이상한 방이 먼저 눈에 띄어요.',
+    id: 'now', label: '지금', title: '지금 방 상태', sub: '이상한 방이 먼저 보여요',
     icon: <><circle cx="12" cy="12" r="3" /><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8M8.5 8.5a4.9 4.9 0 0 0 0 7M15.5 8.5a4.9 4.9 0 0 1 0 7" /></>,
   },
   {
-    id: 'todo', label: '할 일', title: '할 일', sub: '사람이 정해야 하는 일만 모았어요. 신고 판정과 AI 제안이 한곳에 있어요.',
+    id: 'todo', label: '오디 판단', title: '오디 판단 기록', sub: '오디가 판정한 기록',
     icon: <><path d="M4 12.5 9 17.5 20 6.5" /></>,
   },
   {
-    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: '일 종류마다 따로 채점해요. 믿을 만해진 일만 AI가 먼저 처리해요.',
+    id: 'ai', label: 'AI 수습사원', title: 'AI 수습사원', sub: '믿을 만해진 일만 AI가 먼저 처리',
     icon: <><rect x="4" y="7" width="16" height="12" rx="4" /><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5" /></>,
   },
   {
-    id: 'rooms', label: '방 관리', title: '방 관리', sub: '공사·점검·대관 기간을 막고, 사용 중인 예약을 끝낼 수 있어요.',
+    id: 'rooms', label: '방 관리', title: '방 관리', sub: '기간 막기 · 강제 퇴실',
     icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3M12 21v-5h9" /></>,
   },
   {
-    id: 'records', label: '기록', title: '기록', sub: '이용 통계와 경고·정지 기록이에요.',
+    id: 'records', label: '기록', title: '기록', sub: '통계 · 경고 · 정리 확인',
     icon: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   },
 ] as const
@@ -50,7 +51,7 @@ function blockRoomParam(params: URLSearchParams): { roomId: number; inspection: 
 /** 예전 탭 주소(?tab=reports 등)로 들어와도 맞는 칸을 연다 */
 const LEGACY: Record<string, { tab: Section; sub?: string }> = {
   reports: { tab: 'todo' }, checkout: { tab: 'rooms', sub: 'checkout' }, blocks: { tab: 'rooms' },
-  penalties: { tab: 'records', sub: 'penalties' }, stats: { tab: 'records', sub: 'stats' },
+  penalties: { tab: 'records', sub: 'penalties' }, stats: { tab: 'records', sub: 'stats' }, tidy: { tab: 'records', sub: 'tidy' },
 }
 
 function Icon({ children }: { children: ReactNode }) {
@@ -61,14 +62,24 @@ function Icon({ children }: { children: ReactNode }) {
   )
 }
 
-/** 1초마다 바뀌는 시계 (머리 오른쪽) */
+/** 1초마다 바뀌는 큰 시계 (머리 오른쪽). 초는 흐리게 */
 function LiveClock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
-  return <span className="adm-live"><i aria-hidden="true" />{seoulClock(now)}</span>
+  const text = seoulClockSec(now)
+  // 시·분과 초를 마지막 ':'에서 나눈다(글자 자리를 가정하지 않게)
+  const cut = text.lastIndexOf(':')
+  const hm = cut > 0 ? text.slice(0, cut) : text
+  const sec = cut > 0 ? text.slice(cut) : ''
+  return (
+    <span className="adm-live" role="timer" aria-label={`지금 ${hm}`}>
+      <i aria-hidden="true" />
+      <b aria-hidden="true">{hm}<span>{sec}</span></b>
+    </span>
+  )
 }
 
 /**
@@ -101,43 +112,48 @@ export default function Admin() {
   const section = SECTIONS[index]
 
   const go = (id: Section, extra: Record<string, string> = {}) => setParams({ tab: id, ...extra }, { replace: true })
-  const badge = (id: Section) => (id === 'todo' ? counts.total : 0)
+  // 관리자는 보기만(11/10) — 메뉴에 '할 일 N건' 숫자를 달지 않는다
+  const badge = (_id: Section) => 0
 
   return (
-    <div className="adm" style={{ '--i': index } as CSSProperties}>
-      <aside className="adm-side" aria-label="관리 메뉴">
+    <div className={`adm ${tab === 'now' ? 'on-now' : ''}`} style={{ '--i': index } as CSSProperties}>
+      {/* 관제실 머리: 왼쪽 이름, 가운데 메뉴(넓은 화면), 오른쪽 큰 시계 */}
+      <header className="adm-top">
         <div className="adm-brand">
           <button type="button" className="adm-back" aria-label="학생 화면으로" onClick={() => navigate('/me')}><BackIcon /></button>
+          <span className="adm-mark" aria-hidden="true">M</span>
           <div>
-            <span className="adm-tag">관리자</span>
-            <b>M-space 운영</b>
+            <b>오디 관리</b>
           </div>
         </div>
-        <nav className="adm-nav">
+        <nav className="adm-nav" aria-label="관리 메뉴">
           <span className="adm-nav-glow" aria-hidden="true" />
           {SECTIONS.map((s) => (
             <button key={s.id} type="button" className="adm-nav-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
               <Icon>{s.icon}</Icon>
               <span>{s.label}</span>
-              <Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} />
+              <Badge n={badge(s.id)} unknown={false} />
             </button>
           ))}
         </nav>
-        <div className="adm-side-foot">
-          {ENV_SOURCE === 'mock' && <span className="adm-mock">가짜 값 · 시연용</span>}
-          <span>조선대 IT융합대학 M-space</span>
+        <div className="adm-top-end">
+          {envSource() === 'mock' && <span className="adm-mock">가짜 값 · 시연용</span>}
+          <LiveClock />
         </div>
-      </aside>
+      </header>
 
       <main className="adm-main">
-        <header className="adm-head" key={tab}>
-          <div className="adm-head-text">
-            <h1>{section.title}</h1>
-            <p>{section.sub}</p>
-          </div>
-          <LiveClock />
-        </header>
-        <div key={`${member ?? 'none'}-${tab}`} className="adm-panel">
+        {tab === 'now'
+          ? <h1 className="sr-only">{section.title}</h1>
+          : (
+            <header className="adm-head" key={tab}>
+              <div className="adm-head-text">
+                <h1>{section.title}</h1>
+                <p>{section.sub}</p>
+              </div>
+            </header>
+          )}
+        <div key={`${member ?? 'none'}-${tab}`} className={`adm-panel ${tab === 'now' ? 'is-dark' : 'is-sheet'}`}>
           {tab === 'now' && (
             <AdminNow todo={counts} onOpenTodo={() => go('todo')}
               onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })}
@@ -151,7 +167,7 @@ export default function Admin() {
               <ForceCheckoutForm initialId={params.get('reservation') ?? ''} focus={sub === 'checkout'} />
             </div>
           )}
-          {tab === 'records' && <Records sub={sub === 'penalties' ? 'penalties' : 'stats'} onSub={(s) => go('records', { sub: s })} />}
+          {tab === 'records' && <Records sub={sub === 'penalties' || sub === 'tidy' ? sub : 'stats'} onSub={(s) => go('records', { sub: s })} />}
         </div>
       </main>
 
@@ -160,7 +176,7 @@ export default function Admin() {
         <span className="adm-bar-glow" aria-hidden="true" />
         {SECTIONS.map((s) => (
           <button key={s.id} type="button" className="adm-bar-item" aria-current={tab === s.id ? 'page' : undefined} onClick={() => go(s.id)}>
-            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} unknown={s.id === 'todo' && counts.reportsFailed} /></span>
+            <span className="adm-bar-icon"><Icon>{s.icon}</Icon><Badge n={badge(s.id)} unknown={false} /></span>
             {s.id === 'ai' ? 'AI' : s.label}
           </button>
         ))}
@@ -169,16 +185,21 @@ export default function Admin() {
   )
 }
 
-/** 기록: 통계 · 경고·정지 두 쪽 */
-function Records({ sub, onSub }: { sub: 'stats' | 'penalties'; onSub: (s: 'stats' | 'penalties') => void }) {
+/** 기록: 통계 · 경고·정지 · 카메라 정리 확인 세 쪽 */
+type RecordSub = 'stats' | 'penalties' | 'tidy'
+const RECORD_SUBS: { id: RecordSub; label: string }[] = [
+  { id: 'stats', label: '이용 통계' }, { id: 'penalties', label: '경고·정지' }, { id: 'tidy', label: '정리 확인' },
+]
+function Records({ sub, onSub }: { sub: RecordSub; onSub: (s: RecordSub) => void }) {
   return (
     <div className="adm-records">
-      <div className="adm-seg" role="group" aria-label="기록 종류" style={{ '--i': sub === 'stats' ? 0 : 1 } as CSSProperties}>
+      <div className="adm-seg three" role="group" aria-label="기록 종류" style={{ '--i': RECORD_SUBS.findIndex((r) => r.id === sub) } as CSSProperties}>
         <span className="adm-seg-glow" aria-hidden="true" />
-        <button type="button" aria-pressed={sub === 'stats'} onClick={() => onSub('stats')}>이용 통계</button>
-        <button type="button" aria-pressed={sub === 'penalties'} onClick={() => onSub('penalties')}>경고·정지</button>
+        {RECORD_SUBS.map((r) => (
+          <button key={r.id} type="button" aria-pressed={sub === r.id} onClick={() => onSub(r.id)}>{r.label}</button>
+        ))}
       </div>
-      {sub === 'stats' ? <AdminStats /> : <AdminPenalties />}
+      {sub === 'stats' ? <AdminStats /> : sub === 'penalties' ? <AdminPenalties /> : <AdminTidyChecks />}
     </div>
   )
 }

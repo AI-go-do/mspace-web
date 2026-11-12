@@ -1,16 +1,24 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { clearChatHistory, confirmCard, HINT_OPEN_SCHEDULE, HINT_PICK_FRIENDS, submitChat, waitForChat, type ChatConfirmation, type ChatResult } from '../api/agent'
 import { ApiError, currentMemberId, refreshTokens } from '../api/client'
 import { deniedLine } from '../content/denied'
-import { findFriend } from '../api/friends'
-import Spacey from '../components/Spacey'
+import { findFriend, getFriends, type Friend } from '../api/friends'
+import { matchFriends } from '../lib/friendMatch'
+import { peekPicked, savePicked, takePicked } from '../lib/pickedFriends'
+import { getTeams, saveTeam, TEAM_NAME_MAX, teamFriends, teamInMessage, type Team } from '../api/teams'
+import Odi from '../components/Odi'
 import { cardOutcomeOf, clearChatOf, clearSubmitting, currentClearing, currentSubmitting, historyOf, loadChat, newMessageId, saveCardOutcome, saveChat, rememberClearing, setSubmitting, watchCardOutcome, watchChat, type CardOutcome, type ChatMessage, type ChatState, type PastCard } from '../lib/chatStore'
-import { BACK_LABEL, MAIN_PROMPTS, type PromptChip } from '../lib/prompts'
+import { suggest } from '../lib/prompts'
 import { canListen, canSpeak, listenOnce, listenSession, primeSpeech, speak, stopSpeaking } from '../lib/speech'
 import { seoulClock } from '../lib/time'
 import { useNow } from '../lib/useNow'
 import './Assistant.css'
+import { IconLink } from '../components/IconAction'
+
+/** 간단히 예약하기 첫 질문과 예시 답 (FR-AGT-105). 한 번에 다 말하면 비서가 바로 확인 카드까지 간다 */
+export const QUICK_GREETING = '언제, 누구랑 쓰실 건가요? 말로 해 주셔도 돼요. 저장한 팀이 있으면 "팀 A랑 내일 3시"처럼 말하면 돼요.'
+export const QUICK_STARTERS = ['내일 오후 3시부터 2시간, 나 포함 4명', '오늘 수업 끝나고 2시간, 나 포함 3명', '지금 바로 1시간, 나 포함 3명']
 
 /** 서버 기준(1,000자)과 같게 */
 const MAX_CHARS = 1000
@@ -19,7 +27,7 @@ const MAX_CHARS = 1000
 type Ask = (message: string) => void
 
 /**
- * 비서 스페이시 (FR-AGT-101, docs api 7장).
+ * 비서 오디 (FR-AGT-101, docs api 7장).
  * 보내면 접수 번호를 받고 1초마다 결과를 조회한다. 답을 기다리는 동안에는 새 말을 보내지 않는다
  * (서버도 학생 한 명당 한 건만 받는다, 409). 쓰기는 확인 카드의 [확인]을 눌러야 한다.
  */
@@ -28,7 +36,9 @@ export default function Assistant() {
   const [text, setText] = useState('')
   const [waitingSec, setWaitingSec] = useState(0)
   // 추천 메뉴에서 펼친 단계(방 예약 → 언제). null이면 처음 메뉴
-  const [menu, setMenu] = useState<PromptChip[] | null>(null)
+  // 연관 추천: 입력 칸을 누르면 열리고, 고른 줄(sel)은 위아래 화살표로 옮긴다. Esc로 닫는다
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [sel, setSel] = useState(-1)
   // 음성: 듣는 중이면 멈추는 함수. 마이크로 보낸 말의 답은 소리로 읽어 준다
   const [listening, setListening] = useState(false)
   const [voiceNote, setVoiceNote] = useState('')
@@ -50,8 +60,19 @@ export default function Assistant() {
   // 새 대화로 지우는 중. 화면을 떠났다 와도 이어지게 저장소의 지우기 요청에서 시작한다
   const [clearing, setClearing] = useState(() => currentClearing(currentMemberId()) !== null)
   const listEnd = useRef<HTMLDivElement>(null)
+  const head = useRef<HTMLElement>(null)
+  // 내 팀(FR-AGT-105). "팀 A랑"이 들어간 말을 보낼 때 그 팀원을 확인 카드에 미리 채우려고 미리 받아 둔다(api/teams가 기억)
+  function refreshTeams(owner: number | null) {
+    getTeams(owner).catch(() => { /* 팀 없이 */ })
+  }
+  useEffect(() => { refreshTeams(currentMemberId()) }, [chat.memberId])
+  // 홈 [AI로 간단히 예약하기] → /assistant?quick=1 (FR-AGT-105)
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
   // 화면을 떠나면 조회를 멈춘다(접수 번호는 남겨 두고 돌아오면 이어서 조회)
   const alive = useRef<AbortController | null>(null)
+  // 팀 미리 채우기 차례. 새 대화를 시작하면 올려서, 아직 끝나지 않은 앞 채우기를 버린다
+  const prefillRound = useRef(0)
   const mounted = useRef(true)
 
   /**
@@ -134,15 +155,7 @@ export default function Assistant() {
     }
   }
 
-  /** 추천 버튼: 다음 단계가 있으면 펼치고, 아니면 그 말을 보낸다 */
-  function pick(c: PromptChip) {
-    if (c.next) return setMenu(c.next)
-    setMenu(null)
-    if (c.message) void send(c.message)
-  }
-
   const ask: Ask = (m) => {
-    setMenu(null)
     void send(m)
   }
 
@@ -193,12 +206,28 @@ export default function Assistant() {
     return () => {
       mounted.current = false
       alive.current?.abort()
+      // 진행 중인 팀 미리 고르기도 무효로 한다(선택 저장소는 화면 밖에서도 남아, 다시 들어와 새 대화를 지운 뒤 옛 팀이 들어오지 않게)
+      prefillRound.current += 1
       // 화면을 떠나며 멈출 때 늦게 오는 중간·마지막 결과도 같은 방식으로 버린다
       session.current?.invalidate()
       stopListen.current?.()
       stopSpeaking()
     }
   }, [])
+
+  // 간단히 예약하기: 첫 질문은 화면이 띄우고 읽는다(모델 호출 없음). 주소의 ?quick=1은 지워서 새로고침에 또 뜨지 않게 한다
+  useEffect(() => {
+    if (params.get('quick') !== '1') return
+    navigate('/assistant', { replace: true })
+    const owner = currentMemberId()
+    const now = loadChat(owner)
+    // 이미 첫 질문이 마지막 말이면 다시 붙이지 않는다(개발 모드 StrictMode 두 번 실행, 홈 버튼 연타)
+    if (now.pending !== null || now.messages.at(-1)?.text === QUICK_GREETING) return
+    const id = newMessageId()
+    update((s) => ({ ...s, messages: [...s.messages, { id, role: 'assistant', text: QUICK_GREETING, suggestions: QUICK_STARTERS }] }), owner)
+    if (ttsOk) read(id, QUICK_GREETING)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params])
 
   // 같은 브라우저 다른 탭에서 다른 학생이 로그인하면 이 탭의 토큰도 그 학생 것으로 바뀐다.
   // 그때 앞 학생의 대화·확인 카드가 화면에 남지 않게, 회원이 바뀌면 조회를 멈추고 그 회원 기록으로 바꾼다
@@ -241,12 +270,45 @@ export default function Assistant() {
     return () => clearInterval(t)
   }, [chat.pending])
 
+  // 새 말이 붙으면 아래로 내린다. 처음 열 때는 바로, 그 뒤는 부드럽게(한 번에 툭 뛰지 않게, 11/11 재웅).
+  // 답이 길면 답 첫 줄이 위 머리글 밑에 보이는 데까지만 내린다(끝까지 내리면 답 앞부분을 놓친다).
+  // 답에 확인 카드(링크·친구 고르기 카드 말고)가 붙었으면 카드 위끝을 맞춘다([확인] 버튼이 화면 밖으로 밀리지 않게)
+  const scrolledOnce = useRef(false)
   useEffect(() => {
-    listEnd.current?.scrollIntoView?.({ block: 'end' })
+    const end = listEnd.current
+    if (!end || typeof window.scrollTo !== 'function') return
+    const first = !scrolledOnce.current
+    scrolledOnce.current = true
+    const doc = document.scrollingElement ?? document.documentElement
+    let top = doc.scrollHeight - window.innerHeight
+    const lastMsg = chat.messages[chat.messages.length - 1]
+    if (!first && !chat.pending && lastMsg?.role === 'assistant') {
+      const bots = end.parentElement?.querySelectorAll('.bubble.bot')
+      const bubble = bots?.[bots.length - 1]
+      let anchor: Element | undefined = bubble
+      for (let el = bubble?.nextElementSibling; el && el !== end && !el.classList.contains('bubble'); el = el.nextElementSibling) {
+        if (el.classList.contains('confirm-card')) { anchor = el; break }
+      }
+      const headH = head.current?.getBoundingClientRect().height ?? 0
+      if (anchor) top = Math.min(top, window.scrollY + anchor.getBoundingClientRect().top - headH - 12)
+    }
+    if (Math.abs(top - window.scrollY) < 2) return
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: Math.max(0, top), behavior: first || calm ? 'auto' : 'smooth' })
   }, [chat.messages.length, chat.pending])
 
   const busy = chat.pending !== null
   const trimmed = text.trim()
+  // 이 폰에서 내가 보낸 말(최근 것 먼저, 같은 말 한 번). 서버로 보내지 않고 추천에만 쓴다
+  const recentAsks = [...new Set(chat.messages.filter((m) => m.role === 'user').map((m) => m.text.trim()).filter(Boolean).reverse())].slice(0, 20)
+  const action: 'mic' | 'send' | 'stop' = listening ? 'stop' : trimmed || !micOk ? 'send' : 'mic'
+  // 듣는 중·답을 기다리는 중에는 띄우지 않는다. 대화가 이미 있으면 빈 칸에서는 띄우지 않고 칠 때만
+  const suggestions = suggestOpen && !busy && !clearing && !listening && (trimmed || chat.messages.length === 0) ? suggest(text, 4, undefined, recentAsks) : []
+  function pickSuggestion(m: string) {
+    setSel(-1)
+    setSuggestOpen(false)
+    void send(m)
+  }
 
   async function send(message: string, fromVoice = false) {
     const msg = message.trim()
@@ -268,6 +330,21 @@ export default function Assistant() {
       return
     }
     const history = historyOf(stored.messages)
+    // "팀 A랑 …": 그 팀원을 다음 확인 카드에 미리 채운다(팀원은 비서에게 보내지 않음, FR-AGT-105)
+    // 보내기를 늦추지 않게 뒤에서 한다(답이 오기까지 몇 초 걸리니 카드가 뜨기 전에 끝난다).
+    // 지금 친구가 아닌 팀원은 뺀다(친구 목록을 못 받으면 그대로)
+    const me = owner
+    const round = prefillRound.current
+    void (async () => {
+      // 다른 탭에서 팀을 바꿨을 수 있어 늘 새로 받아 맞춘다. 못 받으면 미리 채우지 않는다(옛 팀원이 들어가지 않게)
+      const teams = await getTeams(me).then((r) => r.teams, () => [])
+      const team = teamInMessage(msg, teams)
+      if (!team) return
+      const now = await getFriends(undefined, me).then((l) => l.friends, () => null)
+      const members = teamFriends(team, now)
+      // 그사이 새 대화를 시작했으면 버린다(지난 팀이 다음 카드에 채워지지 않게)
+      if (members.length > 0 && mounted.current && prefillRound.current === round) savePicked(me, members)
+    })()
     const startedAt = Date.now()
     update((s) => ({
       ...s,
@@ -297,7 +374,8 @@ export default function Assistant() {
     if (owner === null || chat.memberId !== owner || chat.pending !== null || clearing || currentClearing(owner)) return
     setClearing(true)
     // 지우기와 화면 비우기를 한 요청으로 묶어 저장소에 둔다. 화면을 떠나도 끝까지 가고, 돌아온 화면이 기다린다
-    const cleared = clearChatHistory(owner).then(() => clearChatOf(owner))
+    // 새 대화면 고른 친구도 버린다(카드 안 뜬 "팀A랑"이 다음 엉뚱한 카드에 채워지지 않게)
+    const cleared = clearChatHistory(owner).then(() => { clearChatOf(owner); prefillRound.current += 1; takePicked(owner) })
     rememberClearing(owner, cleared)
     try {
       await cleared
@@ -320,10 +398,10 @@ export default function Assistant() {
 
   return (
     <main className="chat-page">
-      <header className="chat-head">
-        <Spacey size={40} />
+      <header className="chat-head" ref={head}>
+        <Odi size={40} />
         <div>
-          <h1>비서 스페이시</h1>
+          <h1>오디</h1>
           <p className="muted">빈 방 찾기·예약·취소를 말로 할 수 있어요</p>
         </div>
         {chat.messages.length > 0 && (
@@ -336,8 +414,8 @@ export default function Assistant() {
       <div className="chat-list" aria-live="polite">
         {chat.messages.length === 0 && (
           <div className="bubble bot">
-            안녕하세요, 스페이시예요. 아래 버튼을 누르거나{micOk ? ' 마이크로 말해' : ' 글로 적어'} 주세요.
-            <p className="muted chat-tip">누르기만 해도 빈 방 찾기 → 확인 카드 → [확인]까지 이어져요.</p>
+            안녕하세요, 오디예요. 아래 칸에 적거나{micOk ? ' 마이크로 말해' : ''} 주세요.
+            <p className="muted chat-tip">적기 시작하면 이어서 할 만한 말을 띄워 드려요.</p>
           </div>
         )}
         {chat.messages.map((m, i) => (
@@ -356,51 +434,63 @@ export default function Assistant() {
       </div>
 
       <div className="chat-dock">
-      <nav className="prompt-bar" aria-label="추천 말">
-        {menu && (
-          <button type="button" className="ask-chip back" onClick={() => setMenu(null)}>{BACK_LABEL}</button>
-        )}
-        {(menu ?? MAIN_PROMPTS).map((c) => (
-          <button key={c.label} type="button" className={`ask-chip ${c.next ? 'more' : ''}`} onClick={() => pick(c)} disabled={busy || clearing || listening}>
-            {c.label}{c.next ? ' ›' : ''}
-          </button>
-        ))}
-      </nav>
       {(listening || voiceNote) && (
         <p className={`voice-note ${voiceNote ? 'err' : ''}`} role="status">
-          {voiceNote || '듣고 있어요… 말이 끝나면 바로 보내요. 이름·학번은 말하지 마세요.'}
+          {voiceNote || '듣고 있어요… 다 말하고 잠깐 기다리면 보내요. 이름·학번은 말하지 마세요.'}
         </p>
       )}
+      {suggestions.length > 0 && (
+        <ul className="suggest" id="chat-suggest" role="listbox" aria-label={trimmed ? '이어서 할 말' : '이렇게 물어보세요'}>
+          {suggestions.map((m, k) => (
+            <li key={m} role="option" id={`chat-suggest-${k}`} aria-selected={k === sel} style={{ '--k': k } as CSSProperties}>
+              {/* 누를 때 입력 칸 초점을 잃지 않게 mousedown을 막는다 */}
+              <button type="button" tabIndex={-1} className={k === sel ? 'on' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => pickSuggestion(m)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m16 16 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                <span><Highlight text={m} query={trimmed} /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <form className="chat-input" onSubmit={onSubmit}>
-        <label htmlFor="chat-text" className="sr-only">비서에게 할 말</label>
+        <label htmlFor="chat-text" className="sr-only">오디에게 할 말</label>
         <textarea
           id="chat-text"
           rows={1}
           value={text}
           maxLength={MAX_CHARS}
-          placeholder={busy ? '답을 기다리는 중이에요' : '예: 내일 2시에 빈 방 있어?'}
-          onChange={(e) => setText(e.target.value)}
+          placeholder={busy ? '답을 기다리는 중이에요' : listening ? '듣고 있어요…' : '오디에게 물어보세요'}
+          role="combobox" aria-expanded={suggestions.length > 0} aria-controls="chat-suggest" aria-autocomplete="list"
+          aria-activedescendant={sel >= 0 && suggestions.length > 0 ? `chat-suggest-${sel}` : undefined}
+          onFocus={() => setSuggestOpen(true)}
+          onBlur={() => { setSuggestOpen(false); setSel(-1) }}
+          onChange={(e) => { setText(e.target.value); setSuggestOpen(true); setSel(-1) }}
           onKeyDown={(e) => {
+            if (e.key === 'ArrowDown' && suggestions.length) { e.preventDefault(); setSel((k) => (k + 1) % suggestions.length); return }
+            if (e.key === 'ArrowUp' && suggestions.length) { e.preventDefault(); setSel((k) => (k <= 0 ? suggestions.length : k) - 1); return }
+            if (e.key === 'Escape') { setSuggestOpen(false); setSel(-1); return }
             // 한글 조합 중 Enter는 글자 확정이라 보내지 않는다
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
-              void send(text)
+              if (sel >= 0 && suggestions[sel]) pickSuggestion(suggestions[sel])
+              else void send(text)
             }
           }}
         />
-        {micOk && (
-          <button
-            type="button" className={`mic ${listening ? 'on' : ''}`} onClick={toggleMic}
-            disabled={(busy || clearing) && !listening}
-            aria-label={listening ? '듣기 멈추기' : '말로 하기'} aria-pressed={listening}
-          >
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor" />
-            </svg>
-          </button>
-        )}
-        <button type="submit" className="send" disabled={busy || clearing || listening || !trimmed} aria-label="보내기">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12l16-8-6 16-2-7-8-1z" fill="currentColor" /></svg>
+        {/* 버튼 하나: 비었으면 마이크, 글이 있으면 보내기, 듣는 중이면 멈추기. 바뀔 때 아이콘이 돌며 바뀐다 */}
+        <button
+          type={action === 'send' ? 'submit' : 'button'}
+          className={`act act-${action}`}
+          onClick={action === 'send' ? undefined : toggleMic}
+          disabled={action === 'send' ? busy || clearing || !trimmed : action === 'mic' ? busy || clearing : false}
+          aria-label={action === 'send' ? '보내기' : action === 'stop' ? '듣기 멈추기' : '말로 하기'}
+          aria-pressed={action === 'send' ? undefined : listening}
+        >
+          <svg className="i-mic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor" />
+          </svg>
+          <svg className="i-send" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <span className="i-stop" aria-hidden="true" />
         </button>
       </form>
       </div>
@@ -429,14 +519,188 @@ function Message({ m, owner, last, busy, ask, speaking, onRead }: {
       {m.pastCards?.map((c, i) => <PastConfirmCard key={i} c={c} ask={last ? ask : undefined} busy={busy} />)}
       {m.accessCodeCards?.map((a) => (
         <Link key={a.reservationId} to={`/reservations/${a.reservationId}`} className="bot-card link-card">
-          입실 번호 보기 →
+          입실 QR 보기 →
         </Link>
       ))}
       {last && m.hints?.includes(HINT_OPEN_SCHEDULE) && (
         <Link to="/me/schedule" className="bot-card link-card">내 시간표 넣기 →</Link>
       )}
-      {chips.length > 0 && <NextChips items={chips} ask={ask} busy={busy} />}
+      {last && !m.error && m.hints?.includes(HINT_PICK_FRIENDS)
+        ? <WhoPicker owner={owner} ask={ask} busy={busy} fallback={chips} />
+        : chips.length > 0 && <NextChips items={chips} ask={ask} busy={busy} />}
     </>
+  )
+}
+
+/**
+ * "누구랑 하실 건가요?" (FR-AGT-105, 11/9 영준: 사람을 안 적으면 누구랑 들어가는지 모른다).
+ * 친구를 눌러 고르거나 이름을 말하면, 비서에게는 "나 포함 N명"만 보내고 고른 친구는 다음 확인 카드에 미리 채운다.
+ * 친구가 없거나 못 불러오면 인원 버튼(fallback)만 보여 준다
+ */
+function WhoPicker({ owner, ask, busy, fallback }: { owner: number | null; ask: Ask; busy: boolean; fallback: string[] }) {
+  const [friends, setFriends] = useState<Friend[] | null>(null)
+  const [teams, setTeams] = useState<Team[]>([])
+  const [chosen, setChosen] = useState<Friend[]>([])
+  // 말하는 동안 버튼으로 고른 친구도 보도록, 듣기 콜백은 이 ref로 지금 값을 읽는다
+  const chosenNow = useRef<Friend[]>([])
+  chosenNow.current = chosen
+  const friendsNow = useRef<Friend[] | null>(null)
+  friendsNow.current = friends
+  const [note, setNote] = useState('')
+  const [hearing, setHearing] = useState(false)
+  const stopHear = useRef<(() => void) | null>(null)
+  const voiceOk = useRef(canListen()).current
+  useEffect(() => {
+    let live = true
+    getFriends(undefined, owner ?? undefined).then((l) => { if (live) setFriends(l.friends) }, () => { if (live) setFriends([]) })
+    getTeams(owner).then((r) => { if (live) setTeams(r.teams) }, () => { /* 팀 없이 친구만 */ })
+    return () => {
+      live = false
+      stopHear.current?.()
+    }
+  }, [owner])
+
+  /** 팀 버튼: 그 팀원(지금도 친구인 사람만)으로 바꿔 고른다 */
+  function pickTeam(t: Team) {
+    const members = teamFriends(t, friends)
+    const used = members.slice(0, MAX_FRIENDS)
+    setChosen(used)
+    const gone = t.members.length - members.length
+    const over = members.length - used.length
+    const lines = [`${t.name}을 골랐어요.`]
+    if (gone > 0) lines.push(`친구 목록에 없는 ${gone}명은 뺐어요.`)
+    if (over > 0) lines.push(`${MAX_FRIENDS}명까지만 고를 수 있어서 ${over}명은 넣지 않았어요.`)
+    setNote(lines.join(' '))
+  }
+
+  /** 방 최대 인원(5번 방 8명)에서 나를 뺀 7명까지 */
+  const MAX_FRIENDS = 7
+  function toggle(f: Friend) {
+    setNote('')
+    setChosen((cur) => cur.some((x) => x.studentId === f.studentId)
+      ? cur.filter((x) => x.studentId !== f.studentId)
+      : cur.length >= MAX_FRIENDS ? cur : [...cur, f])
+  }
+
+  function hear() {
+    if (hearing) return stopHear.current?.()
+    stopSpeaking()
+    const stop = listenOnce({
+      onInterim: (t) => setNote(t ? `듣는 중: ${t}` : ''),
+      onFinal: (t) => {
+        const r = matchFriends(t, friendsNow.current ?? [], chosenNow.current.map((x) => x.studentId))
+        // 상태와 안내가 같은 결과를 보도록 넣을 친구를 먼저 정한다(중복 빼고 7명까지)
+        const cur = chosenNow.current
+        const have = new Set(cur.map((x) => x.studentId))
+        const fresh = r.picked.filter((x) => !have.has(x.studentId))
+        const added = fresh.slice(0, Math.max(0, MAX_FRIENDS - cur.length))
+        const over = fresh.length - added.length
+        const next = [...cur, ...added]
+        chosenNow.current = next
+        setChosen(next)
+        const lines: string[] = []
+        if (added.length) lines.push(`${added.map((x) => x.name).join(', ')}님을 골랐어요.`)
+        if (over > 0) lines.push(`${MAX_FRIENDS}명까지만 고를 수 있어서 ${over}명은 넣지 않았어요.`)
+        for (const a of r.ambiguous) lines.push(`'${a.spoken}'은 ${a.candidates.map((x) => x.name).join('·')} 중 누구인지 눌러 주세요.`)
+        if (r.unknown.length) lines.push(`${r.unknown.map((u) => `'${u}'`).join(', ')}은 친구 목록에 없어요.`)
+        setNote(lines.join(' ') || `'${t}'에서 친구 이름을 찾지 못했어요. 눌러서 골라 주세요.`)
+      },
+      onError: (m) => setNote(m),
+      onEnd: () => {
+        stopHear.current = null
+        setHearing(false)
+      },
+    })
+    if (stop) {
+      stopHear.current = stop
+      setHearing(true)
+    }
+  }
+
+  function done() {
+    if (chosen.length === 0) return setNote('함께할 친구를 한 명 이상 골라 주세요.')
+    savePicked(owner, chosen)
+    ask(`나 포함 ${chosen.length + 1}명`)
+  }
+
+  if (friends !== null && friends.length === 0) {
+    return (
+      <div className="bot-card who-card">
+        <p className="muted card-note">아직 친구가 없어서 인원만 골라 주세요. 학번은 확인 카드에서 넣어요. <Link to="/me/friends" className="link">친구 맺기 →</Link></p>
+        {fallback.length > 0 && <NextChips items={fallback} ask={ask} busy={busy} />}
+      </div>
+    )
+  }
+  return (
+    <div className="bot-card who-card">
+      <p className="card-label">누구랑 하실 건가요?</p>
+      {voiceOk && (
+        <button type="button" className={`ask-chip name-mic ${hearing ? 'on' : ''}`} onClick={hear}
+          disabled={busy || friends === null} aria-pressed={hearing}>
+          {hearing ? '■ 그만 듣기' : '🎤 친구 이름 말하기'}
+        </button>
+      )}
+      {teams.length > 0 && (
+        <div className="ask-chips team-chips" aria-label="내 팀">
+          {teams.map((t) => (
+            <button key={t.name} type="button" className="ask-chip team" onClick={() => pickTeam(t)} disabled={busy || friends === null}>
+              👥 {t.name} ({t.members.length + 1}명)
+            </button>
+          ))}
+        </div>
+      )}
+      {friends === null
+        ? <p className="muted card-note">친구 목록을 불러오는 중…</p>
+        : (
+          <div className="ask-chips friend-chips" aria-label="함께할 친구">
+            {friends.map((f) => {
+              const on = chosen.some((x) => x.studentId === f.studentId)
+              return (
+                <button key={f.studentId} type="button" className={`ask-chip ${on ? 'picked' : ''}`} onClick={() => toggle(f)}
+                  disabled={busy} aria-pressed={on}>
+                  {on ? '✓ ' : ''}{f.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      {note && <p className="muted card-note pick-note" role="status">{note}</p>}
+      <button type="button" className="btn-primary card-btn" onClick={done} disabled={busy || friends === null}>
+        {chosen.length > 0 ? `나 포함 ${chosen.length + 1}명으로 할게요` : '친구를 골라 주세요'}
+      </button>
+    </div>
+  )
+}
+
+/** 예약이 끝난 카드: 이번 친구들을 팀으로 저장 → 다음엔 "팀 A랑 내일 3시" (FR-AGT-105) */
+function TeamSave({ owner, members }: { owner: number | null; members: { studentId: string; name: string }[] }) {
+  const [name, setName] = useState('')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | string>('idle')
+  async function save() {
+    const n = name.trim()
+    if (!n) return setState('팀 이름을 적어 주세요.')
+    setState('saving')
+    try {
+      await saveTeam(n, members, owner)
+      setState('saved')
+    } catch (e) {
+      setState(e instanceof ApiError ? e.message : '저장하지 못했어요. 잠시 뒤 다시 눌러 주세요.')
+    }
+  }
+  if (state === 'saved') return <p className="muted card-note">'{name.trim()}' 팀으로 저장했어요. 다음엔 "{name.trim()}랑 내일 3시"라고 말해 보세요.</p>
+  return (
+    <div className="team-save">
+      <p className="muted card-note">이 친구들({members.map((m) => m.name).join(', ')})과 또 쓸 거면 팀으로 저장해 두세요</p>
+      <div className="person">
+        <input aria-label="팀 이름" placeholder="예: 팀 A" maxLength={TEAM_NAME_MAX} value={name}
+          onChange={(e) => setName(e.target.value)} disabled={state === 'saving'} />
+        <button type="button" className="ask-chip team" onClick={() => void save()} disabled={state === 'saving'}>
+          {state === 'saving' ? '저장 중…' : '팀으로 저장'}
+        </button>
+      </div>
+      {state !== 'idle' && state !== 'saving' && <p className="card-error" role="alert">{state}</p>}
+      <p className="muted card-note">팀 이름에 사람 이름은 넣지 마세요(비서에게 팀 이름이 보여요).</p>
+    </div>
   )
 }
 
@@ -460,8 +724,8 @@ function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: bool
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
-            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+            ? <IconLink to={`/reservations/${r.reservationId}`} icon="qr" label="입실 QR 보기" />
+            : <IconLink to={`/me/${r.reservationId}`} icon="info" label="내 예약에서 보기" />}
         </div>
         {/* 새로고침 뒤에도 마지막 결과 카드의 다음 말 버튼은 남긴다(글만 저장, 토큰·입실 번호 없음) */}
         {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
@@ -472,7 +736,7 @@ function PastConfirmCard({ c, ask, busy }: { c: PastCard; ask?: Ask; busy?: bool
     <div className="bot-card past">
       <p className="card-label">지난 확인 카드</p>
       <strong className="card-summary">{c.summary}</strong>
-      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 스페이시에게 말해 주세요.</p>
+      <p className="muted card-note">화면을 새로 열어서 이 카드는 닫혔어요. 다시 하려면 오디에게 말해 주세요.</p>
     </div>
   )
 }
@@ -493,11 +757,109 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
     setState(cardOutcomeOf(owner, c.token) ?? { kind: 'open' })
     return stop
   }, [c.token, owner])
-  const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, () => ''))
-  const [names, setNames] = useState<Record<number, string>>({})
+  // "누구랑?"에서 고른 친구가 있으면 칸을 미리 채운다(이미 누른 카드는 빼고). 꺼내 지우는 것은 아래 effect에서
+  const [prefill] = useState(() => {
+    const p = cardOutcomeOf(owner, c.token) ? [] : peekPicked(owner)
+    return p.length > 0 && p.length <= c.needsParticipants ? p : []
+  })
+  const [ids, setIds] = useState<string[]>(() => Array.from({ length: c.needsParticipants }, (_, i) => prefill[i]?.studentId ?? ''))
+  // 이름을 듣는 동안 칸을 고쳐도 덮어쓰지 않게, 듣기 콜백은 이 ref로 지금 칸을 읽는다
+  const idsNow = useRef<string[]>(ids)
+  idsNow.current = ids
+  const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries(prefill.map((f, i) => [i, f.name])))
+  useEffect(() => {
+    if (prefill.length > 0) takePicked(owner)
+  }, [prefill, owner])
   // 칸마다 마지막 조회 번호. 입력이 바뀌면 늦게 온 앞 조회 결과는 버린다
   const lookups = useRef<number[]>([])
   const expired = new Date(c.expiresAt).getTime() <= now.getTime()
+  // 친구 고르기(FR-AGT-105): 친구 목록을 버튼으로 보여 주고, 이름을 말하면 브라우저 안에서 맞춰 학번 칸을 채운다
+  const [friends, setFriends] = useState<Friend[] | null>(null)
+  const friendsNow = useRef<Friend[] | null>(null)
+  friendsNow.current = friends
+  const [pickNote, setPickNote] = useState('')
+  const [choices, setChoices] = useState<Friend[]>([])
+  const [hearing, setHearing] = useState(false)
+  const stopHear = useRef<(() => void) | null>(null)
+  const voiceOk = useRef(canListen()).current
+  useEffect(() => {
+    if (c.needsParticipants <= 0 || state.kind === 'done' || state.kind === 'closed') return
+    let live = true
+    getFriends(undefined, owner ?? undefined).then((l) => { if (live) setFriends(l.friends) }, () => { if (live) setFriends([]) })
+    return () => {
+      live = false
+      stopHear.current?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c.token, c.needsParticipants, owner])
+
+  /** 친구 버튼: 안 들어 있으면 빈 칸 맨 앞에 넣고, 들어 있으면 뺀다 */
+  function toggleFriend(f: Friend) {
+    setChoices([])
+    const at = ids.indexOf(f.studentId)
+    if (at >= 0) return setSlot(at, '', '')
+    const empty = ids.findIndex((v) => !v.trim())
+    if (empty < 0) return setPickNote(`이미 ${c.needsParticipants}명을 다 골랐어요. 바꾸려면 넣은 친구를 한 번 더 눌러 빼 주세요`)
+    setPickNote('')
+    setSlot(empty, f.studentId, f.name)
+  }
+
+  function setSlot(i: number, sid: string, name: string) {
+    setIds((cur) => cur.map((v, j) => (j === i ? sid : v)))
+    lookups.current[i] = (lookups.current[i] ?? 0) + 1
+    setNames((n) => ({ ...n, [i]: name }))
+    if (state.kind === 'open' && state.error) {
+      saveCardOutcome(owner, c.token, undefined)
+      setState({ kind: 'open' })
+    }
+  }
+
+  /** 들은 이름들을 친구와 맞춰 빈 칸을 차례로 채운다. 못 정한 이름은 안내와 후보 버튼으로 */
+  function fillFromSpeech(text: string) {
+    const list = friendsNow.current ?? []
+    const cur = idsNow.current
+    const r = matchFriends(text, list, cur)
+    const next = [...cur]
+    const nextNames: Record<number, string> = {}
+    let over = 0
+    for (const f of r.picked) {
+      const empty = next.findIndex((v) => !v.trim())
+      if (empty < 0) { over++; continue }
+      next[empty] = f.studentId
+      nextNames[empty] = f.name
+      lookups.current[empty] = (lookups.current[empty] ?? 0) + 1
+    }
+    idsNow.current = next
+    setIds(next)
+    setNames((n) => ({ ...n, ...nextNames }))
+    const lines: string[] = []
+    if (r.picked.length - over > 0) lines.push(`${r.picked.slice(0, r.picked.length - over).map((f) => f.name).join(', ')}님을 넣었어요.`)
+    for (const a of r.ambiguous) lines.push(`'${a.spoken}'은 ${a.candidates.map((x) => x.name).join('·')} 중 누구인지 눌러 주세요.`)
+    if (r.unknown.length > 0) lines.push(`${r.unknown.map((u) => `'${u}'`).join(', ')}은 친구 목록에 없어요. 친구 탭에서 먼저 친구를 맺어 주세요.`)
+    if (over > 0) lines.push(`${c.needsParticipants}명이 넘어서 ${over}명은 넣지 않았어요.`)
+    if (lines.length === 0) lines.push(`'${text}'에서 친구 이름을 찾지 못했어요. 아래 버튼으로 골라 주세요.`)
+    setChoices(r.ambiguous.flatMap((a) => a.candidates).filter((f, i, all) => all.findIndex((x) => x.studentId === f.studentId) === i))
+    setPickNote(lines.join(' '))
+  }
+
+  function hearNames() {
+    if (hearing) return stopHear.current?.()
+    stopSpeaking()
+    setPickNote('')
+    const stop = listenOnce({
+      onInterim: (t) => setPickNote(t ? `듣는 중: ${t}` : ''),
+      onFinal: (t) => fillFromSpeech(t),
+      onError: (m) => setPickNote(m),
+      onEnd: () => {
+        stopHear.current = null
+        setHearing(false)
+      },
+    })
+    if (stop) {
+      stopHear.current = stop
+      setHearing(true)
+    }
+  }
 
   /** 학번을 내 친구 중에서 찾아 이름을 보여 준다(친구만 참여자로 넣을 수 있음, core #68). 찾았고 그사이 입력이 안 바뀌었을 때만 true */
   async function lookup(i: number, sid = ids[i].trim()): Promise<boolean> {
@@ -558,13 +920,16 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
 
   if (state.kind === 'done') {
     const r = state.result
+    // 이번에 [확인]한 참여자(화면을 다시 열면 모름 → 팀 저장 칸 안 보임)
+    const members = ids.map((sid, i) => ({ studentId: sid.trim(), name: names[i] ?? '' })).filter((m) => m.studentId)
     return (
       <>
         <div className="bot-card done" role="status">
           <strong>{r.message}</strong>
           {r.action === 'CREATE' || r.action === 'START_NOW'
-            ? <Link to={`/reservations/${r.reservationId}`} className="link">입실 번호 보기 →</Link>
-            : <Link to={`/me/${r.reservationId}`} className="link">내 예약에서 보기 →</Link>}
+            ? <IconLink to={`/reservations/${r.reservationId}`} icon="qr" label="입실 QR 보기" />
+            : <IconLink to={`/me/${r.reservationId}`} icon="info" label="내 예약에서 보기" />}
+          {members.length > 0 && <TeamSave owner={owner} members={members} />}
         </div>
         {ask && (r.suggestions?.length ?? 0) > 0 && <NextChips items={r.suggestions!} ask={ask} busy={busy} />}
       </>
@@ -573,13 +938,35 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
 
   const closed = state.kind === 'closed' || expired
   return (
-    <div className="bot-card">
+    <div className="bot-card confirm-card">
       <p className="card-label">확인이 필요해요</p>
       <strong className="card-summary">{c.summary}</strong>
       {c.notes.map((n) => <p key={n} className="muted card-note">{n}</p>)}
       {!closed && c.needsParticipants > 0 && (
         <div className="card-people">
-          <p className="muted card-note">함께 쓸 사람 학번 {c.needsParticipants}명 (나는 빼고)</p>
+          <p className="muted card-note">함께할 친구 {c.needsParticipants}명 (나는 빼고) · 이름을 말하거나 눌러 고르세요</p>
+          {voiceOk && (
+            <button type="button" className={`ask-chip name-mic ${hearing ? 'on' : ''}`} onClick={hearNames}
+              disabled={state.kind === 'sending' || friends === null || friends.length === 0} aria-pressed={hearing}>
+              {hearing ? '■ 그만 듣기' : '🎤 친구 이름 말하기'}
+            </button>
+          )}
+          {friends === null && <p className="muted card-note">친구 목록을 불러오는 중…</p>}
+          {friends !== null && friends.length === 0 && (
+            <p className="muted card-note">아직 친구가 없어요. <Link to="/me/friends" className="link">친구 맺기 →</Link></p>
+          )}
+          {friends !== null && friends.length > 0 && (
+            <div className="ask-chips friend-chips" aria-label="친구 고르기">
+              {(choices.length > 0 ? choices : friends).map((f) => (
+                <button key={f.studentId} type="button" className={`ask-chip ${ids.includes(f.studentId) ? 'picked' : ''}`}
+                  onClick={() => toggleFriend(f)} disabled={state.kind === 'sending'} aria-pressed={ids.includes(f.studentId)}>
+                  {ids.includes(f.studentId) ? '✓ ' : ''}{f.name}
+                </button>
+              ))}
+              {choices.length > 0 && <button type="button" className="ask-chip back" onClick={() => setChoices([])}>친구 모두 보기</button>}
+            </div>
+          )}
+          {pickNote && <p className="muted card-note pick-note" role="status">{pickNote}</p>}
           {ids.map((v, i) => (
             <div key={i} className="person">
               <input
@@ -611,7 +998,7 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       {closed ? (
         <>
           <p className="card-error" role="alert">
-            {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 스페이시에게 다시 말해 주세요.'}
+            {state.kind === 'closed' ? state.message : '확인 시간이 지났어요. 오디에게 다시 말해 주세요.'}
           </p>
           {state.kind === 'closed' && <Link to="/me/reservations" className="card-link">내 예약 보기 →</Link>}
         </>
@@ -625,4 +1012,12 @@ export function ConfirmCard({ c, owner, ask, busy }: { c: ChatConfirmation; owne
       )}
     </div>
   )
+}
+
+/** 추천 말에서 친 글자와 같은 부분을 굵게 */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const parts = query.split(/\s+/).filter(Boolean)
+  if (!parts.length) return <>{text}</>
+  const esc = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return <>{text.split(new RegExp(`(${esc})`, 'g')).map((t, i) => (i % 2 ? <b key={i}>{t}</b> : t))}</>
 }
