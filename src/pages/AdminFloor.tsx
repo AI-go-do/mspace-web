@@ -6,6 +6,7 @@ import { ENV_RULES } from '../config/adminRooms'
 import type { TipRules } from '../lib/climate'
 import type { Advice } from '../lib/roomAdvice'
 import type { RoomView } from '../lib/roomHealth'
+import { rangeOf } from '../lib/chartRange'
 import { useCountUp } from '../lib/useCountUp'
 
 /**
@@ -27,14 +28,6 @@ export const TILE_METRICS: { key: TileMetric; label: string; unit: string }[] = 
 const seriesOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.history : m === 'temp' ? v.temps : m === 'hum' ? v.hums : v.lights)
 const nowOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.co2 : m === 'temp' ? v.temperatureC : m === 'hum' ? v.humidityPct : v.light)
 const limitOf = (m: TileMetric) => (m === 'co2' ? ENV_RULES.co2LimitPpm : m === 'temp' ? ENV_RULES.hotC : m === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct)
-/** 그래프 위아래 끝. 한 그래프(AdminOverview)와 같은 범위라 두 그림을 맞대어 볼 수 있다 */
-function rangeOf(m: TileMetric, values: number[], limit: number): [number, number] {
-  if (m === 'co2') return [Math.min(400, ...values) - 20, Math.max(limit + 120, ...values) + 20]
-  if (m === 'temp') return [Math.min(21, ...values) - 0.5, Math.max(limit + 1, ...values) + 0.5]
-  if (m === 'hum') return [Math.min(limit - 8, ...values) - 2, Math.max(62, ...values) + 2]
-  return [0, 100]
-}
-
 /** 작은 그래프. 지난 값(+ CO2면 예측)을 0~100 칸에 그리고 선 굵기는 화면 크기와 상관없이 같게. 노란 점선 = 기준(온도·습도는 참고) */
 export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; metric?: TileMetric; wide?: boolean }) {
   const limit = limitOf(metric)
@@ -60,14 +53,16 @@ export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; 
   const pred = lastVal !== null && ahead.length ? line([[x(lastIdx), y(lastVal)], ...ahead.map((v, i) => [x(lastIdx + 1 + i), y(v)] as [number, number])]) : ''
   const area = segs.length ? `${line(segs[segs.length - 1])}L${segs[segs.length - 1].at(-1)![0].toFixed(2)},40L${segs[segs.length - 1][0][0].toFixed(2)},40Z` : ''
   const nowX = x(lastIdx)
+  // 기준이 그래프 범위 밖이면 기준선·경고 칸을 안 그린다(확대해서 위로 벗어남)
+  const showLimit = metric !== 'light' && limit >= lo && limit <= hi
   return (
     <span className="ctl-spark-box">
     <svg className={`ctl-spark ${wide ? 'wide' : ''} m-${metric}`} viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
       {/* 경고 쪽 칸: 습도는 기준 아래(건조), 조도는 경고 칸 없음 (AdminOverview와 같게) */}
-      {metric !== 'light' && (metric === 'hum'
+      {showLimit && (metric === 'hum'
         ? <rect x="0" y={y(limit)} width="100" height={Math.max(0, 40 - y(limit))} className="sp-over" />
         : <rect x="0" y="0" width="100" height={Math.max(0, y(limit))} className="sp-over" />)}
-      <line x1="0" x2="100" y1={y(limit)} y2={y(limit)} className="sp-limit" vectorEffect="non-scaling-stroke" />
+      {showLimit && <line x1="0" x2="100" y1={y(limit)} y2={y(limit)} className="sp-limit" vectorEffect="non-scaling-stroke" />}
       {area && <path d={area} className="sp-area" />}
       {segs.map((s, i) => <path key={i} d={line(s)} className="sp-line" vectorEffect="non-scaling-stroke" pathLength={1} />)}
       {pred && <path d={pred} className="sp-pred" vectorEffect="non-scaling-stroke" />}
@@ -175,10 +170,10 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
       <span className="ct-head">
         <b className="ct-no">{view.roomId}</b>
         <span className="ct-name">{view.name}</span>
-        {/* 재실 센서(11/10 재웅): 사람 모양 하나로. 채움=있음, 빈 테두리=없음, 점선=모름 */}
-        <span className={`ct-pres p-${view.presence.toLowerCase()}`} title="재실 센서">
-          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" /></svg>
-          {view.presence === 'OCCUPIED' ? '있음' : view.presence === 'EMPTY' ? '없음' : '모름'}
+        {/* 재실 센서(11/10 재웅): 사람 모양 하나로. 채움=있음, 빈 테두리=없음, 점선=모름. 글자는 옆 상태 표시와 겹쳐 뺐다(구석 글자 줄이기) */}
+        <span className={`ct-pres p-${view.presence.toLowerCase()}`}
+          title={`재실 센서: ${view.presence === 'OCCUPIED' ? '있음' : view.presence === 'EMPTY' ? '없음' : '모름'}`}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" /></svg>
         </span>
         <span className="ct-tags">
           {reports > 0 && <span className="ct-tag warn">신고 {reports}</span>}
@@ -190,7 +185,7 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
       <span className="ct-main">
         <span className="ct-co2">
           <TileValue key={metric} view={view} metric={metric} />
-          {line && <em className={tone !== 'ok' ? `why ${tone}` : ''}>{advice.length ? <span aria-hidden="true">!</span> : null}{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>}
+          {line && <em className={tone !== 'ok' ? `why ${tone}` : ''}>{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>}
         </span>
         <Spark view={view} metric={metric} wide={big} />
       </span>

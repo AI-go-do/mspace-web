@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { ENV_RULES } from '../config/adminRooms'
+import { rangeOf } from '../lib/chartRange'
 import type { RoomView } from '../lib/roomHealth'
 import { isTrusted, overview, type Level } from '../lib/roomOverview'
 import { seoulClock } from '../lib/time'
@@ -63,11 +64,12 @@ function pointsOf(v: RoomView, metric: Metric, ticks: LiveTick[] | undefined, fr
   return [...out, ...live]
 }
 
-function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[]; metric: Metric; focus: number | null; onFocus: (id: number | null) => void; ticks?: LiveTicks }) {
+function MultiChart({ views, metric, focus, onFocus, ticks, compact = false }: { views: RoomView[]; metric: Metric; focus: number | null; onFocus: (id: number | null) => void; ticks?: LiveTicks; compact?: boolean }) {
   const [ref, w] = useWidth()
   const [hover, setHover] = useState<number | null>(null)
   const clock = useNow(1000)
-  const h = 340
+  // 관제 바닥 여섯째 칸(compact)은 방 칸 높이에 맞춰 낮게. 더 높으면 둘째 줄이 늘어 화면이 스크롤된다
+  const h = compact ? 270 : 340
   const m = METRICS.find((x) => x.key === metric)!
   // 지금 = 화면 시각(1초마다). 실시간 값이 없는 시연 값이면 마지막 기록 시각
   const lastT = Math.max(0, ...views.map((v) => Date.parse(v.times[v.times.length - 1] ?? '') || 0))
@@ -92,17 +94,16 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
 
   const sure = lines.filter((l) => trusted(l.v)).flatMap((l) => [...l.pts, ...l.pred]).filter((p): p is Pt => !!p && p.t >= t0).map((p) => p.v)
   const all = sure.length ? sure : lines.flatMap((l) => l.pts).filter((p): p is Pt => !!p).map((p) => p.v)
-  const [lo, hi] = metric === 'co2'
-    ? [Math.min(450, ...all) - 30, Math.max(limit + 150, ...all) + 40]
-    : metric === 'temp' ? [Math.min(21, ...all) - 0.5, Math.max(limit + 1, ...all) + 0.5]
-      : metric === 'hum' ? [Math.min(limit - 8, ...all) - 2, Math.max(62, ...all) + 2] : [0, 100]
+  // 값 둘레로 확대해 움직임이 보이게. 기준이 멀면 기준선 대신 위(습도는 아래) 끝에 "기준까지 얼마"만 적는다
+  const [lo, hi] = all.length ? rangeOf(metric, all, limit) : [0, 100]
 
   const iw = Math.max(1, w - PAD.l - PAD.r)
   const ih = h - PAD.t - PAD.b
   const x = (t: number) => PAD.l + ((t - t0) / (t1 - t0)) * iw
   const y = (v: number) => PAD.t + ih - ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * ih
   const ticksY = useMemo(() => {
-    const step = metric === 'co2' ? 200 : metric === 'temp' ? 1 : metric === 'hum' ? 5 : 25
+    const span = hi - lo
+    const step = metric === 'co2' ? (span > 500 ? 200 : span > 250 ? 100 : 50) : metric === 'temp' ? (span > 4 ? 1 : 0.5) : metric === 'hum' ? 5 : 25
     const out: number[] = []
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v)
     return out
@@ -161,7 +162,8 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
   })
   const limitY = y(limit)
   const above = metric !== 'hum'
-  const zone = metric !== 'light'
+  const limitIn = limit >= lo && limit <= hi
+  const zone = metric !== 'light' && limitIn
   const nowX = x(now)
 
   const label = `방 ${views.length}개 ${m.label} 지난 ${PAST_MIN}분${metric === 'co2' ? `과 ${ahead}분 예측` : ''}. ` + lines.map((l) =>
@@ -188,7 +190,7 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
           {ticksY.map((t) => (
             <g key={t}>
               <line x1={PAD.l} x2={PAD.l + iw} y1={y(t)} y2={y(t)} className="ov-grid" />
-              <text x={PAD.l - 8} y={y(t) + 4} className="ov-tick" textAnchor="end">{fmt(t, 0)}</text>
+              <text x={PAD.l - 8} y={y(t) + 4} className="ov-tick" textAnchor="end">{fmt(t, Number.isInteger(t) ? 0 : 1)}</text>
             </g>
           ))}
           {gridT.map((t) => (
@@ -197,8 +199,9 @@ function MultiChart({ views, metric, focus, onFocus, ticks }: { views: RoomView[
               {Math.abs(x(t) - nowX) > 28 && <text x={x(t)} y={h - 9} className="ov-tick" textAnchor="middle">{seoulClock(new Date(t)).slice(0, 5)}</text>}
             </g>
           ))}
-          <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />
-          <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : metric === 'hum' ? `참고 ${limit}%` : `불 켜짐 ${limit}%`}</text>
+          {limitIn && <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />}
+          {limitIn && <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : metric === 'hum' ? `참고 ${limit}%` : `불 켜짐 ${limit}%`}</text>}
+          {!limitIn && <text x={PAD.l + 6} y={above ? PAD.t + 14 : PAD.t + ih - 6} className="ov-limit-t ov-limit-off">{`${above ? '↑' : '↓'} ${metric === 'co2' ? '환기 기준' : '참고'} ${fmt(limit, 0)}${m.unit === 'ppm' ? '' : m.unit}`}</text>}
           {metric === 'co2' && <rect x={nowX} width={Math.max(0, PAD.l + iw - nowX)} y={PAD.t} height={ih} className="ov-ahead" />}
           <line x1={nowX} x2={nowX} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
           <text x={nowX} y={h - 9} className="ov-tick ov-now-t" textAnchor="middle">{seoulClock(new Date(now))}</text>
@@ -310,7 +313,7 @@ export function AdminOverview({ views, compact = false, ticks }: { views: RoomVi
         </li>
       </ul>}
 
-      <MultiChart key={metric} views={views} metric={metric} focus={focus} onFocus={setFocus} ticks={ticks} />
+      <MultiChart key={metric} views={views} metric={metric} focus={focus} onFocus={setFocus} ticks={ticks} compact={compact} />
 
       {!compact && <div className="ov-heat">
         <div className="hr hr-head" aria-hidden="true">

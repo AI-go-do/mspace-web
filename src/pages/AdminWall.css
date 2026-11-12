@@ -53,5 +53,25 @@
   .adm .admin-now .ro-why { font-size: 14px; }
 
   .adm .admin-now .ctl-floor > .ctl-ov { padding: 18px 20px; }
+  /* 벽 화면은 스크롤 없이 한 화면: 접어 둔 "방별 센서 자세히"는 칸을 누르면 여는 상세 창이 대신한다 */
+  .adm .admin-now .ctl-more { display: none; }
+  .adm .admin-now .ct-pres svg { width: 18px; height: 18px; }
   .adm .admin-now .ctl-side h2 { font-size: 20px; }
+}
+
+/* 같은 32인치라도 전체 화면이 아니면(브라우저 주소창·탭) 세로가 1300px 안팎: 칸 안 여백·그래프·기기 단추만 조금 줄여 스크롤 없이 */
+@media (min-width: 1800px) and (max-height: 1400px) {
+  .adm .admin-now .ctl-floor { gap: 12px; padding: 14px; }
+  .adm .admin-now .ctl-tile { padding: 12px 16px; gap: 7px; }
+  .adm .admin-now .ctl-spark { height: 70px; }
+  .adm .admin-now .ct-co2 b { font-size: 50px; }
+  .adm .admin-now .dv { padding: 8px 4px 6px; }
+  .adm .admin-now .dv-ic { width: 30px; height: 30px; }
+  .adm .admin-now .dv-ic svg { width: 26px; height: 26px; }
+  .adm .admin-now .ro { padding: 9px 14px 10px; gap: 6px; }
+  .adm .admin-now .ctl-top .ctl-big { padding-top: 6px; padding-bottom: 6px; }
+  .adm .admin-now .ct-now .cn { padding: 3px 10px; }
+  .adm .admin-now .ct-now .cn-people { padding: 3px 14px; }
+  .adm .admin-now .ct-now .cn-people b { font-size: 28px; }
+  .adm .admin-now .ct-strip span { padding: 5px 12px; }
 }
