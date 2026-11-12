@@ -6,6 +6,7 @@ import type { EnvPoint, RoomsEnvironment } from '../api/environment'
  * - 지금 값과 1분 그래프의 CO2·온도·습도는 climate 값이 있으면 그것으로 바꾼다. 없는 분은 core 값을 둔다
  * - core 그래프 끝보다 뒤에 밀려온 climate 값은 새 분 점으로 붙인다(10초 조회를 기다리지 않게)
  * - 예측(점선)은 climate CO2 예측
+ * - 가상 센서(SIM)·녹화 재생(REPLAY) 방은 끊김도 climate 기준(젯슨이 꺼져도 빨강으로 칠하지 않음)
  * climate에 없는 방은 그대로 둔다
  */
 type SeriesMap = Record<number, Partial<Record<MetricKey, Series>>>
@@ -61,6 +62,9 @@ export function overlayClimate(env: RoomsEnvironment, rooms: ClimateRoom[], seri
         forecast: fc.length ? fc.map((p) => ({ at: p.at, ppm: Math.round(p.value) })) : r.forecast,
         // 가상 센서(SIM) 방은 climate가 받은 재실(core 실제 예약·입실)을 그대로 써서 칸의 "있음/없음"과 입실 시각이 서로 다르지 않게
         ...(c.source === 'SIM' && c.occupied !== null ? { presence: c.occupied ? 'OCCUPIED' as const : 'EMPTY' as const } : {}),
+        // 가상 센서·녹화 재생 방의 공기 값은 방 장치(젯슨)가 아니라 climate가 만든다. 젯슨이 꺼져 있어도 공기 값은 살아 있으니
+        // 칸 전체를 "신호 끊김"(빨강)으로 칠하지 않고 climate의 끊김을 쓴다(재웅 11/12 20:10 "모든 데가 다 빨간데"). 재실·조도는 여전히 "모름"
+        ...(c.source === 'SIM' || c.source === 'REPLAY' ? { offline: c.offline, lastSignalAt: c.envAt ?? r.lastSignalAt } : {}),
       }
     }),
   }
