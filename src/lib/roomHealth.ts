@@ -222,7 +222,11 @@ export function toRoomView(env: RoomEnvironment, cfg: AdminRoomConfig | undefine
       lightOnEmptyMinutes++
     }
   }
-  const lightLeftOn = !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes
+  // core가 불 켜짐(lightLeftOn, core #124)을 주면 그 판단을 따른다: 값이 있으면 켜짐(since부터 센 분), null이면 아님.
+  // 칸이 없으면(가짜 값·예전 core) 위에서 화면이 센 값을 쓴다
+  const core = env.lightLeftOn
+  if (core) lightOnEmptyMinutes = Math.max(0, Math.floor((now.getTime() - Date.parse(core.since)) / 60_000))
+  const lightLeftOn = core !== undefined ? core !== null : !offline && lightOnEmptyMinutes >= rules.lightLeftOnMinutes
 
   const flags = { co2Soon, co2Over, hot, dry, overtime, unbooked, offline, stuck, doorLeftOpen, noEntry, nightDoor, lightLeftOn }
   const tone: Tone = offline || stuck ? 'off'

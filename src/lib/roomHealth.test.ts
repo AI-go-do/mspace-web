@@ -342,6 +342,18 @@ describe('조도 (우노 CDS 0~1023 → 밝기 %)', () => {
     expect(v.lightNote).toBe('불 켜짐')
   })
 
+  it('core가 불 켜짐(lightLeftOn)을 주면 그 판단과 시각을 따른다 (core #124)', () => {
+    const since = new Date(now.getTime() - 14 * 60_000).toISOString()
+    // 화면이 센 값으로는 아직(5분) 아니어도 core가 켜짐이라 하면 켜짐, 분은 since부터
+    const on = toRoomView({ ...lit(() => 620, (i) => i < 25), lightLeftOn: { since } }, cfg, now)
+    expect(on.flags.lightLeftOn).toBe(true)
+    expect(on.lightOnEmptyMinutes).toBe(14)
+    expect(on.status.text).toBe('빈 방 불 켜짐')
+    // core가 null이면 화면이 센 값(12분)이 넘어도 켜짐으로 보지 않는다
+    const off = toRoomView({ ...lit(() => 620, (i) => i < 18), lightLeftOn: null }, cfg, now)
+    expect(off.flags.lightLeftOn).toBe(false)
+  })
+
   it('core가 분마다 재실을 안 주면 지금 빈 방인 것으로 대신 센다', () => {
     const v = toRoomView(lit(() => 620, () => undefined), cfg, now)
     expect(v.occupancy.every((o) => o === null)).toBe(true)

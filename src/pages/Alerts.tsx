@@ -184,9 +184,10 @@ export default function Alerts() {
           {shown.map((n) => {
             const act = notificationAction(n)
             return (
-              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${isApology(n) ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' ? 'co2-alert' : ''}`}>
+              <li key={n.id} className={`card alert ${n.read ? '' : 'unread'} ${n.kind === 'AWAY_SOON' ? 'urgent' : ''} ${isApology(n) ? 'apology-alert' : ''} ${n.kind === 'CO2_SOON' ? 'co2-alert' : ''} ${n.kind === LIGHT_LEFT_ON_KIND ? 'light-alert' : ''}`}>
                 <div className="alert-top">
                   {!n.read && <><i className="dot" aria-hidden="true" /><span className="sr-only">안 읽음</span></>}
+                  {n.kind === LIGHT_LEFT_ON_KIND && <BulbIcon />}
                   <b className="alert-title">{n.title}</b>
                   {isDemoId(n.id) && <span className="alert-sample">예시</span>}
                   <time className="alert-time" dateTime={n.createdAt}>{agoLabel(n.createdAt, now)}</time>
@@ -203,6 +204,19 @@ export default function Alerts() {
         </ul>
       )}
     </main>
+  )
+}
+
+/** 빈 방 불 켜짐 알림 종류 (core #124): 마지막으로 퇴실한 팀에게 "방 불이 켜져 있어요" */
+const LIGHT_LEFT_ON_KIND = 'LIGHT_LEFT_ON'
+
+/** 불 켜짐 알림 제목 앞 전구 그림 */
+function BulbIcon() {
+  return (
+    <svg className="alert-kind-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 18h6" /><path d="M10 22h4" />
+      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+    </svg>
   )
 }
 

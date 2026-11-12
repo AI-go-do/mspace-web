@@ -22,6 +22,8 @@
 /* 방의 사과(Q-19): 경고가 물러졌다는 내 일이라 노랑 띠 */
 .alert.apology-alert { border-left: 6px solid var(--yellow); }
 .alert.co2-alert { border-left: 6px solid #E0663A; }
+.alert.light-alert { border-left: 6px solid var(--yellow); }
+.alert-kind-icon { flex: none; color: var(--navy); }
 .alert-sample { font-size: 12px; font-weight: 700; color: var(--navy); background: var(--yellow); padding: 2px 8px; border-radius: 6px; }
 .alert-top { display: flex; align-items: center; gap: 8px; }
 .alert-top .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--yellow); flex: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }

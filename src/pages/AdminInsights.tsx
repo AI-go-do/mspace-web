@@ -1,8 +1,8 @@
-import { useEffect, useState, type CSSProperties } from 'react'
-import { currentMemberId } from '../api/client'
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { ApiError, currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  adminErrorMessage, alertEffectLabel, getDailyReport, reportTotals, sumOf, writerLabel, type DailyReport, MAX_WITHDRAW_REASON, withdrawWarning, type Warning, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhoto, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -43,6 +43,64 @@ function Tile({ label, value, rate, sub, hero, i = 0 }: { label: string; value: 
       <span className="sr-only">{n === null ? '없음' : `${n}${rate ? '%' : ''}`}</span>
       {sub && <small>{sub}</small>}
     </div>
+  )
+}
+
+/**
+ * 경고 한 줄 + 철회 (core #123, 11/12 지영 "AI·카메라가 틀렸을 때 사람이 바로 풀 길"). [철회]를 누르면 이유 칸이 열리고,
+ * 보내면 core가 경고를 빼고 그 경고로 걸린 정지도 풀고 학생에게 이유와 함께 알린다. 이유는 학생 알림에 그대로 보인다
+ */
+function WarningRow({ w }: { w: Warning }) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<string | null>(w.withdrawnAt ? '철회됨' : null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const text = reason.trim()
+  const tooLong = text.length > MAX_WITHDRAW_REASON
+
+  const send = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!text || tooLong || busy) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const r = await withdrawWarning(w.id, text, currentMemberId())
+      setDone(['철회됨', r.suspensionLifted ? '정지 풀림' : '', r.appealClosed ? '학생 철회 요청 닫힘' : ''].filter(Boolean).join(' · '))
+      setOpen(false)
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'WARNING_ALREADY_WITHDRAWN') { setDone('철회됨'); setOpen(false) }
+      else setMsg(adminErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <li className={`pen-row warn-row${done ? ' withdrawn' : ''}`}>
+      <span className="pen-who"><b>{w.member.name}</b><span className="muted">{w.member.studentId}</span></span>
+      <span className="pen-what">
+        <span className="tidy-tags">
+          <span className="pen-tag">{WARNING_REASON[w.reason] ?? w.reason}</span>
+          {done && <span className="pen-tag">{done}</span>}
+        </span>
+        <span className="muted">신고 #{w.reportId}{w.reservationId ? ` · 예약 #${w.reservationId}` : ''} · {stamp(w.createdAt)}</span>
+      </span>
+      {!done && !open && <button type="button" className="btn-line warn-withdraw" onClick={() => setOpen(true)}>철회</button>}
+      {open && (
+        <form className="warn-withdraw-form" onSubmit={(e) => void send(e)}>
+          <label htmlFor={`withdraw-${w.id}`} className="adm-small">철회 이유 (학생 알림에 그대로 보여요)</label>
+          <textarea id={`withdraw-${w.id}`} rows={2} value={reason} disabled={busy} autoFocus
+            maxLength={MAX_WITHDRAW_REASON + 50} placeholder="예: 카메라가 잘못 봤어요" onChange={(e) => setReason(e.target.value)} />
+          <span className={`adm-small${tooLong ? ' err' : ''}`}>{text.length}/{MAX_WITHDRAW_REASON}</span>
+          {msg && <p role="alert" className="adm-msg err">{msg}</p>}
+          <div className="warn-withdraw-btns">
+            <button type="button" className="btn-line" disabled={busy} onClick={() => { setOpen(false); setMsg(null) }}>취소</button>
+            <button type="submit" className="btn-primary" disabled={!text || tooLong || busy}>{busy ? '철회하는 중…' : '철회하기'}</button>
+          </div>
+        </form>
+      )}
+    </li>
   )
 }
 
@@ -103,15 +161,7 @@ export function AdminPenalties() {
             <h2>경고</h2>
             {data.warnings.length === 0 && <p className="adm-small">이 기간에 경고가 없어요.</p>}
             <ul className="pen-list">
-              {data.warnings.map((w) => (
-                <li key={w.id} className="pen-row">
-                  <span className="pen-who"><b>{w.member.name}</b><span className="muted">{w.member.studentId}</span></span>
-                  <span className="pen-what">
-                    <span className="pen-tag">{WARNING_REASON[w.reason] ?? w.reason}</span>
-                    <span className="muted">신고 #{w.reportId}{w.reservationId ? ` · 예약 #${w.reservationId}` : ''} · {stamp(w.createdAt)}</span>
-                  </span>
-                </li>
-              ))}
+              {data.warnings.map((w) => <WarningRow key={w.id} w={w} />)}
             </ul>
           </section>
           </div>
@@ -124,30 +174,42 @@ export function AdminPenalties() {
 /** 줄 하나를 가리키는 키. 예약 하나에 퇴실 직후·다시 확인 두 줄이 있을 수 있다 */
 const rowKey = (r: Pick<TidyCheckRow, 'reservationId' | 'phase'>) => `${r.reservationId}-${r.phase}`
 
-/** 비교 사진 한 칸: 어느 예약의 어느 단계 사진인지와 아래 글 */
-interface Shot { reservationId: number; phase: TidyPhase; label: string; when: string }
+/** 비교 사진 한 칸: 받을 주소와 아래 글. student면 카메라 대신 학생이 올린 사진 */
+export interface Shot { url: string; label: string; when: string; student?: boolean }
+
+/** 펼친 줄의 두 칸 이름: 왼쪽은 늘 "입실 전", 오른쪽은 단계마다 */
+export const afterLabel = (r: Pick<TidyCheckRow, 'phase'>) => (r.phase === 'RECHECK' ? '3시간 뒤' : '퇴실 뒤')
+
+/** core가 준 사진 한 장 → 칸. 없으면 null("사진을 못 받았어요") */
+function shotOf(p: TidyPhoto | null | undefined, label: string): Shot | null {
+  if (!p) return null
+  const student = p.source === 'STUDENT'
+  const at = p.takenAt ? stamp(p.takenAt) : ''
+  return { url: p.url, label, when: at, student }
+}
 
 /**
- * 펼친 줄의 비교 사진 두 장.
- * - 퇴실 직후 줄: 같은 방 바로 앞 예약의 퇴실 직후 사진 ↔ 이번 퇴실 직후 사진.
- *   AI가 비교에 쓰는 입실 직전 사진은 젯슨 안에만 두고 지운다(Q-22). 관리자는 서버에 남은 퇴실 사진(10차·core #115)만 보므로
- *   큰 이름은 "입실 전"(재웅 11/11), 아래에 그 사진이 찍힌 시각을 적는다(바로 앞 예약인지는 정리 확인 목록만으로 알 수 없다)
- * - 다시 확인 줄: 퇴실 직후 ↔ 3시간 뒤
+ * 펼친 줄의 비교 사진 두 장 (11/12 지영 "웹캠이 입실·퇴실 사진, 못 찍었으면 학생 퇴실 사진으로 대신, 둘 다 없으면 사진이 없어요").
+ * - core #125가 before·after를 주면 그대로: 왼쪽 입실 전(카메라 ENTRY → 학생 입실 사진), 오른쪽 퇴실 뒤·3시간 뒤(카메라 → 학생 퇴실 사진)
+ * - 예전 core(칸 없음): 퇴실 직후 줄은 같은 방 앞 줄의 퇴실 직후 사진 ↔ 이번 퇴실 직후 사진, 다시 확인 줄은 퇴실 직후 ↔ 3시간 뒤
  */
-export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot] {
+export function tidyPair(rows: TidyCheckRow[], r: TidyCheckRow): [Shot | null, Shot | null] {
+  if (r.before !== undefined || r.after !== undefined) {
+    return [shotOf(r.before, '입실 전'), shotOf(r.after, afterLabel(r))]
+  }
   if (r.phase === 'RECHECK') {
     return [
-      { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 직후', when: '' },
-      { reservationId: r.reservationId, phase: 'RECHECK', label: '3시간 뒤', when: '' },
+      { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 직후', when: '' },
+      { url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: '3시간 뒤', when: '' },
     ]
   }
   // 목록은 최근 순이라 같은 방의 더 오래된 퇴실 직후 줄 가운데 첫 번째. 카메라 결과가 없는 예약은 목록에 없어
-  // 바로 앞 예약이 아닐 수 있으므로 "앞 팀"이라 단정하지 않고 찍힌 시각을 적는다. core가 입실 직전 사진(ENTRY, Q-27)을 주면 그걸로 바꾼다
+  // 바로 앞 예약이 아닐 수 있으므로 "앞 팀"이라 단정하지 않고 찍힌 시각을 적는다
   const before = rows.find((x) => x.roomId === r.roomId && x.phase === 'FIRST' && x.reservationId !== r.reservationId
     && Date.parse(x.observedAt) < Date.parse(r.observedAt))
   return [
-    before ? { reservationId: before.reservationId, phase: 'FIRST', label: '입실 전', when: `${stamp(before.observedAt)} 이전 퇴실 사진` } : null,
-    { reservationId: r.reservationId, phase: 'FIRST', label: '퇴실 뒤', when: '' },
+    before ? { url: tidyPhotoUrl(before.reservationId, 'FIRST'), label: '입실 전', when: `${stamp(before.observedAt)} 이전 퇴실 사진` } : null,
+    { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 뒤', when: '' },
   ]
 }
 
@@ -325,16 +387,19 @@ export function AdminTidyChecks() {
                     />
                     {pair && (
                       <div className="tidy-photos"><div className="evidence-grid">
-                        {pair.map((shot, i) => (
-                          <figure key={i} className="evidence-cell">
-                            <AuthPhoto
-                              url={shot ? tidyPhotoUrl(shot.reservationId, shot.phase) : null}
-                              empty={shot ? '사진 없음' : '앞 팀 사진 없음'}
-                              alt={`${r.roomName} ${shot?.label ?? '입실 전'} 사진`}
-                            />
-                            <figcaption><b>{shot?.label ?? '입실 전'}</b>{(shot ? shot.when : '앞 팀 기록 없음') && <span className="muted">{shot ? shot.when : '앞 팀 기록 없음'}</span>}</figcaption>
-                          </figure>
-                        ))}
+                        {pair.map((shot, i) => {
+                          const label = shot?.label ?? (i === 0 ? '입실 전' : afterLabel(r))
+                          return (
+                            <figure key={i} className={`evidence-cell${shot?.student ? ' student' : ''}`}>
+                              <AuthPhoto url={shot?.url ?? null} empty="사진을 못 받았어요" alt={`${r.roomName} ${label} 사진`} />
+                              <figcaption>
+                                <b>{label}</b>
+                                {shot?.student && <span className="pen-tag tidy-student">학생 사진</span>}
+                                {shot?.when && <span className="muted">{shot.when}</span>}
+                              </figcaption>
+                            </figure>
+                          )
+                        })}
                       </div><TidyJudgement row={r} rechecked={r.phase === 'FIRST' && rows.some((x) => x.reservationId === r.reservationId && x.phase === 'RECHECK')} /></div>
                     )}
                   </li>
@@ -484,6 +549,76 @@ export function AdminStats() {
               <span className="adm-small">결과가 난 알림만 세요. 아직 입실 안 했는데 입실 마감 전인 예약, 확인 시간이 아직 안 지난 환기 알림은 빠져요.</span>
             </section>
           )}
+        </>
+      )}
+    </section>
+  )
+}
+
+/**
+ * 하루 운영 요약 (core #122, 11/10 회의 "관리자 = 관제 대시보드", 11/12 지영 "core 다 AI화").
+ * 날짜를 고르면 그날 숫자와 오디(Gemini)가 쓴 3–5줄 요약. 오늘은 하루가 안 끝나 core가 1시간마다 새로 쓴다
+ */
+export function AdminDailyReport() {
+  const today = seoulDate()
+  const [date, setDate] = useState(today)
+  const [data, setData] = useState<DailyReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const memberId = currentMemberId()
+    if (memberId === null) return
+    setData(null)
+    setError(null)
+    const ctrl = new AbortController()
+    let stale = false
+    // Gemini가 처음 쓰는 날은 몇 초 걸릴 수 있어 다른 기록보다 넉넉히 기다린다
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS * 2)
+    getDailyReport(date === today ? null : date, ctrl.signal, memberId)
+      .then((d) => { if (!stale) setData(d) })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
+      .finally(() => clearTimeout(timer))
+    return () => { stale = true; clearTimeout(timer); ctrl.abort() }
+  }, [date, today])
+
+  const yesterday = daysBefore(today, 1)
+  const f = data?.facts
+  const reports = reportTotals(f?.reports)
+  return (
+    <section className="rec-body" aria-label="하루 운영 요약">
+      <div className="adm-chips daily-dates" role="group" aria-label="날짜">
+        <button type="button" className="adm-chip" aria-pressed={date === today} onClick={() => setDate(today)}>오늘</button>
+        <button type="button" className="adm-chip" aria-pressed={date === yesterday} onClick={() => setDate(yesterday)}>어제</button>
+        <label className="daily-pick">
+          <span className="sr-only">날짜 고르기</span>
+          <input type="date" value={date} max={today} onChange={(e) => { if (e.target.value && e.target.value <= today) setDate(e.target.value) }} />
+        </label>
+      </div>
+      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {!data && !error && <Skeleton />}
+      {data && f && (
+        <>
+          <div className="stat-tiles four">
+            <Tile hero label="예약" value={f.total.reservations.total} sub={`입실 ${f.total.reservations.used}건`} />
+            <Tile label="노쇼" value={f.total.reservations.noShow} i={1} />
+            <Tile label="신고" value={reports.total} sub={f.autoJudged ? `오디가 판정 ${f.autoJudged}건` : undefined} i={2} />
+            <Tile label="경고" value={sumOf(f.warnings)} sub={f.appeals.WITHDRAWN ? `철회 ${f.appeals.WITHDRAWN}건` : undefined} i={3} />
+          </div>
+          <section className="card admin-sec">
+            <h2>{data.date.slice(5).replace('-', '/')} 운영 요약{f.partial && <span className="pen-tag daily-partial">진행 중</span>}</h2>
+            <div className="tidy-ai daily-ai done">
+              <div className="tidy-ai-head">
+                <span className="tidy-ai-odi"><Odi size={26} label="오디" /></span>
+                <span className="tidy-ai-name">오디 AI <i aria-hidden="true">✦</i></span>
+                <span className="tidy-ai-model" title={data.writer}>{writerLabel(data.writer)}</span>
+              </div>
+              <ul className="daily-lines">
+                {data.lines.map((l, i) => <li key={i}>{l}</li>)}
+              </ul>
+              <p className="adm-small daily-at">{stamp(data.generatedAt)}에 썼어요{f.partial ? ' · 오늘은 1시간마다 새로 써요' : ''}</p>
+            </div>
+            {sumOf(f.deviceFaults) > 0 && <p className="adm-small">장치 고장 {sumOf(f.deviceFaults)}건</p>}
+          </section>
         </>
       )}
     </section>

@@ -57,6 +57,11 @@ export interface RoomEnvironment {
   current?: { reservationId: number; startAt: string; endAt: string; people: number } | null
   /** 다음 예약 (people = 예약 인원) */
   next?: { startAt: string; people: number } | null
+  /**
+   * 빈 방 불 켜짐 (core #124). 재실 없음 + 예약 없음 + 조도 기준 이상이 10분 이어지면 { since: 처음 켜짐을 본 시각 }, 아니면 null.
+   * core가 아직 안 주면(가짜 값·예전 core) 빠지고, 화면이 조도 기록으로 직접 센다
+   */
+  lightLeftOn?: { since: string } | null
 }
 
 export interface RoomsEnvironment {
@@ -97,6 +102,11 @@ const isNext = (v: unknown) => {
   return typeof v === 'object' && isDate(n.startAt) && isNum(n.people)
 }
 
+const isLightLeftOn = (v: unknown) => {
+  if (v === undefined || v === null) return true
+  return typeof v === 'object' && isDate((v as Record<string, unknown>).since)
+}
+
 /** 화면이 읽는 칸이 다 있는지. current·next·forecast·light·pir만 빠져도 된다 */
 export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
   if (!v || typeof v !== 'object') return false
@@ -110,7 +120,7 @@ export function isRoomsEnvironment(v: unknown): v is RoomsEnvironment {
     && isNumOrNull(r.temperatureC) && isNumOrNull(r.humidityPct) && isLight(r.light) && isPir(r.pir)
     && Array.isArray(r.series) && r.series.every((p) => !!p && isDate(p.at) && isNumOrNull(p.ppm) && isOptNum(p.light) && isOptBool(p.occupied))
     && (r.forecast === undefined || (Array.isArray(r.forecast) && r.forecast.every((f) => !!f && isDate(f.at) && isNum(f.ppm))))
-    && isCurrent(r.current) && isNext(r.next) && isDoor(r.door))
+    && isCurrent(r.current) && isNext(r.next) && isDoor(r.door) && isLightLeftOn(r.lightLeftOn))
 }
 
 /** 빌드할 때 정한 값. develop 이미지(개발 서버)만 'api'로 빌드한다(deploy.yml) */
