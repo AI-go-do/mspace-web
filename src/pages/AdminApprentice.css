@@ -1,83 +1,10 @@
 /*
- * AI 수습사원: "할 일"의 AI 제안 카드 + 수습사원 칸(레벨 단계·인사 기록 카드·아침 보고).
- * 색은 tokens.css 4+2색만 (레벨1 회색 · 레벨2 하늘 · 레벨3 파랑 · 사람만 남색)
+ * AI 수습사원: AI 성적표(실제로 잰 정확도) + AI가 처리한 일(보기만, 경고 철회만).
+ * 색은 tokens.css 4+2색만
  */
-.ap-notice { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; font-weight: 700; color: var(--blue); background: color-mix(in srgb, var(--sky) 22%, var(--white)); animation: rise-in 0.3s var(--ease-out) backwards; }
-.ap-notice:empty { display: none; }
 .ap-tag { padding: 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 800; background: var(--gray); color: var(--navy); white-space: nowrap; }
-.ap-lv { padding: 2px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
-.ap-lv.l1 { background: var(--gray); color: var(--navy-70); }
-.ap-lv.l2 { background: color-mix(in srgb, var(--sky) 35%, var(--white)); color: var(--blue); }
-.ap-lv.l3 { background: var(--blue); color: var(--white); }
-.ap-lv.lx { background: var(--navy); color: var(--white); }
-
-/* ---------- AI 제안 카드 ---------- */
-.ap-item { position: relative; overflow: hidden; padding: 16px 18px; border-radius: 22px; display: flex; flex-direction: column; gap: 10px; }
-.ap-item h3 { margin: 0; font-size: 16px; }
-.ap-plan {
-  position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; overflow: hidden;
-  background: color-mix(in srgb, var(--sky) 16%, var(--white)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sky) 45%, transparent);
-}
-/* 처리안 칸 위를 한 번 지나가는 빛 (AI가 막 써 놓은 느낌) */
-.ap-plan::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
-  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.7) 50%, transparent 65%);
-  animation: shine 1.1s var(--ease-out) 0.5s;
-}
-.ap-plan b { font-size: 12px; color: var(--blue); }
-.ap-plan p { margin: 2px 0 0; font-size: 14px; line-height: 1.5; }
-.ap-spark {
-  flex: none; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
-  background: var(--grad-blue); color: var(--white); font-size: 14px; animation: pop 0.5s 0.2s var(--ease-spring) backwards;
-}
-.ap-why { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; color: var(--navy-70); }
-.ap-lock { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--navy); }
-.ap-lock::before { content: '🔒 '; }
-.ap-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.ap-acts .adm-btn { flex: 1 1 140px; }
-.ap-acts.ask { padding: 10px 12px; border-radius: 14px; background: var(--gray); animation: rise-in 0.26s var(--ease-out) backwards; }
-.ap-acts.ask .adm-small { width: 100%; font-weight: 800; color: var(--navy); }
-.ap-acts.ask .adm-mini { animation: pop 0.3s var(--ease-spring) backwards; }
-.ap-acts.ask .adm-mini:nth-child(3) { animation-delay: 40ms; }
-.ap-acts.ask .adm-mini:nth-child(4) { animation-delay: 80ms; }
-.ap-acts.ask .adm-mini:nth-child(5) { animation-delay: 120ms; }
-.ap-acts.ask .adm-link { margin-left: auto; min-height: 36px; }
-/* 결정하면 가운데에 큰 표시가 튀어 오르고 카드가 빠져나간다 */
-.ap-done-mark {
-  position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 34px; font-weight: 900; color: var(--white); background: var(--grad-blue); box-shadow: var(--shadow-blue);
-  animation: pop 0.36s var(--ease-spring) backwards;
-}
-.ap-done-mark.no { background: var(--navy); }
-.ap-item.leaving > :not(.ap-done-mark) { opacity: 0.25; transition: opacity 0.2s; }
-
 /* ---------- 수습사원 칸 ---------- */
 .ap-wrap { display: flex; flex-direction: column; gap: 18px; }
-/* 레벨 1 → 2 → 3 계단. 칸 사이 선이 왼쪽부터 차오른다 */
-.ap-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; position: relative; }
-.ap-step {
-  position: relative; padding: 16px 18px; border-radius: 22px; background: var(--white); box-shadow: var(--shadow-1);
-  display: flex; gap: 12px; align-items: flex-start; font-size: 13px;
-  animation: rise-in 0.42s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 90ms);
-}
-.ap-step b { display: block; font-size: 15px; }
-.ap-step span:not(.ap-step-no) { display: block; margin-top: 2px; color: var(--navy-70); line-height: 1.5; }
-.ap-step-no {
-  flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 17px; font-weight: 900;
-  animation: pop 0.5s var(--ease-spring) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.2s);
-}
-.ap-step.l1 .ap-step-no { background: var(--gray); color: var(--navy); }
-.ap-step.l2 .ap-step-no { background: color-mix(in srgb, var(--sky) 40%, var(--white)); color: var(--blue); }
-.ap-step.l3 .ap-step-no { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
-.ap-step:not(:last-child)::after {
-  content: ''; position: absolute; right: -12px; top: 50%; width: 12px; height: 3px; background: var(--blue); border-radius: 2px;
-  transform-origin: left; animation: grow-x 0.4s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 90ms + 0.4s);
-}
-@media (max-width: 640px) {
-  .ap-steps { grid-template-columns: 1fr; gap: 8px; }
-  .ap-step:not(:last-child)::after { right: auto; left: 35px; top: auto; bottom: -8px; width: 3px; height: 8px; transform-origin: top; animation-name: grow-y; }
-}
-
 .ap-two { display: grid; gap: 20px; align-items: start; }
 @media (min-width: 1100px) { .ap-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .ap-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -88,38 +15,18 @@
   position: relative; overflow: hidden; padding: 16px 18px; border-radius: 22px; display: flex; flex-direction: column; gap: 10px;
   animation: rise-in 0.42s var(--ease-out) backwards; animation-delay: calc(var(--k, 0) * 70ms + 0.15s);
 }
-.ap-rec.locked { background: color-mix(in srgb, var(--navy) 5%, var(--white)); }
 .ap-rec-top { display: flex; align-items: center; gap: 12px; }
 .ap-lv-big {
   flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; font-weight: 900;
   transition: background-color 0.4s, color 0.4s;
 }
-.ap-lv-big.l1 { background: var(--gray); color: var(--navy); }
-.ap-lv-big.l2 { background: color-mix(in srgb, var(--sky) 40%, var(--white)); color: var(--blue); }
 .ap-lv-big.l3 { background: var(--grad-blue); color: var(--white); box-shadow: var(--shadow-blue); }
-.ap-lv-big.lx { background: var(--navy); color: var(--white); font-size: 18px; }
 .ap-rec-note { font-size: 12px; line-height: 1.45; color: var(--navy-70); }
 .ap-rec-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ap-rec-name b { font-size: 15px; }
 .ap-rate { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .ap-rate small { font-size: 11px; font-weight: 700; color: var(--navy-70); letter-spacing: 0; }
-.ap-dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-.ap-dots i { height: 8px; border-radius: 4px; background: var(--gray); }
-.ap-dots i.on {
-  background: linear-gradient(90deg, var(--blue-lift), var(--blue)); transform-origin: left;
-  animation: grow-x 0.3s var(--ease-out) backwards; animation-delay: calc(var(--d, 0) * 50ms + 0.4s);
-}
-/* 레벨이 오르면 하늘색 빛이, 내려가면 노란 빛이 카드를 훑는다 */
-.ap-rec.fx-up, .ap-rec.fx-down { animation: rec-flash 1.2s var(--ease-out); }
-.ap-rec.fx-up { --fx: var(--sky); }
-.ap-rec.fx-down { --fx: var(--yellow); }
-.ap-rec.fx-up .ap-lv-big, .ap-rec.fx-down .ap-lv-big { animation: pop 0.5s var(--ease-spring); }
-@keyframes rec-flash {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fx) 90%, transparent), var(--shadow-1); }
-  100% { box-shadow: 0 0 0 16px transparent, var(--shadow-1); }
-}
-
-/* 아침 보고 */
+/* AI가 처리한 일 */
 .ap-stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .ap-stat { padding: 12px 14px; border-radius: 18px; background: var(--white); box-shadow: var(--shadow-1); animation: rise-in 0.4s var(--ease-out) backwards; }
 .ap-stat:nth-child(2) { animation-delay: 70ms; }
@@ -133,14 +40,16 @@
 .ap-log-card > .adm-small { margin: 14px 0; }
 .ap-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ap-log li {
-  display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line);
   animation: rise-in 0.36s var(--ease-out) backwards; animation-delay: calc(min(var(--k, 0), 8) * 50ms + 0.2s);
 }
 .ap-log li:first-child { border-top: 0; }
-.ap-log li.undone .ap-log-text { opacity: 0.5; text-decoration: line-through; }
-.ap-time { flex: none; width: 46px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--navy-70); }
+.ap-time { flex: none; padding-top: 1px; width: 46px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--navy-70); }
 .ap-log-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; transition: opacity 0.3s; }
 
+.ap-warns { margin-top: 6px; }
+.ap-log .ap-warns li { padding: 8px 0; border-top: 1px solid var(--line); animation: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .ap-wrap *, .ap-wrap *::before, .ap-wrap *::after, .ap-item *, .ap-item::after { animation: none !important; transition: none !important; }
+  .ap-wrap *, .ap-wrap *::before, .ap-wrap *::after { animation: none !important; transition: none !important; }
 }

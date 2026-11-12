@@ -3,33 +3,23 @@ import { currentMemberId } from '../api/client'
 import { onReportsChanged } from '../lib/reportsBus'
 import { useMemberId } from '../lib/useMemberId'
 import { getReports } from '../api/admin'
-import { useApprentice } from '../api/apprentice'
-import type { Proposal } from '../lib/apprentice'
-import { InboxItem, Notice } from './AdminApprentice'
 import { ReportList } from './AdminReports'
 import { RestProposals } from './AdminRest'
 import { POLL_MS } from '../lib/poll'
 import { demoOn } from '../lib/demo'
 
-/**
- * "할 일": 사람이 정해야 하는 일을 한곳에. 신고 판정(core, 실제 API)과 AI 처리안(가짜 단계)을 같이 보여 준다.
- * AI의 신고 판정 처리안은 실제 신고 카드와 겹쳐서 여기에는 올리지 않는다(신고 판정은 AI가 혼자 정함, 레벨 3)
- */
-export const inTodo = (p: Proposal) => p.kind !== 'report'
-
 /** reportsKnown: 신고 수를 확인했나(불러오는 중·실패면 false). reportsFailed: 마지막 요청이 실패했나 */
 export type TodoCounts = {
-  reports: number; reportsKnown: boolean; reportsFailed: boolean; ai: number; total: number
+  reports: number; reportsKnown: boolean; reportsFailed: boolean; total: number
   /** 방마다 판정 기다리는 신고 수 ("지금" 화면 방 표시용). 확인 못 했으면 빈 칸 */
   byRoom: Record<number, number>
 }
 
 /**
- * 메뉴 숫자: 판정 기다리는 신고 + AI 처리안. 신고 수를 한 번도 못 받았거나 마지막 갱신이 실패하면
+ * 메뉴 숫자: 판정 기다리는 신고. 신고 수를 한 번도 못 받았거나 마지막 갱신이 실패하면
  * reportsKnown=false (0건과 "모름"을 구분해 "사람이 볼 일이 없어요"라고 잘못 말하지 않게). 다음 차례에 다시 센다
  */
 export function useTodoCounts(): TodoCounts {
-  const ai = useApprentice().state.inbox.filter(inTodo).length
   const member = useMemberId()
   // 누구의 숫자인지 같이 들고, 로그인한 회원이 바뀌면 앞 사람 숫자는 버린다(모름으로 돌아감)
   const [res, setRes] = useState<{ member: number | null; n: number | null; failed: boolean; byRoom: Record<number, number> }>(
@@ -64,9 +54,9 @@ export function useTodoCounts(): TodoCounts {
   const reports = mineNow ? res.n : null
   const failed = mineNow && res.failed
   const known = reports !== null && !failed
-  // 확인하지 못한 신고 수는 합계에 넣지 않는다(옛 숫자를 확인된 것처럼 보이지 않게). 합계는 그때 "AI 제안 수 이상"
+  // 확인하지 못한 신고 수는 합계에 넣지 않는다(옛 숫자를 확인된 것처럼 보이지 않게)
   const shown = known ? reports : 0
-  return { reports: shown, reportsKnown: known, reportsFailed: failed, ai, total: shown + ai, byRoom: known ? res.byRoom : {} }
+  return { reports: shown, reportsKnown: known, reportsFailed: failed, total: shown, byRoom: known ? res.byRoom : {} }
 }
 
 /**
@@ -110,26 +100,17 @@ function JudgeLog() {
 
 /** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게) */
 export function AdminTodo({ counts, onForceCheckout, onOpenRooms }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
-  const { state } = useApprentice()
-  const ai = state.inbox.filter(inTodo)
   return (
     <section className="todo" aria-label="오디 판단 기록">
       <JudgeLog />
       {demoOn() && <p className="adm-foot">시연 값이에요. 확신도가 기준보다 낮으면 경고하지 않거나 철회해요(Q-24 제안). 기준 숫자는 팀 규칙 전 임시 값이에요.</p>}
       <details className="jl-manual">
-        <summary>비상시 직접 판정 · 판정 기다리는 신고 {counts.reportsKnown ? counts.reports : '?'}건 · AI 제안 {counts.ai}건</summary>
+        <summary>비상시 직접 판정 · 판정 기다리는 신고 {counts.reportsKnown ? counts.reports : '?'}건</summary>
         <p className="adm-foot">core에 AI 판정이 붙기 전까지 쓰는 임시 칸이에요. 붙으면 없앨 거예요.</p>
         <RestProposals onOpenRooms={onOpenRooms} />
         <section className="todo-col" aria-labelledby="todo-rep-h">
           <h2 id="todo-rep-h" className="todo-h">신고 판정</h2>
           <ReportList onForceCheckout={onForceCheckout} />
-        </section>
-        <section className="todo-col" aria-labelledby="todo-ai-h">
-          <h2 id="todo-ai-h" className="todo-h">AI 제안</h2>
-          <Notice />
-          {ai.length === 0
-            ? <p className="adm-foot">AI 제안이 없어요.</p>
-            : <ul className="todo-list">{ai.map((p, i) => <InboxItem key={p.id} p={p} i={i} t={state.trainees.find((t) => t.kind === p.kind)!} />)}</ul>}
         </section>
       </details>
     </section>

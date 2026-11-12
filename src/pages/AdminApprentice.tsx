@@ -1,89 +1,42 @@
-import { useState, type CSSProperties } from 'react'
-import { decideProposal, resetApprentice, undoAutoDone, useApprentice } from '../api/apprentice'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { adminErrorMessage, getPenalties, getReports } from '../api/admin'
+import { currentMemberId } from '../api/client'
+import { CATEGORIES, VERDICT_LABEL } from '../api/reports'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { STREAK_TO_LEVEL_UP, traineeNote, WRONG_REASONS, type Proposal, type Trainee } from '../lib/apprentice'
-import { seoulClock } from '../lib/time'
+import { AI_SCORES, aiRecords, rateOf, recordTotals, type AiRecord, type AiScore } from '../lib/apprentice'
+import { POLL_MS } from '../lib/poll'
+import { onReportsChanged } from '../lib/reportsBus'
+import { seoulClock, seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
+import { WarningRow } from './AdminInsights'
+import { Skeleton } from './AdminReports'
 import './AdminApprentice.css'
 
 const roomName = (id: number) => ADMIN_ROOMS.find((r) => r.roomId === id)?.name ?? `방 ${id}`
-const hm = (iso: string) => seoulClock(new Date(iso))
-/** 카드가 빠져나가는 시간 (CSS .leaving과 같게) */
-const LEAVE_MS = 420
-
-export function Notice() {
-  const { notice } = useApprentice()
-  return <p key={notice?.text ?? ''} className="ap-notice" role="status" aria-live="polite">{notice?.text ?? ''}</p>
+const categoryName = (c: string) => CATEGORIES.find((x) => x.value === c)?.label ?? c
+/** 오늘이면 시각만, 아니면 월/일 시각 */
+function when(iso: string) {
+  const d = new Date(iso)
+  const day = seoulDate(d)
+  return day === seoulDate() ? seoulClock(d) : `${day.slice(5).replace('-', '/')} ${seoulClock(d)}`
 }
+/** 경고를 철회할 수 있는 기간(경고 목록 API 범위) */
+const DAYS = 30
 
-/** AI 처리안 한 건. [맞아요]면 파랑 체크, [아니에요]면 이유를 고르고 카드가 접히며 빠진다 */
-export function InboxItem({ p, t, i = 0 }: { p: Proposal; t: Trainee; i?: number }) {
-  const [asking, setAsking] = useState(false)
-  const [leaving, setLeaving] = useState<'ok' | 'no' | null>(null)
-  const decide = (ok: boolean, reason?: string) => {
-    if (leaving) return
-    setLeaving(ok ? 'ok' : 'no')
-    setTimeout(() => decideProposal(p.id, ok, reason), LEAVE_MS)
-  }
+/** 일 하나의 성적 카드: 실제로 잰 정확도 */
+function ScoreCard({ s, i }: { s: AiScore; i: number }) {
+  const rate = rateOf(s)
   return (
-    <li className={`card ap-item ${leaving ? `leaving ${leaving}` : ''}`} style={{ '--k': i } as CSSProperties}>
-      <div className="adm-meta">
-        <span className="ap-tag">{t.name}</span>
-        <span>{roomName(p.roomId)} · {hm(p.createdAt)}</span>
-        <span className={`ap-lv l${t.locked ? 'x' : t.level}`}>{t.locked ? '사람만' : `레벨 ${t.level}`}</span>
-      </div>
-      <h3>{p.title}</h3>
-      <div className="ap-plan">
-        <span className="ap-spark" aria-hidden="true">✦</span>
-        <div><b>AI 처리안</b><p>{p.plan}</p></div>
-      </div>
-      <ul className="ap-why">{p.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-      {t.locked && <p className="ap-lock">늘 사람이 정하는 일이라 점수와 상관없이 레벨 1이에요</p>}
-      {!asking ? (
-        <div className="ap-acts">
-          <button type="button" className="adm-btn" onClick={() => decide(true)}>맞아요, 이대로</button>
-          <button type="button" className="adm-btn line" onClick={() => setAsking(true)}>아니에요</button>
-        </div>
-      ) : (
-        <div className="ap-acts ask" role="group" aria-label="어디가 틀렸나요?">
-          <span className="adm-small">어디가 틀렸나요?</span>
-          {WRONG_REASONS.map((r) => (
-            <button key={r} type="button" className="adm-mini" onClick={() => decide(false, r)}>{r}</button>
-          ))}
-          <button type="button" className="adm-link" onClick={() => setAsking(false)}>취소</button>
-        </div>
-      )}
-      {leaving && <span className={`ap-done-mark ${leaving}`} aria-hidden="true">{leaving === 'ok' ? '✓' : '↺'}</span>}
-    </li>
-  )
-}
-
-const LEVELS = [
-  { level: 1, title: '제안만 해요', text: '사람이 [맞아요]를 눌러야 실행' },
-  { level: 2, title: '먼저 하고 보고해요', text: '실행한 뒤 아침 보고에 남기고 언제든 되돌리기' },
-  { level: 3, title: '혼자 해요', text: '기록은 남고 되돌릴 수 있어요' },
-]
-
-/** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워지고, 레벨이 바뀌면 카드가 반짝인다 */
-function TraineeCard({ t, flash, i }: { t: Trainee; flash: 'up' | 'down' | null; i: number }) {
-  const filled = t.locked ? 0 : t.level >= t.maxLevel ? STREAK_TO_LEVEL_UP : t.streak
-  // 소수 한 자리(98.9%·98.2%처럼 측정 점수를 그대로)
-  const rate = t.total ? Math.round((t.right / t.total) * 1000) / 10 : null
-  return (
-    <li className={`card ap-rec ${flash ? `fx-${flash}` : ''} ${t.locked ? 'locked' : ''}`} style={{ '--k': i } as CSSProperties}>
+    <li className="card ap-rec" style={{ '--k': i } as CSSProperties}>
       <div className="ap-rec-top">
-        <span className={`ap-lv-big l${t.locked ? 'x' : t.level}`} aria-hidden="true">{t.locked ? '🔒' : t.level}</span>
+        <span className="ap-lv-big l3" aria-hidden="true">✦</span>
         <div className="ap-rec-name">
-          <b>{t.name}</b>
-          <span className="adm-small">{t.locked ? '사람만 정해요' : `레벨 ${t.level} · 최고 ${t.maxLevel}`}</span>
+          <b>{s.name}</b>
+          <span className="adm-small">AI가 혼자 처리해요</span>
         </div>
-        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {t.right}/{t.total}</small></span>
+        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {s.right}/{s.total}</small></span>
       </div>
-      <div className="ap-dots" role="img" aria-label={`연속 ${filled}/${STREAK_TO_LEVEL_UP}`}>
-        {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, k) => <i key={k} className={k < filled ? 'on' : ''} style={{ '--d': k } as CSSProperties} />)}
-      </div>
-      <small className="adm-small">{traineeNote(t)}</small>
-      {t.note && <small className="ap-rec-note">{t.note}</small>}
+      <small className="ap-rec-note">{s.note}</small>
     </li>
   )
 }
@@ -93,69 +46,103 @@ function Stat({ label, value }: { label: string; value: number }) {
   return <div className="ap-stat"><dt>{label}</dt><dd><span aria-hidden="true">{shown}<small>건</small></span><span className="sr-only">{value}건</span></dd></div>
 }
 
+/** 처리 기록 한 줄. 경고가 간 신고는 아래에 경고 줄이 붙고, 관리자는 거기서 [철회]만 할 수 있다 */
+function RecordRow({ r, i, onChanged }: { r: AiRecord; i: number; onChanged: () => void }) {
+  const { report } = r
+  return (
+    <li style={{ '--k': i } as CSSProperties}>
+      <span className="ap-time">{when(report.judgedAt ?? report.createdAt)}</span>
+      <div className="ap-log-text">
+        <b>{categoryName(report.category)} 신고 #{report.id} → {VERDICT_LABEL[report.verdict]}</b>
+        <span className="ap-log-room">
+          {roomName(report.roomId)}{report.reporterReservationId === null ? ' · 방 카메라 신고' : ''}
+          {r.warnings.length === 0 ? ' · 경고 없음' : ''}
+        </span>
+        {r.warnings.length > 0 && (
+          <ul className="pen-list ap-warns">
+            {r.warnings.map((w) => <WarningRow key={w.id} w={w} onChanged={onChanged} />)}
+          </ul>
+        )}
+      </div>
+    </li>
+  )
+}
+
 /**
- * "AI 수습사원": 레벨 설명, 일 종류별 인사 기록 카드, AI가 먼저 처리한 일(아침 보고)과 [되돌리기].
- * 신고 판정·경고 철회 판단도 레벨 3(11/12 지영). 잘못된 경고는 관리자 경고 철회로 되돌린다
+ * "AI 수습사원" (11/12 지영: 무인 운영). AI가 처리하고 관리자는 결과만 본다.
+ * 위: 실제로 잰 정확도. 아래: core에 쌓인 신고 판정 기록(최근 30일)과 그 판정으로 간 경고. 관리자가 할 수 있는 건 경고 철회뿐
  */
 export function AdminApprentice() {
-  const { state, notice } = useApprentice()
-  const flashFor = (t: Trainee) => (notice?.kind === t.kind && (notice.result === 'up' || notice.result === 'down') ? notice.result : null)
+  const [records, setRecords] = useState<AiRecord[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    const member = currentMemberId()
+    if (member === null) return
+    const ctrl = new AbortController()
+    let stale = false
+    // 목록을 비우지 않고 다시 받는다(철회한 줄의 "철회됨"이 그대로 남게)
+    Promise.all([getReports(null, ctrl.signal, member), getPenalties(DAYS, ctrl.signal, member)])
+      .then(([reports, p]) => {
+        if (stale) return
+        // 경고 목록이 최근 DAYS일만 오니 신고도 같은 기간만(그 전 신고를 "경고 없음"으로 잘못 보이지 않게)
+        const since = Date.now() - DAYS * 86_400_000
+        setRecords(aiRecords(reports.filter((r) => Date.parse(r.createdAt) >= since), p.warnings))
+        setError(null)
+      })
+      .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
+    return () => { stale = true; ctrl.abort() }
+  }, [reload])
+
+  // 열어 둔 동안 1분마다, 신고 판정이 바뀌면 바로 다시 받는다
+  useEffect(() => {
+    const again = () => setReload((x) => x + 1)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') again() }, POLL_MS)
+    const stop = onReportsChanged(again)
+    return () => { clearInterval(t); stop() }
+  }, [])
+
+  const totals = records ? recordTotals(records) : null
   return (
     <section className="ap-wrap" aria-label="AI 수습사원">
-      <ol className="ap-steps">
-        {LEVELS.map((l, i) => (
-          <li key={l.level} className={`ap-step l${l.level}`} style={{ '--k': i } as CSSProperties}>
-            <span className="ap-step-no">{l.level}</span>
-            <div><b>{l.title}</b><span>{l.text}</span></div>
-          </li>
-        ))}
-      </ol>
-      <Notice />
       <div className="ap-two">
         <section className="ap-sec" aria-labelledby="ap-rec-h">
           <div className="adm-sec-h">
-            <h2 id="ap-rec-h">인사 기록 카드</h2>
-            <p>{STREAK_TO_LEVEL_UP}번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려가요.</p>
+            <h2 id="ap-rec-h">AI 성적표</h2>
+            <p>처음 보는 사례로 잰 정확도예요. 이 점수로 사람 결재 없이 AI가 혼자 처리해요.</p>
           </div>
-          <ul className="ap-recs">{state.trainees.map((t, i) => <TraineeCard key={t.kind} t={t} i={i} flash={flashFor(t)} />)}</ul>
+          <ul className="ap-recs">{AI_SCORES.map((s, i) => <ScoreCard key={s.kind} s={s} i={i} />)}</ul>
         </section>
         <section className="ap-sec" aria-labelledby="ap-log-h">
           <div className="adm-sec-h">
-            <h2 id="ap-log-h">AI가 먼저 처리한 일 <span className="ap-tag">아침 보고</span></h2>
-            <p>잘못됐으면 되돌리세요. 그 종류는 다시 먼저 물어봐요.</p>
+            <h2 id="ap-log-h">AI가 처리한 일 <span className="ap-tag">최근 {DAYS}일</span></h2>
+            <p>보기만 하는 기록이에요. 잘못 간 경고만 [철회]로 되돌릴 수 있어요.</p>
           </div>
-          <dl className="ap-stats">
-            <Stat label="AI가 먼저 처리" value={state.done.length} />
-            <Stat label="사람이 본 일" value={state.stats.human} />
-            <Stat label="되돌림" value={state.stats.undone} />
-          </dl>
-          <div className="card ap-log-card">
-            {state.done.length === 0 ? <p className="adm-small">아직 AI가 먼저 처리한 일이 없어요.</p> : (
-              <ul className="ap-log">
-                {state.done.map((d, i) => {
-                  const t = state.trainees.find((x) => x.kind === d.kind)!
-                  return (
-                    <li key={d.id} className={d.undone ? 'undone' : ''} style={{ '--k': i } as CSSProperties}>
-                      <span className="ap-time">{hm(d.doneAt)}</span>
-                      <div className="ap-log-text">
-                        <b>{d.plan}</b>
-                        <span className="ap-log-room">{roomName(d.roomId)}</span>
-                        <span className="adm-small">{roomName(d.roomId)} · {t.name} · 레벨 {d.level}에서 처리</span>
-                      </div>
-                      {d.undone ? <span className="ap-tag">되돌림</span>
-                        : <button type="button" className="adm-mini" onClick={() => undoAutoDone(d.id)}>되돌리기</button>}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
+          {totals && (
+            <dl className="ap-stats">
+              <Stat label="판정한 신고" value={totals.judged} />
+              <Stat label="경고가 간 신고" value={totals.warned} />
+              <Stat label="철회한 경고" value={totals.withdrawn} />
+            </dl>
+          )}
+          {error && (
+            <p role="alert" className="adm-msg err">
+              {error} <button type="button" className="adm-chip" onClick={() => setReload((x) => x + 1)}>다시 받기</button>
+            </p>
+          )}
+          {!records && !error && <Skeleton />}
+          {records && (
+            <div className="card ap-log-card">
+              {records.length === 0 ? <p className="adm-small">아직 AI가 판정한 신고가 없어요.</p> : (
+                <ul className="ap-log">
+                  {records.map((r, i) => <RecordRow key={r.report.id} r={r} i={i} onChanged={() => setReload((x) => x + 1)} />)}
+                </ul>
+              )}
+            </div>
+          )}
         </section>
       </div>
-      <p className="adm-foot">
-        시연 기록{' '}
-        <button type="button" className="adm-link" onClick={resetApprentice}>초기화</button>
-      </p>
     </section>
   )
 }
