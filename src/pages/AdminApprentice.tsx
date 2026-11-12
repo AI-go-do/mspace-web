@@ -108,6 +108,8 @@ export function AdminApprentice() {
   const [shown, setShown] = useState(PAGE)
   /** 오늘 자동 처리. core #136 전(404)이면 null로 두고 칸을 숨긴다 */
   const [ops, setOps] = useState<OpsAction[] | null>(null)
+  /** 자동 처리 목록만 못 받았을 때(404 말고). 신고 쪽 error와 따로 둔다 */
+  const [opsError, setOpsError] = useState<string | null>(null)
 
   useEffect(() => {
     const member = currentMemberId()
@@ -125,8 +127,12 @@ export function AdminApprentice() {
       })
       .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
     getOpsActions(null, ctrl.signal, member)
-      .then((l) => { if (!stale) setOps(l) })
-      .catch((e) => { if (!stale && e instanceof ApiError && e.status === 404) setOps(null) })
+      .then((l) => { if (!stale) { setOps(l); setOpsError(null) } })
+      .catch((e) => {
+        if (stale) return
+        if (e instanceof ApiError && e.status === 404) { setOps(null); setOpsError(null); return }
+        setOpsError(adminErrorMessage(e))
+      })
     return () => { stale = true; ctrl.abort() }
   }, [reload])
 
@@ -162,6 +168,12 @@ export function AdminApprentice() {
             <h2 id="ap-log-h">AI가 처리한 일 <span className="ap-tag">최근 {DAYS}일</span></h2>
             <p>보기만 하는 기록이에요. 잘못 간 경고만 [철회]로 되돌릴 수 있어요.</p>
           </div>
+          {opsError && (
+            <p role="alert" className="adm-msg err">
+              오늘 자동 처리 기록을 못 받았어요{ops ? '(아래는 지난번에 받은 기록이에요)' : ''}. {opsError}{' '}
+              <button type="button" className="adm-chip" onClick={() => setReload((x) => x + 1)}>다시 받기</button>
+            </p>
+          )}
           {ops && (
             <div className="card ap-log-card">
               <h3 className="ap-sub-h">오늘 센서 보고 처리한 일 <span className="ap-tag">{ops.length}건</span></h3>

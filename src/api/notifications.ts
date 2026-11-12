@@ -88,7 +88,8 @@ export function notificationAction(n: AppNotification): { to: string; label: str
   // 경고를 받았다: 횟수·근거·철회 요청은 마이 맨 아래 '내 경고'에 있다(11/10 재웅: 이용 규칙에서 뺌)
   if (n.kind === 'WARNING') return { to: '/me/warnings', label: '내 경고 보기' }
   // 숨 막히기: 홈 맨 위 "내 방 공기" 카드(공기청정기·에어컨 버튼)로
-  if (n.kind === CO2_ALERT_KIND) return { to: '/', label: '내 방 공기 보기' }
+  // 미리 환기(VENT_SOON)·방이 더움(ROOM_HOT)도 같은 카드에서 환기·에어컨을 켠다 (core #136)
+  if (n.kind === CO2_ALERT_KIND || n.kind === 'VENT_SOON' || n.kind === 'ROOM_HOT') return { to: '/', label: '내 방 공기 보기' }
   // 빈방 릴레이: 홈 맨 위 릴레이 카드에 남은 받을 시간과 [받을게요]·[넘길게요]가 있다
   if (n.kind === 'RELAY_OFFER') return { to: '/', label: '받으러 가기' }
   // 빈방 알림: 지켜보던 방이 비었으니 지금 바로 쓰기로(알림에는 방 번호 칸이 없어 방은 그 화면에서 고른다)
@@ -99,6 +100,8 @@ export function notificationAction(n: AppNotification): { to: string; label: str
     case 'NO_SHOW_SOON':
       return { to: `/reservations/${n.reservationId}`, label: '입실 QR 보기' }
     case 'AWAY_SOON':
+    // 시간 넘김(core #136): 바로 퇴실하게
+    case 'OVERTIME':
       return { to: `/me/${n.reservationId}/checkout`, label: '퇴실할게요' }
     // 끝나기 10분 전: 연장 버튼은 사용 중 카드(마이 탭 맨 위)에 있다.
     // 어느 예약의 알림인지 같이 넘겨, 지난 알림으로 다른 예약을 연장하지 않게 마이가 맞춰 본다
