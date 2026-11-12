@@ -11,7 +11,8 @@ const MIN_SPAN: Record<ChartMetric, number> = { co2: 160, temp: 1.6, hum: 8, lig
 export function rangeOf(m: ChartMetric, values: number[], limit: number): [number, number] {
   if (m === 'light') return [0, 100]
   const span = MIN_SPAN[m]
-  let lo = Math.min(...values)
+  const min = Math.min(...values)
+  let lo = min
   let hi = Math.max(...values)
   const pad = Math.max((hi - lo) * 0.15, span * 0.1)
   lo -= pad
@@ -25,6 +26,8 @@ export function rangeOf(m: ChartMetric, values: number[], limit: number): [numbe
   const h = hi - lo
   if (m === 'hum') { if (lo - limit < h * 0.5) lo = Math.min(lo, limit - h * 0.08) }
   else if (limit - hi < h * 0.5) hi = Math.max(hi, limit + h * 0.08)
-  if (m === 'co2' && lo < 380) { hi += 380 - lo; lo = 380 }
+  // CO2 바깥 공기(약 400) 아래 빈 칸은 잘라 내되, 그보다 낮은 값이 오면 그 값은 보이게 둔다
+  const floor = Math.min(380, min - pad)
+  if (m === 'co2' && lo < floor) { hi += floor - lo; lo = floor }
   return [lo, hi]
 }

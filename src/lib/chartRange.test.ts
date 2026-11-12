@@ -22,4 +22,9 @@ describe('방 칸 작은 그래프 범위', () => {
   it('조도는 늘 0~100', () => {
     expect(rangeOf('light', [10, 90], 50)).toEqual([0, 100])
   })
+  it('CO2가 380 아래로 와도 그 값은 그래프 안에 남는다', () => {
+    const [lo, hi] = rangeOf('co2', [350, 360, 370], 1000)
+    expect(lo).toBeLessThan(350)
+    expect(hi).toBeGreaterThan(370)
+  })
 })
