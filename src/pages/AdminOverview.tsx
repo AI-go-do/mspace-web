@@ -201,7 +201,7 @@ function MultiChart({ views, metric, focus, onFocus, ticks, compact = false }: {
           ))}
           {limitIn && <line x1={PAD.l} x2={PAD.l + iw} y1={limitY} y2={limitY} className="ov-limit" />}
           {limitIn && <text x={PAD.l + 6} y={limitY - 6} className="ov-limit-t">{metric === 'co2' ? `환기 기준 ${limit}` : metric === 'temp' ? `참고 ${limit}°C` : metric === 'hum' ? `참고 ${limit}%` : `불 켜짐 ${limit}%`}</text>}
-          {!limitIn && <text x={PAD.l + 6} y={above ? PAD.t + 14 : PAD.t + ih - 6} className="ov-limit-t ov-limit-off">{`${above ? '↑' : '↓'} ${metric === 'co2' ? '환기 기준' : '참고'} ${fmt(limit, 0)}${m.unit === 'ppm' ? '' : m.unit}`}</text>}
+          {!limitIn && all.length > 0 && <text x={PAD.l + 6} y={above ? PAD.t + 14 : PAD.t + ih - 6} className="ov-limit-t ov-limit-off">{`${above ? '↑' : '↓'} ${metric === 'co2' ? '환기 기준' : '참고'} ${fmt(limit, 0)}${m.unit === 'ppm' ? '' : m.unit}`}</text>}
           {metric === 'co2' && <rect x={nowX} width={Math.max(0, PAD.l + iw - nowX)} y={PAD.t} height={ih} className="ov-ahead" />}
           <line x1={nowX} x2={nowX} y1={PAD.t} y2={PAD.t + ih} className="ov-now" />
           <text x={nowX} y={h - 9} className="ov-tick ov-now-t" textAnchor="middle">{seoulClock(new Date(now))}</text>
