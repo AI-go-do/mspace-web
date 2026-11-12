@@ -20,12 +20,15 @@ export function sparkPoints(times: string[], past: (number | null)[], ticks: Spa
   const live = ticks.filter((k) => k.t >= from && k.t <= now + 5_000 && pick(k, metric) !== null)
   if (live.length < 2) return null
   const cut = live[0].t
-  const out: SparkPt[] = []
+  const end = live[live.length - 1].t
+  const before: SparkPt[] = []
+  const after: SparkPt[] = []
+  // 초 값이 끊기면(스트림 끊김) 그 뒤 분 기록을 다시 이어 그린다
   past.forEach((v, i) => {
     const t = Date.parse(times[i] ?? '')
-    if (!Number.isFinite(t) || t < from - 60_000 || t >= cut) return
-    out.push({ t, v })
+    if (!Number.isFinite(t) || t < from - 60_000) return
+    if (t < cut) before.push({ t, v })
+    else if (t > end + 60_000) after.push({ t, v })
   })
-  for (const k of live) out.push({ t: k.t, v: pick(k, metric) })
-  return out
+  return [...before, ...live.map((k) => ({ t: k.t, v: pick(k, metric) })), ...after]
 }

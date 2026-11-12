@@ -16,6 +16,12 @@ describe('sparkPoints', () => {
     expect(pts.map((p) => p.v)).toEqual([500, 510, 520, 600, 605])
   })
 
+  it('초 값이 끊기면 그 뒤 분 기록을 다시 이어 그린다', () => {
+    const t6 = [0, 1, 2, 3, 4, 5].map((i) => new Date(T0 + i * 60_000).toISOString())
+    const pts = sparkPoints(t6, [500, 510, 520, 530, 540, 550], [tick(70, 600), tick(71, 605)], 'co2', T0 + 320_000)!
+    expect(pts.map((p) => p.v)).toEqual([500, 510, 600, 605, 530, 540, 550])
+  })
+
   it('지난 10분보다 오래된 초 값과 값이 없는 초는 뺀다', () => {
     const pts = sparkPoints([], [], [tick(0, 500), tick(700, null), tick(800, 510), tick(801, 512)], 'co2', T0 + 900_000)!
     expect(pts.map((p) => p.v)).toEqual([510, 512])
