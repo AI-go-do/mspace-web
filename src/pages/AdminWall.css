@@ -59,10 +59,9 @@
   .adm .admin-now .ctl-side h2 { font-size: 20px; }
 }
 
-/* 벽 화면: 칸 안 설명 글은 한 줄로(여러 방이 동시에 붐비면 두 줄 글 때문에 칸 줄이 길어져 스크롤이 생겼다, 11/12 가상 손님 방) */
+/* 벽 화면: 값 아래 설명 글·오디 판단 문장은 한 줄로(여러 방이 동시에 붐비면 두 줄 글 때문에 칸 줄이 길어져 스크롤이 생겼다, 11/12 가상 손님 방) */
 @media (min-width: 1800px) {
-  .adm .admin-now .ct-co2 em,
-  .adm .admin-now .ro-why { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .adm .admin-now .ct-co2 em { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .adm .admin-now .ro-now { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 /* 32인치 전체 화면(1440): 여러 방에서 오디가 동시에 판단 중이면 판단 칸이 커져 20px쯤 넘쳤다. 그래프·칸 사이만 조금 줄임 */
