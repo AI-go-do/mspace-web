@@ -4,7 +4,10 @@ import type { MyReservation } from '../api/reservations'
 /** 노쇼 정지 기준 (예약 규칙 v2: 30일 안에 2회면 14일 정지). core가 노쇼 API를 주면 그 값으로 바꾼다 */
 export const NO_SHOW_RULES = { windowDays: 30, limit: 2, suspendDays: 14 }
 
-/** core #128 노쇼 API가 없는(예전) core일 때 내 예약의 노쇼를 같은 모양으로. 무름 여부는 몰라 셈에 든다고 본다 */
+/**
+ * core #128 노쇼 API가 없는(예전) core일 때 내 예약의 노쇼를 같은 모양으로.
+ * 무름 여부를 몰라 counted는 true로 두지만 어림값이다. 화면은 approx로 따로 표시하고 정지 경고 색을 쓰지 않는다
+ */
 export function fromReservations(list: MyReservation[], now: Date, rules = NO_SHOW_RULES): MyNoShow[] {
   return myNoShows(list, now, rules).map((r) => ({
     reservationId: r.id, roomId: r.room.id, roomName: r.room.name, startAt: r.startAt, endAt: r.endAt,

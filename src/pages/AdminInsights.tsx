@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { ApiError, currentMemberId } from '../api/client'
 import { getLatestModelScore, type ModelScore } from '../api/modelScores'
 import {
@@ -6,6 +6,7 @@ import {
   SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhoto, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
+import { POLL_MS } from '../lib/poll'
 import { seoulDate } from '../lib/time'
 import { useCountUp } from '../lib/useCountUp'
 import { IconButton } from '../components/IconAction'
@@ -698,11 +699,21 @@ export function AdminDailyReport() {
   const [date, setDate] = useState(today)
   const [data, setData] = useState<DailyReport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const shownDate = useRef<string | null>(null)
+
+  // 오늘 요약은 core가 1시간마다 새로 쓰니 열어 둔 동안 10분마다 다시 받는다(받는 동안 지금 요약은 그대로 둠)
+  useEffect(() => {
+    if (date !== today) return
+    const id = setInterval(() => setReload((x) => x + 1), POLL_MS * 10)
+    return () => clearInterval(id)
+  }, [date, today])
 
   useEffect(() => {
     const memberId = currentMemberId()
     if (memberId === null) return
-    setData(null)
+    if (shownDate.current !== date) setData(null)
+    shownDate.current = date
     setError(null)
     const ctrl = new AbortController()
     let stale = false
@@ -713,7 +724,7 @@ export function AdminDailyReport() {
       .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
       .finally(() => clearTimeout(timer))
     return () => { stale = true; clearTimeout(timer); ctrl.abort() }
-  }, [date, today])
+  }, [date, today, reload])
 
   const yesterday = daysBefore(today, 1)
   const f = data?.facts
@@ -728,7 +739,11 @@ export function AdminDailyReport() {
           <input type="date" value={date} max={today} onChange={(e) => { if (e.target.value && e.target.value <= today) setDate(e.target.value) }} />
         </label>
       </div>
-      {error && <p role="alert" className="adm-msg err">{error}</p>}
+      {error && (
+        <p role="alert" className="adm-msg err">
+          {error} <button type="button" className="adm-chip" onClick={() => setReload((x) => x + 1)}>다시 받기</button>
+        </p>
+      )}
       {!data && !error && <Skeleton />}
       {data && f && (
         <>
