@@ -15,6 +15,13 @@ describe('모델 시험 점수', () => {
     expect(isModelScore({ ...ok, accuracy: 87 })).toBe(false)
     expect(isModelScore({ ...ok, measuredAt: 'x' })).toBe(false)
     expect(isModelScore({ ...ok, cases: 0 })).toBe(false)
+    expect(isModelScore({ ...ok, kind: undefined })).toBe(false)
+  })
+
+  it('다른 종류 모델 점수는 더 최근이어도 고르지 않는다', async () => {
+    const other = { ...ok, kind: 'PRESENCE', accuracy: 0.99, measuredAt: '2026-11-12T14:00:00+09:00' }
+    vi.spyOn(client, 'api').mockResolvedValue({ items: [ok, other] })
+    expect((await getLatestModelScore('TIDY'))?.accuracy).toBe(0.87)
   })
 
   it('여러 개면 가장 최근에 잰 값을 고른다', async () => {

@@ -23,7 +23,8 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
 export function isModelScore(v: unknown): v is ModelScore {
   if (!v || typeof v !== 'object') return false
   const s = v as Record<string, unknown>
-  return typeof s.model === 'string' && s.model.length > 0
+  return typeof s.kind === 'string' && s.kind.length > 0
+    && typeof s.model === 'string' && s.model.length > 0
     && isNum(s.accuracy) && s.accuracy >= 0 && s.accuracy <= 1
     && isNum(s.cases) && s.cases > 0 && isNum(s.medianSeconds) && s.medianSeconds >= 0
     && typeof s.measuredAt === 'string' && Number.isFinite(Date.parse(s.measuredAt))
@@ -35,7 +36,7 @@ export function isModelScore(v: unknown): v is ModelScore {
  */
 export async function getLatestModelScore(kind: 'TIDY', signal?: AbortSignal, member?: number | null): Promise<ModelScore | null> {
   const r = await api<{ items?: unknown }>(`/api/admin/model-scores?kind=${kind}`, { signal, member })
-  const items = Array.isArray(r?.items) ? r.items.filter(isModelScore) : []
+  const items = Array.isArray(r?.items) ? r.items.filter((s): s is ModelScore => isModelScore(s) && s.kind === kind) : []
   if (!items.length) return null
   return items.reduce((a, b) => (Date.parse(b.measuredAt) > Date.parse(a.measuredAt) ? b : a))
 }
