@@ -59,7 +59,7 @@ export interface ClimateRoom {
   appliances: ClimateAppliance[]
   /** 지금 재실 상태가 시작된 시각(있음이면 입실 시각) */
   occupiedSince?: string | null
-  /** 시뮬레이션 방만 인원. 실제 방은 센서가 인원을 못 세서 null */
+  /** 예전 시뮬레이션 인원. climate #9부터 안 보냄(인원은 core 예약 인원) */
   people?: number | null
 }
 

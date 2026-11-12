@@ -104,6 +104,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
 }) {
   const [data, setData] = useState<RoomsEnvironment | null>(null)
   const [sample, setSample] = useState(envSource() === 'mock')
+  // "가상 센서" 표시를 누르면(키보드·터치 포함) 풀이를 한 줄 연다
+  const [simWhy, setSimWhy] = useState(false)
   // 조회한 횟수. 센서 끊김 칸의 '몇 번째 다시 확인'에 쓴다
   const [reads, setReads] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -261,7 +263,14 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
         {replay.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">{which(replay)}녹화 재생</span>}
-        {sim.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">{which(sim)}시뮬레이션</span>}
+        {sim.length > 0 && (
+          <button type="button" className="cl-derived cl-why" aria-expanded={simWhy} aria-controls="cl-sim-why" onClick={() => setSimWhy((v) => !v)}>
+            {which(sim)}가상 센서
+          </button>
+        )}
+        {sim.length > 0 && simWhy && (
+          <span id="cl-sim-why" className="cl-derived-why">실습실 센서가 멈춰서 실측 수준에 맞춘 값이에요. 사람 있음은 실제 예약·입실, 오디가 켠 기기가 값에 반영돼요</span>
+        )}
         {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
