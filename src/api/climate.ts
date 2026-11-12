@@ -59,8 +59,12 @@ export interface ClimateRoom {
   appliances: ClimateAppliance[]
   /** 지금 재실 상태가 시작된 시각(있음이면 입실 시각) */
   occupiedSince?: string | null
-  /** 예전 시뮬레이션 인원. climate #9부터 안 보냄(인원은 core 예약 인원) */
+  /** 시뮬레이션이 손님을 만드는 가상 방(2~5번). core 예약과 상관없이 인원·입실·퇴실을 climate가 준다 */
+  virtual?: boolean
+  /** 가상 방(시뮬레이션 손님) 인원. 실제 방은 null(인원은 core 예약 인원) */
   people?: number | null
+  /** 가상 방 손님이 나갈 시각. 실제 방은 null(퇴실은 core 예약 끝) */
+  occupiedUntil?: string | null
 }
 
 export interface SeriesPoint { at: string; value: number; lower: number | null; upper: number | null }

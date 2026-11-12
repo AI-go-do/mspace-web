@@ -94,6 +94,10 @@ export interface TileLive {
   occupied: boolean | null
   people: number | null
   since: string | null
+  /** 가상 방 손님이 나갈 시각(core 예약이 없을 때 퇴실 칸에) */
+  until?: string | null
+  /** 가상 방: 인원·입실·퇴실을 climate 손님으로만(core 예약은 안 봄) */
+  virtual?: boolean
   devices: ClimateAppliance[]
   /** 이 방의 오디 판단(열린 것 먼저, 없으면 가장 최근) */
   decision: Decision | null
@@ -109,11 +113,13 @@ function hm(iso: string): string {
 function NowLine({ view, live, alerts }: { view: RoomView; live: TileLive; alerts: number }) {
   // 재실을 모르면(센서 모름) 0명이 아니라 '?'
   const used: boolean | null = live.occupied ?? (view.presence === 'UNKNOWN' ? null : view.presence === 'OCCUPIED')
-  const people = live.people ?? view.current?.people ?? null
+  // 가상 방(시뮬레이션 손님)은 core 예약을 섞지 않는다(손님 0명인데 '예약 19:57'이 보이지 않게)
+  const current = live.virtual ? null : view.current
+  const people = live.people ?? current?.people ?? null
   // 실제로 들어온 시각이 먼저, 없으면 예약 시작(이름도 '예약'으로)
   const sinceAt = used ? live.since : null
-  const inAt = sinceAt ?? view.current?.startAt ?? null
-  const outAt = view.current?.endAt ?? null
+  const inAt = sinceAt ?? current?.startAt ?? null
+  const outAt = current?.endAt ?? (used ? live.until ?? null : null)
   const left = outAt ? Math.round((Date.parse(outAt) - live.now) / 60_000) : null
   return (
     <span className="ct-now">
