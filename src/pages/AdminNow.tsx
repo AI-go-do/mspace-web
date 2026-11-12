@@ -159,6 +159,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     [data, climateOn, climate.rooms, climate.series])
   // 실제 센서가 없어 실습실 값으로 만든 방(DERIVED)은 화면에 "추정"으로 밝힌다
   const derived = climateOn ? (climate.rooms ?? []).filter((r) => r.source === 'DERIVED').map((r) => r.roomId) : []
+  const replay = climateOn && (climate.rooms ?? []).some((r) => r.source === 'REPLAY')
 
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
@@ -240,6 +241,7 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
+        {replay && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">녹화 재생</span>}
         {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>

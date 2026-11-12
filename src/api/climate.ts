@@ -45,11 +45,11 @@ export interface ClimateAppliance {
   by: string | null
 }
 
-/** source: REAL(실제 센서) / DERIVED(실습실 실제 값으로 만든 시뮬레이션) */
+/** source: REAL(실제 센서) / DERIVED(실습실 값으로 만든 시뮬레이션) / REPLAY(센서가 멈췄을 때 실측 녹화 재생) */
 export interface ClimateRoom {
   roomId: number
   roomName: string
-  source: 'REAL' | 'DERIVED'
+  source: 'REAL' | 'DERIVED' | 'REPLAY'
   occupied: boolean | null
   auto: boolean
   offline: boolean
@@ -86,7 +86,7 @@ export interface Reading {
   co2: number | null
   temperatureC: number | null
   humidityPct: number | null
-  source: 'REAL' | 'DERIVED'
+  source: 'REAL' | 'DERIVED' | 'REPLAY'
 }
 
 export async function getClimateRooms(signal?: AbortSignal): Promise<ClimateRoom[]> {
