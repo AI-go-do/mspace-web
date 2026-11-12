@@ -30,6 +30,11 @@ describe('applyReading', () => {
     const out = applyReading([room(1)], {}, { roomId: 1, at: '2026-11-12T16:01:00+09:00', co2: 720, temperatureC: null, humidityPct: null, source: 'REAL' })
     expect(out.rooms[0].metrics.CO2?.status).toBe('OVER')
   })
+
+  it('밀려온 값의 출처(실제·시뮬레이션)로 방 출처를 바꾼다', () => {
+    const out = applyReading([room(2)], {}, { roomId: 2, at: '2026-11-12T16:01:00+09:00', co2: 640, temperatureC: null, humidityPct: null, source: 'SIM' })
+    expect(out.rooms[0].source).toBe('SIM')
+  })
 })
 
 describe('다시 읽은 값과 합치기', () => {
@@ -38,6 +43,20 @@ describe('다시 읽은 값과 합치기', () => {
     const old = { ...room(1), metrics: { CO2: metric(650, '2026-11-12T16:01:00+09:00') } }
     expect(mergeRooms([now], [old])[0].metrics.CO2?.value).toBe(812)
     expect(mergeRooms([old], [now])[0].metrics.CO2?.value).toBe(812)
+  })
+
+  it('밀려온 값이 더 새것이면 그 값의 판정(넘음)과 끊김 여부도 같이 둔다', () => {
+    const now = { ...room(1), offline: false, envAt: '2026-11-12T16:02:00+09:00', metrics: { CO2: { ...metric(812, '2026-11-12T16:02:00+09:00'), status: 'OVER' as const } } }
+    const old = { ...room(1), offline: true, envAt: '2026-11-12T16:01:00+09:00', metrics: { CO2: metric(650, '2026-11-12T16:01:00+09:00') } }
+    const out = mergeRooms([now], [old])[0]
+    expect(out.metrics.CO2?.status).toBe('OVER')
+    expect(out.offline).toBe(false)
+  })
+
+  it('다시 읽은 마지막 분과 같은 분에 더 늦게 밀려온 점은 그 점으로 갈아 끼운다', () => {
+    const prev = { 1: { CO2: { ...series('2026-11-12T16:01:40+09:00'), points: [{ at: '2026-11-12T16:01:40+09:00', value: 700, lower: 500, upper: 700 }] } } }
+    const out = mergeSeries(prev, { 1: { CO2: series('2026-11-12T16:01:05+09:00') } })
+    expect(out[1].CO2?.points.map((p) => p.value)).toEqual([700])
   })
 
   it('다시 읽은 그래프 끝보다 뒤에 밀려온 점은 남긴다', () => {

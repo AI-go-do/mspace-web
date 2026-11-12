@@ -53,7 +53,7 @@ export function applyReading(rooms: ClimateRoom[], series: SeriesMap, r: Reading
       if (v === null || !m) continue
       metrics[k] = { ...judge(m, v), value: v, at: r.at }
     }
-    return { ...room, metrics, envAt: r.at, offline: false }
+    return { ...room, metrics, envAt: r.at, offline: false, source: r.source }
   })
   const per = { ...(series[r.roomId] ?? {}) }
   const minute = Math.floor(Date.parse(r.at) / 60_000)
@@ -82,9 +82,11 @@ export function mergeRooms(prev: ClimateRoom[] | null, next: ClimateRoom[]): Cli
     for (const k of Object.keys(metrics) as MetricKey[]) {
       const pm = p.metrics[k]
       const nm = metrics[k]
-      if (pm && nm && newer(pm.at, nm.at)) metrics[k] = { ...nm, value: pm.value, at: pm.at }
+      // 밀려온 값이 더 새것이면 값과 그 값으로 낸 판정(넘음·남은 분)을 같이 둔다. 기준선은 다시 읽은 것
+      if (pm && nm && newer(pm.at, nm.at)) metrics[k] = { ...pm, baseline: nm.baseline }
     }
-    return { ...n, metrics, envAt: newer(p.envAt, n.envAt) ? p.envAt : n.envAt }
+    const fresher = newer(p.envAt, n.envAt)
+    return { ...n, metrics, envAt: fresher ? p.envAt : n.envAt, offline: fresher ? p.offline : n.offline, source: fresher ? p.source : n.source }
   })
 }
 
@@ -98,8 +100,14 @@ export function mergeSeries(prev: SeriesMap, next: SeriesMap): SeriesMap {
       const old = prev[id]?.[k]
       if (!s || !old) continue
       const end = s.points.length ? Date.parse(s.points[s.points.length - 1].at) : -Infinity
-      const tail = old.points.filter((p) => Date.parse(p.at) > end && Math.floor(Date.parse(p.at) / 60_000) > Math.floor(end / 60_000))
-      if (tail.length) per[k] = { ...s, points: [...s.points, ...tail] }
+      const endMin = Math.floor(end / 60_000)
+      const later = old.points.filter((p) => Date.parse(p.at) > end)
+      if (!later.length) continue
+      // 다시 읽은 마지막 분과 같은 분인데 더 늦게 밀려온 점은 그 분 점을 갈아 끼우고, 뒤 분 점은 이어 붙인다
+      const same = later.filter((p) => Math.floor(Date.parse(p.at) / 60_000) === endMin).pop()
+      const tail = later.filter((p) => Math.floor(Date.parse(p.at) / 60_000) > endMin)
+      const pts = same ? [...s.points.slice(0, -1), same] : s.points
+      per[k] = { ...s, points: [...pts, ...tail] }
     }
     out[id] = per
   }

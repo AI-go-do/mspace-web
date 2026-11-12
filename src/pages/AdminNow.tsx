@@ -160,8 +160,11 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
     [data, climateOn, climate.rooms, climate.series])
   // 실제 센서가 없어 실습실 값으로 만든 방(DERIVED)은 화면에 "추정"으로 밝힌다
   const derived = climateOn ? (climate.rooms ?? []).filter((r) => r.source === 'DERIVED').map((r) => r.roomId) : []
-  const replay = climateOn && (climate.rooms ?? []).some((r) => r.source === 'REPLAY')
-  const sim = climateOn && (climate.rooms ?? []).some((r) => r.source === 'SIM')
+  const roomsBy = (src: string) => (climateOn ? (climate.rooms ?? []).filter((r) => r.source === src).map((r) => r.roomId) : [])
+  const replay = roomsBy('REPLAY')
+  const sim = roomsBy('SIM')
+  // 방 전부면 낱말만, 일부면 방 번호도
+  const which = (ids: number[]) => (ids.length >= ADMIN_ROOMS.length ? '' : `${ids.join('·')}번 `)
 
   const { blocks } = useRoomBlocks()
   const views = useMemo(() => {
@@ -175,7 +178,13 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
   // 오늘 기준(계절·한파·폭염) + 방마다 AI가 배운 속도·목표 온도
   const { rules: climateRules } = useClimateRules()
   // 가짜(시연) 값으로는 실제 기기에 명령을 보내지 않아요. 가짜 기기일 때만 자동 제어를 보여 줘요
-  useClimateAuto(views, now, auto && !error && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
+  // 녹화·시뮬레이션 값인 방은 이 화면의 자동 제어에서 뺀다(지난 값·가짜 값으로 실제 기기를 움직이지 않게. 그 방 기기는 climate가 맡음)
+  const notLiveKey = [...replay, ...sim].join(',')
+  const autoViews = useMemo(() => {
+    const skip = new Set(notLiveKey.split(',').filter(Boolean).map(Number))
+    return views.filter((v) => !skip.has(v.roomId))
+  }, [views, notLiveKey])
+  useClimateAuto(autoViews, now, auto && !error && (!sample || APPLIANCE_SOURCE === 'mock'), currentMemberId(), climateRules)
   const opened = openRoom === null ? null : views.find((v) => v.roomId === openRoom) ?? null
   const blockedOf = (roomId: number) => {
     const b = now ? blockNow(roomId, blocks, now) : null
@@ -243,8 +252,8 @@ export function AdminNow({ todo, onOpenTodo, onForceCheckout, onBlockRoom }: {
         <span className="ctl-live"><i aria-hidden="true" />
           {readAt ? <b>{seoulClock(readAt)}</b> : '불러오는 중…'}</span>
         {climateOn && <span className={`cl-live s-${climate.state}`} role="status"><i aria-hidden="true" />{climate.state === 'live' ? '공기 실시간' : '공기 다시 연결 중'}</span>}
-        {replay && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">녹화 재생</span>}
-        {sim && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">시뮬레이션</span>}
+        {replay.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서, 지난주 같은 시각에 실제로 잰 값을 틀고 있어요">{which(replay)}녹화 재생</span>}
+        {sim.length > 0 && <span className="cl-derived" title="실습실 센서가 멈춰서 시뮬레이션 값으로 돌리고 있어요. 오디가 켠 기기가 값에 반영돼요">{which(sim)}시뮬레이션</span>}
         {derived.length > 0 && <span className="cl-derived" title="실제 센서가 없어 실습실 값으로 만든 값">{derived.join('·')}번 공기 추정</span>}
         {sample && (
           <button type="button" className="ctl-fast" aria-pressed={fast} onClick={() => setFast((f) => !f)}>
