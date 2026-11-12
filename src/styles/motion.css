@@ -26,6 +26,9 @@
 @keyframes ring-out { from { opacity: 1; transform: scale(0.9); } to { opacity: 0; transform: scale(2.4); } }
 @keyframes caret { 50% { opacity: 0; } }
 @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+/* 관제 숫자 강조(재웅 11/12 "띄용띄용 말고"): 크기는 그대로, 색·빛만 바뀐다 */
+@keyframes calm-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: none; } }
+@keyframes wipe-in { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 @keyframes digit-in { from { opacity: 0; transform: translateY(10px) scale(0.9); } to { opacity: 1; transform: none; } }
 
 /* 1. 화면이 바뀔 때: 서서히 나타나고, 첫 카드들은 살짝 아래에서 떠오름 */

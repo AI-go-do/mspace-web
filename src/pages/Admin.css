@@ -85,7 +85,7 @@
 .adm-badge {
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; display: inline-grid; place-items: center;
   background: var(--yellow); color: var(--navy); font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums;
-  animation: pop 0.4s var(--ease-spring) backwards;
+  animation: calm-in 0.4s var(--ease-out) backwards;
 }
 
 .adm-top-end { margin-left: auto; display: flex; align-items: center; gap: 14px; }
@@ -500,7 +500,7 @@
 .tidy-ai-acts .got .txt { color: var(--ok, #16865a); }
 .tidy-ai-acts .got .mark { background: var(--ok, #16865a); }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
-@keyframes ai-pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+@keyframes ai-pop { from { clip-path: inset(0 100% 0 0 round 50%); } to { clip-path: inset(0 0 0 0 round 50%); } }
 @keyframes ai-border { to { background-position: 0 0, 300% 0; } }
 @keyframes ai-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 @keyframes ai-dot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }

@@ -56,7 +56,12 @@
 @keyframes dv-ring { 0% { opacity: 0.8; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2.6); } }
 @keyframes dv-wind { 0% { opacity: 0; transform: translateY(-3px); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(5px); } }
 @keyframes dv-fresh { 0%, 100% { box-shadow: inset 0 0 0 2px #7b5cf0, 0 0 0 0 transparent; } 50% { box-shadow: inset 0 0 0 2px #7b5cf0, 0 0 0 5px color-mix(in srgb, #7b5cf0 25%, transparent); } }
-@keyframes dv-pop { from { transform: scale(0.6); } to { transform: none; } }
+@keyframes dv-pop { from { opacity: 0.25; } to { opacity: 1; } }
+@keyframes alert-glow {
+  0%, 40%, 100% { background: color-mix(in srgb, var(--yellow) 22%, var(--white)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--yellow) 0%, transparent); }
+  12%, 32% { background: color-mix(in srgb, var(--yellow) 55%, var(--white)); box-shadow: inset 0 0 0 2px var(--yellow); }
+  24% { background: color-mix(in srgb, var(--yellow) 35%, var(--white)); box-shadow: inset 0 0 0 1px var(--yellow); }
+}
 
 /* 칸 맨 위 현황 줄: 인원 · 입실 · 퇴실 · 알림 (관제 화면처럼 한눈에, 재웅 11/12 17:46) */
 .adm .ct-now { position: relative; z-index: 0; display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 6px; pointer-events: none; }
@@ -80,8 +85,9 @@
 .adm .ctl-tile.big .ct-now, .adm .ctl-tile.big .ct-strip { grid-column: 1 / -1; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .adm .ct-now .cn-alert.on b { display: inline-block; animation: warn-beat 1.6s ease-in-out infinite !important; }
-  .adm .ct-now .cn-people.on b { display: inline-block; animation: dv-pop 0.4s var(--ease-out) !important; }
+  /* 숫자는 가만히 두고 칸 바탕만 노란 테두리와 같은 박자로 진해짐(재웅 11/12 "띄용띄용 말고") */
+  .adm .ct-now .cn-alert.on { animation: alert-glow 1.6s ease-in-out infinite !important; }
+  .adm .ct-now .cn-people.on b { animation: calm-in 0.5s var(--ease-out) !important; }
 }
 
 /* 여섯째 자리 그래프 칸: 방 단추는 번호와 값만(칸이 좁아 이름을 빼도 색·번호로 구분) */

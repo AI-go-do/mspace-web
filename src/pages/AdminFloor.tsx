@@ -8,6 +8,7 @@ import type { Advice } from '../lib/roomAdvice'
 import type { RoomView } from '../lib/roomHealth'
 import { rangeOf } from '../lib/chartRange'
 import { useCountUp } from '../lib/useCountUp'
+import { SPARK_PAST_MS, sparkPoints, type SparkTick } from '../lib/sparkLive'
 
 /**
  * 관제실 평면도: 방 1~5를 실제 배치처럼 한 판에. 1~4번은 한 줄, 큰 방 5번은 아래 넓게, 맨 아래 복도.
@@ -29,27 +30,34 @@ const seriesOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.history : m ==
 const nowOf = (v: RoomView, m: TileMetric) => (m === 'co2' ? v.co2 : m === 'temp' ? v.temperatureC : m === 'hum' ? v.humidityPct : v.light)
 const limitOf = (m: TileMetric) => (m === 'co2' ? ENV_RULES.co2LimitPpm : m === 'temp' ? ENV_RULES.hotC : m === 'hum' ? ENV_RULES.dryPct : ENV_RULES.lightOnPct)
 /** 작은 그래프. 지난 값(+ CO2면 예측)을 0~100 칸에 그리고 선 굵기는 화면 크기와 상관없이 같게. 노란 점선 = 기준(온도·습도는 참고) */
-export function Spark({ view, metric = 'co2', wide = false }: { view: RoomView; metric?: TileMetric; wide?: boolean }) {
+export function Spark({ view, metric = 'co2', wide = false, ticks, now }: { view: RoomView; metric?: TileMetric; wide?: boolean; ticks?: SparkTick[]; now?: number }) {
   const limit = limitOf(metric)
   const past = seriesOf(view, metric)
   const ahead = metric === 'co2' ? view.forecast : []
-  const total = past.length + ahead.length
-  const values = [...past, ...ahead].filter((v): v is number => v !== null)
+  // 초 값이 있으면 지난 10분을 시각 축으로(1초마다 흐르고 흔들림), 없으면 분 기록을 칸 수대로
+  const pts = now === undefined ? null : sparkPoints(view.times, past, ticks, metric, now)
+  const total = pts ? pts.length + ahead.length : past.length + ahead.length
+  const values = [...(pts ? pts.map((p) => p.v) : past), ...ahead].filter((v): v is number => v !== null)
   if (total < 2 || values.length < 2) return <div className="ctl-spark none" aria-hidden="true" />
   const [lo, hi] = rangeOf(metric, values, limit)
-  const x = (i: number) => (i / (total - 1)) * 100
+  const pastW = pts && ahead.length ? 75 : 100
+  const from = (now ?? 0) - SPARK_PAST_MS
+  const x = pts
+    ? (i: number) => (i < pts.length ? Math.min(pastW, Math.max(0, ((pts[i].t - from) / SPARK_PAST_MS) * pastW)) : pastW + ((i - pts.length + 1) / ahead.length) * (100 - pastW))
+    : (i: number) => (i / (total - 1)) * 100
   const y = (v: number) => 40 - ((v - lo) / (hi - lo)) * 40
-  const line = (pts: [number, number][]) => pts.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(2)},${b.toFixed(2)}`).join('')
+  const line = (ps: [number, number][]) => ps.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(2)},${b.toFixed(2)}`).join('')
   // 값이 빈 분에서는 선을 끊는다
   const segs: [number, number][][] = []
   let cur: [number, number][] = []
-  past.forEach((v, i) => {
+  const pastVals = pts ? pts.map((p) => p.v) : past
+  pastVals.forEach((v, i) => {
     if (v === null) { if (cur.length) segs.push(cur); cur = []; return }
     cur.push([x(i), y(v)])
   })
   if (cur.length) segs.push(cur)
-  const lastIdx = past.length - 1
-  const lastVal = past[lastIdx]
+  const lastIdx = pastVals.length - 1
+  const lastVal = pastVals[lastIdx]
   const pred = lastVal !== null && ahead.length ? line([[x(lastIdx), y(lastVal)], ...ahead.map((v, i) => [x(lastIdx + 1 + i), y(v)] as [number, number])]) : ''
   const area = segs.length ? `${line(segs[segs.length - 1])}L${segs[segs.length - 1].at(-1)![0].toFixed(2)},40L${segs[segs.length - 1][0][0].toFixed(2)},40Z` : ''
   const nowX = x(lastIdx)
@@ -103,6 +111,8 @@ export interface TileLive {
   decision: Decision | null
   open: number
   now: number
+  /** 초 단위로 밀려온 값(작은 그래프가 몇 초마다 움직이게) */
+  ticks?: SparkTick[]
 }
 
 function hm(iso: string): string {
@@ -193,7 +203,7 @@ export function RoomTile({ view, tone, advice, blocked, reports, i, big = false,
           <TileValue key={metric} view={view} metric={metric} />
           {line && <em className={tone !== 'ok' ? `why ${tone}` : ''}>{line}{advice.length > 1 ? ` 외 ${advice.length - 1}` : ''}</em>}
         </span>
-        <Spark view={view} metric={metric} wide={big} />
+        <Spark view={view} metric={metric} wide={big} ticks={live?.ticks} now={live?.ticks?.length ? Math.max(live.now, live.ticks[live.ticks.length - 1].t) : undefined} />
       </span>
       {live && <MetricStrip view={view} />}
       {live && <DeviceRow devices={live.devices} now={live.now} name={view.name} />}

@@ -79,7 +79,7 @@
   .adm .ctl-ov .ov-end { transition: transform 0.6s var(--ease-out); }
   /* 주의 방 단추도 두근두근 */
   .adm .ctl-ov .ov-rooms button.hot:not([aria-pressed='true']) { animation: room-heart 1.6s ease-in-out infinite !important; }
-  .adm .ctl-ov .ov-rooms button.hot i { animation: warn-beat 1.6s ease-in-out infinite !important; }
+  .adm .ctl-ov .ov-rooms button.hot i { animation: warn-glow 1.6s ease-in-out infinite !important; }
   /* 그래프 오른쪽 끝 방 번호도 주의면 같은 박자로 */
   .adm .ctl-ov .ov-end.hot circle { animation: end-heart 1.6s ease-in-out infinite !important; }
 }
@@ -94,6 +94,6 @@
   24% { box-shadow: inset 0 0 0 2px var(--yellow), 0 0 0 1px color-mix(in srgb, var(--yellow) 20%, transparent); }
   32% { box-shadow: inset 0 0 0 3px var(--yellow), 0 0 0 8px color-mix(in srgb, var(--yellow) 25%, transparent); }
 }
-@keyframes warn-beat { 0%, 40%, 100% { transform: scale(1); } 12%, 32% { transform: scale(1.25); } 24% { transform: scale(1.05); } }
+@keyframes warn-glow { 0%, 40%, 100% { box-shadow: 0 0 0 0 transparent; } 12%, 32% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--yellow) 70%, transparent); } 24% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--yellow) 40%, transparent); } }
 @keyframes dot-ping { 0% { box-shadow: 0 0 0 2px var(--white), 0 0 0 2px color-mix(in srgb, var(--blue) 45%, transparent); } 100% { box-shadow: 0 0 0 2px var(--white), 0 0 0 10px transparent; } }
 @keyframes ov-ping { 0% { opacity: 0.7; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.6); } }
