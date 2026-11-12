@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { currentMemberId } from '../api/client'
 import { getLatestModelScore, type ModelScore } from '../api/modelScores'
 import {
-  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, tidyCounts, pct,
-  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, tidyPhotoUrl, type TidyPhotoPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
+  adminErrorMessage, alertEffectLabel, daysBefore, getPenalties, getSourceCounts, getTidyChecks, getUsageStats, itemPercents, tidyCounts, pct,
+  SUSPENSION_REASON, SUSPENSION_SCOPE, TIDY_LABEL, seenItemsSummary, tidyPhotoUrl, type TidyPhotoPhase, WARNING_REASON, type Penalties, type SourceCounts, type TidyCheckRow, type UsageStats,
 } from '../api/admin'
 import { minutesLabel } from '../lib/format'
 import { seoulDate } from '../lib/time'
@@ -294,7 +294,7 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
 
 /**
  * 오디 AI 판단 상자 (재웅 11/12 "하드코딩인가 하는 점이 없었으면"): 젯슨이 실제로 판단한 시각·퇴실부터 걸린 시간·
- * 모델 시험 정확도를 그대로 보여 준다(물품별 확신도는 11/12 재웅 요청으로 잠깐 뺌). 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
+ * 물품별 확신도·모델 시험 정확도를 그대로 보여 준다. 글자를 정해 둔 시간에 맞춰 바꾸는 연출은 하지 않는다
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
 /**
@@ -311,6 +311,8 @@ export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<Tid
 function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
   const r = tidyReason(row, recheck !== null, reentered)
   const box = tidyBoxState(row, recheck, reentered, r.warn)
+  const top = seenItemsSummary(row.items).top
+  const pcts = itemPercents(row.items)
   const steps = tidySteps(row, recheck, r.actions)
   const judge = steps.findIndex((s) => s.text.startsWith('젯슨'))
   const m = score
@@ -329,11 +331,17 @@ function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; 
               {s.at && <time className="tidy-ai-at" dateTime={s.at}>{clock(s.at)}</time>}
               {s.text}
               {s.note && <span className="tidy-ai-note">{s.note}</span>}
+              {i === judge && top !== null && <em className="tidy-ai-sure" title="모델 확신도">확신 {Math.round(top * 100)}%</em>}
             </span>
             {i === judge && (
               <div className="tidy-ai-result">
                 <b className="tidy-ai-verdict">{r.verdict}</b>
                 <span className="tidy-ai-reason">{r.why}{box.basis && ` · ${box.basis}`}</span>
+                {pcts.length > 0 && (
+                  <span className="tidy-ai-pcts" aria-label={`물품별 확신도 ${pcts.map((p) => `${p}%`).join(', ')}`}>
+                    {pcts.map((p, k) => <em key={k} className="tidy-ai-sure">{p}%</em>)}
+                  </span>
+                )}
               </div>
             )}
           </li>
