@@ -54,10 +54,12 @@ function WarningRow({ w, onChanged }: { w: Warning; onChanged: () => void }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState<string | null>(w.withdrawnAt ? '철회됨' : null)
+  // 이 화면에서 철회한 결과(정지 풀림 등). 다시 받은 목록에서 다른 관리자가 철회한 것도 바로 보이게 w.withdrawnAt을 같이 본다
+  const [result, setDone] = useState<string | null>(null)
+  const done = result ?? (w.withdrawnAt ? '철회됨' : null)
   const [msg, setMsg] = useState<string | null>(null)
   const text = reason.trim()
-  // core는 글자를 코드 포인트로 센다(이모지 1개 = 1자, core #123)
+  // core는 글자를 코드 포인트로 센다(이모지 1개 = 1자, core #123). 입력 칸 maxLength는 UTF-16 단위라 넉넉히 두고 여기서 막는다
   const count = [...text].length
   const tooLong = count > MAX_WITHDRAW_REASON
 
@@ -96,7 +98,7 @@ function WarningRow({ w, onChanged }: { w: Warning; onChanged: () => void }) {
         <form className="warn-withdraw-form" onSubmit={(e) => void send(e)}>
           <label htmlFor={`withdraw-${w.id}`} className="adm-small">철회 이유 (학생 알림에 그대로 보여요)</label>
           <textarea id={`withdraw-${w.id}`} rows={2} value={reason} disabled={busy} autoFocus
-            maxLength={MAX_WITHDRAW_REASON + 50} placeholder="예: 카메라가 잘못 봤어요" onChange={(e) => setReason(e.target.value)} />
+            maxLength={MAX_WITHDRAW_REASON * 2 + 50} placeholder="예: 카메라가 잘못 봤어요" onChange={(e) => setReason(e.target.value)} />
           <span className={`adm-small${tooLong ? ' err' : ''}`}>{count}/{MAX_WITHDRAW_REASON}</span>
           {msg && <p role="alert" className="adm-msg err">{msg}</p>}
           <div className="warn-withdraw-btns">
