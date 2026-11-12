@@ -44,7 +44,7 @@ export function WarningRow({ w, now, fresh, onWrite }: { w: WarningRecord; now: 
     <div className={`pw-row t-${st.tone}`}>
       <p className="pw-why">
         <span className={`pw-kind k-${w.kind}`}>{WARNING_LABEL[w.kind]} 경고</span>
-        <span className={w.appeal?.status === 'ACCEPTED' ? 'struck' : ''}>{w.why}</span>
+        <span className={w.appeal?.status === 'ACCEPTED' || w.withdrawnAt ? 'struck' : ''}>{w.why}</span>
       </p>
       {label ? (
         <button type="button" className="pw-btn" onClick={onWrite}>
