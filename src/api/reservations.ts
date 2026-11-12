@@ -88,6 +88,10 @@ export interface MyReservation {
    * 예전 core에는 없어서 선택 값 → 없으면 QR 없이 번호만 보여 준다
    */
   qrText?: string | null
+  /** 실제 입실 시각 (core #134). 입실 전·노쇼·취소는 null, 예전 core에는 없다 */
+  checkedInAt?: string | null
+  /** 실제 퇴실 시각 (core #134). 퇴실 버튼·시간 끝나 자동·자리 비움 모두. 아직 안 나갔으면 null */
+  checkedOutAt?: string | null
 }
 
 /**
@@ -110,7 +114,7 @@ export const STATUS_LABEL: Record<ReservationStatus, string> = {
   AUTO_CHECKED_OUT: '시간 끝나 퇴실',
   AWAY_RELEASED: '자리 비움으로 퇴실',
   CANCELED: '취소됨',
-  NO_SHOW: '노쇼로 풀림',
+  NO_SHOW: '노쇼됨',
 }
 
 /** 취소 마감: 서버 값(cancelableUntil)이 있으면 그것, 없으면 시작 시각 */

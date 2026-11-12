@@ -44,14 +44,14 @@ export function WarningRow({ w, now, fresh, onWrite }: { w: WarningRecord; now: 
     <div className={`pw-row t-${st.tone}`}>
       <p className="pw-why">
         <span className={`pw-kind k-${w.kind}`}>{WARNING_LABEL[w.kind]} 경고</span>
-        <span className={w.appeal?.status === 'ACCEPTED' ? 'struck' : ''}>{w.why}</span>
+        <span className={w.appeal?.status === 'ACCEPTED' || w.withdrawnAt ? 'struck' : ''}>{w.why}</span>
       </p>
       {label ? (
         <button type="button" className="pw-btn" onClick={onWrite}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
           {label}
         </button>
-      ) : w.appeal ? (
+      ) : w.appeal && !w.withdrawnAt ? (
         <AppealProgress w={w} fresh={fresh} />
       ) : (
         <span className="pw-closed">{st.text}</span>

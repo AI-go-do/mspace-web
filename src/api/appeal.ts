@@ -143,6 +143,7 @@ export function sendAppeal(id: number, text: string, evidence: number[], now = n
   const s = get()
   const w = snapshot.find((x) => x.id === id)
   if (!w) return '이 경고를 찾지 못했어요.'
+  if (w.withdrawnAt) return '이미 철회된 경고예요.'
   if (w.appeal) return '이미 철회 요청을 보냈어요.'
   const member = stateKey
   set({ ...s, appeals: { ...s.appeals, [String(id)]: { status: 'SENT', text: text.trim(), sentAt: now.toISOString(), evidence, answer: null } } })

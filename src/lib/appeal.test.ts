@@ -20,6 +20,8 @@ describe('경고 철회 요청 (FR-RPT-105)', () => {
     expect(canAppeal(w(), now)).toBe(true)
     expect(canAppeal(w({ issuedAt: '2026-10-31T21:00:00+09:00' }), now)).toBe(false)
     expect(canAppeal(w({ appeal: { status: 'SENT', text: 'x', sentAt: now.toISOString(), evidence: [], answer: null } }), now)).toBe(false)
+    // core #123: 이미 철회된 경고(관리자 철회 포함)는 요청 버튼을 숨긴다
+    expect(canAppeal(w({ withdrawnAt: '2026-11-12T10:00:00+09:00' }), now)).toBe(false)
   })
 
   it('마감까지 남은 날을 센다', () => {
@@ -64,6 +66,7 @@ describe('경고 철회 요청 (FR-RPT-105)', () => {
     expect(statusLabel(w(), now)).toEqual({ text: '철회 요청 5일 남음', tone: 'open' })
     expect(statusLabel(w({ issuedAt: '2026-11-01T23:00:00+09:00' }), now).text).toBe('철회 요청 1시간 남음')
     expect(statusLabel(w({ issuedAt: '2026-10-01T00:00:00+09:00' }), now)).toEqual({ text: '요청 기간 끝남', tone: 'closed' })
+    expect(statusLabel(w({ withdrawnAt: '2026-11-02T10:00:00+09:00' }), now)).toEqual({ text: '철회됨', tone: 'done' })
     const sent = { status: 'SENT' as const, text: 'x', sentAt: now.toISOString(), evidence: [], answer: null }
     expect(statusLabel(w({ appeal: sent }), now).text).toBe('AI가 다시 보는 중')
     expect(statusLabel(w({ appeal: { ...sent, status: 'ACCEPTED' } }), now).text).toBe('철회됨')

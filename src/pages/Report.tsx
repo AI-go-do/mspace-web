@@ -155,8 +155,11 @@ export default function Report() {
 
         <div className="card report-sec">
           <label htmlFor="report-content"><b>메모 (선택)</b></label>
+          {/* 어질러짐 신고 글은 AI(Gemini) 판정으로 가는데, 글 속 이름은 코드로 다 가리지 못한다(core #121) */}
+          {category === 'MESSY' && <p id="report-content-privacy" className="muted report-note" role="note">이름이나 전화번호는 쓰지 마세요. 이 글은 AI 판정에 쓰여요.</p>}
           <textarea id="report-content" className="report-text" rows={4} value={content} disabled={sending}
-            maxLength={MAX_REPORT_CONTENT + 50} placeholder="어디가 어떻게 문제인지 적어 주세요. 이름·학번은 적지 마세요."
+            aria-describedby={category === 'MESSY' ? 'report-content-privacy' : undefined}
+            maxLength={MAX_REPORT_CONTENT + 50} placeholder="어디가 어떻게 문제인지 적어 주세요. 이름·학번·전화번호는 적지 마세요."
             onChange={(e) => setContent(e.target.value)} />
           <span className="muted report-count">{content.trim().length}/{MAX_REPORT_CONTENT}</span>
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackIcon } from '../components/ReserveSteps'
-import { AdminPenalties, AdminStats, AdminTidyChecks } from './AdminInsights'
+import { AdminDailyReport, AdminPenalties, AdminStats, AdminTidyChecks } from './AdminInsights'
 import { AdminNow } from './AdminNow'
 import { AdminApprentice } from './AdminApprentice'
 import { AdminBlocks } from './AdminBlocks'
@@ -36,7 +36,7 @@ const SECTIONS = [
     icon: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 12h9V3M12 21v-5h9" /></>,
   },
   {
-    id: 'records', label: '기록', title: '기록', sub: '통계 · 경고 · 정리 확인',
+    id: 'records', label: '기록', title: '기록', sub: '하루 요약 · 통계 · 경고 · 정리 확인',
     icon: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
   },
 ] as const
@@ -167,7 +167,7 @@ export default function Admin() {
               <ForceCheckoutForm initialId={params.get('reservation') ?? ''} focus={sub === 'checkout'} />
             </div>
           )}
-          {tab === 'records' && <Records sub={sub === 'penalties' || sub === 'tidy' ? sub : 'stats'} onSub={(s) => go('records', { sub: s })} />}
+          {tab === 'records' && <Records sub={sub === 'penalties' || sub === 'tidy' || sub === 'daily' ? sub : 'stats'} onSub={(s) => go('records', { sub: s })} />}
         </div>
       </main>
 
@@ -185,21 +185,21 @@ export default function Admin() {
   )
 }
 
-/** 기록: 통계 · 경고·정지 · 카메라 정리 확인 세 쪽 */
-type RecordSub = 'stats' | 'penalties' | 'tidy'
+/** 기록: 하루 요약 · 통계 · 경고·정지 · 카메라 정리 확인 네 쪽 */
+type RecordSub = 'daily' | 'stats' | 'penalties' | 'tidy'
 const RECORD_SUBS: { id: RecordSub; label: string }[] = [
-  { id: 'stats', label: '이용 통계' }, { id: 'penalties', label: '경고·정지' }, { id: 'tidy', label: '정리 확인' },
+  { id: 'daily', label: '하루 요약' }, { id: 'stats', label: '이용 통계' }, { id: 'penalties', label: '경고·정지' }, { id: 'tidy', label: '정리 확인' },
 ]
 function Records({ sub, onSub }: { sub: RecordSub; onSub: (s: RecordSub) => void }) {
   return (
     <div className="adm-records">
-      <div className="adm-seg three" role="group" aria-label="기록 종류" style={{ '--i': RECORD_SUBS.findIndex((r) => r.id === sub) } as CSSProperties}>
+      <div className="adm-seg four" role="group" aria-label="기록 종류" style={{ '--i': RECORD_SUBS.findIndex((r) => r.id === sub) } as CSSProperties}>
         <span className="adm-seg-glow" aria-hidden="true" />
         {RECORD_SUBS.map((r) => (
           <button key={r.id} type="button" aria-pressed={sub === r.id} onClick={() => onSub(r.id)}>{r.label}</button>
         ))}
       </div>
-      {sub === 'stats' ? <AdminStats /> : sub === 'penalties' ? <AdminPenalties /> : <AdminTidyChecks />}
+      {sub === 'daily' ? <AdminDailyReport /> : sub === 'stats' ? <AdminStats /> : sub === 'penalties' ? <AdminPenalties /> : <AdminTidyChecks />}
     </div>
   )
 }

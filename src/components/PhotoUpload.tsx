@@ -49,6 +49,9 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
   const [done, setDone] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const copy = { title: title ?? COPY[kind].title, why: why ?? COPY[kind].why }
+  // 퇴실 사진은 갤러리 대신 폰 뒤 카메라를 바로 연다(지금 방 모습이어야 증거가 되니까).
+  // 카메라가 없는 PC 브라우저는 capture를 무시하고 파일 고르기 창을 연다.
+  const camera = kind === 'CHECK_OUT'
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -83,9 +86,9 @@ export default function PhotoUpload({ reservationId, kind, onBusyChange, disable
       ) : (
         <>
           <p className="muted small">{copy.why}{!required && <> 안 올려도 {kind === 'CHECK_IN' ? '입실' : '퇴실'}은 그대로 돼요.</>}</p>
-          <input ref={fileRef} type="file" accept={ACCEPT.join(',')} hidden onChange={pick} />
+          <input ref={fileRef} type="file" accept={ACCEPT.join(',')} capture={camera ? 'environment' : undefined} hidden onChange={pick} />
           <button type="button" className="btn-line" disabled={busy || disabled} onClick={() => fileRef.current?.click()}>
-            {busy ? '사진 올리는 중…' : '사진 찍기·고르기'}
+            {busy ? '사진 올리는 중…' : camera ? '사진 찍기' : '사진 찍기·고르기'}
           </button>
           {msg && <p role="alert" className="photo-err">{msg}</p>}
         </>

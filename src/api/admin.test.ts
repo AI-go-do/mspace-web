@@ -115,6 +115,16 @@ describe('카메라 정리 확인 (core #110)', () => {
   })
 })
 
+describe('하루 운영 요약 숫자 (core #122)', () => {
+  it('신고 맵을 판정별로 더하고 누가 썼는지 글로', async () => {
+    const { reportTotals, sumOf, writerLabel } = await import('./admin')
+    expect(reportTotals({ MESSY: { CONFIRMED: 2, OPEN: 1 }, NOISE: { OPEN: 3 } })).toEqual({ total: 6, byVerdict: { CONFIRMED: 2, OPEN: 4 } })
+    expect(sumOf(undefined)).toBe(0)
+    expect(writerLabel('gemini:gemini-2.5-flash')).toBe('Gemini')
+    expect(writerLabel('template:fallback')).toBe('정해진 틀 (AI 실패)')
+  })
+})
+
 describe('물품별 확신도', () => {
   it('높은 순 %로, 확신도 없는 물품은 뺀다', () => {
     expect(itemPercents([{ name: 'cup', confidence: 0.714 }, { name: 'unknown', confidence: null }, { name: 'cell phone', confidence: 0.82 }])).toEqual([82, 71])

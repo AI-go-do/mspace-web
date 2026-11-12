@@ -57,7 +57,7 @@ function WarningItem({ w, i, now, fresh, onWrite }: { w: WarningRecord; i: numbe
         <span className={`ph-kind k-${w.kind}`}>{WARNING_LABEL[w.kind]}</span>
         <span className={`ph-pill p-${st.tone}`}>{st.text}</span>
       </div>
-      <b className={`ph-when ${w.appeal?.status === 'ACCEPTED' ? 'struck' : ''}`}>{w.roomId}번 방 · {day} {timeRange(w.startAt, w.endAt)}</b>
+      <b className={`ph-when ${w.appeal?.status === 'ACCEPTED' || w.withdrawnAt ? 'struck' : ''}`}>{w.roomId}번 방 · {day} {timeRange(w.startAt, w.endAt)}</b>
       <p className="ph-why">{w.why}</p>
 
       <button type="button" className="ph-toggle" aria-expanded={openLog} aria-controls={logId} onClick={() => setOpenLog((v) => !v)}>
@@ -77,7 +77,7 @@ function WarningItem({ w, i, now, fresh, onWrite }: { w: WarningRecord; i: numbe
         </ol>
       )}
 
-      {w.appeal && <AppealProgress w={w} fresh={fresh} />}
+      {w.appeal && !w.withdrawnAt && <AppealProgress w={w} fresh={fresh} />}
       {can && button && <button type="button" className="btn-primary ph-write" onClick={onWrite}>{button}</button>}
     </li>
   )

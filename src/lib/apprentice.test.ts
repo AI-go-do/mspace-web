@@ -36,13 +36,13 @@ describe('score (채점 규칙)', () => {
     expect(r.next.streak).toBe(0)
   })
 
-  it('벌이 걸린 일(신고 판정)은 아무리 맞아도 레벨 1 그대로', () => {
+  it('늘 사람이 정하는 일(locked)은 아무리 맞아도 레벨 1 그대로', () => {
     let t = base({ kind: 'report', maxLevel: 1, locked: true })
     for (let i = 0; i < 30; i++) t = score(t, true).next
     expect(t.level).toBe(1)
     expect(t.right).toBe(30)
     expect(actsAlone(t)).toBe(false)
-    expect(traineeNote(t)).toBe('벌이 걸린 일 · 레벨 1 고정')
+    expect(traineeNote(t)).toBe('늘 사람이 정하는 일 · 레벨 1 고정')
   })
 
   it('노쇼 무르기는 최대 레벨 2까지만', () => {
@@ -52,10 +52,13 @@ describe('score (채점 규칙)', () => {
     expect(traineeNote(t)).toContain('레벨 2까지')
   })
 
-  it('처음 기록에서 벌이 걸린 일은 신고 판정 하나이고 레벨 1 고정', () => {
-    const locked = initialTrainees().filter((t) => t.locked)
-    expect(locked.map((t) => t.kind)).toEqual(['report'])
-    expect(locked[0].maxLevel).toBe(1)
+  it('신고 판정·경고 철회 판단은 처음부터 레벨 3(11/12 지영), 늘 사람이 정하는 일은 없다', () => {
+    const all = initialTrainees()
+    expect(all.filter((t) => t.locked)).toEqual([])
+    const pick = (k: string) => all.find((t) => t.kind === k)!
+    expect([pick('report').level, pick('report').right, pick('report').total]).toEqual([3, 89, 90])
+    expect([pick('withdraw').level, pick('withdraw').right, pick('withdraw').total]).toEqual([3, 109, 111])
+    expect(actsAlone(pick('report'))).toBe(true)
   })
 })
 
@@ -119,7 +122,7 @@ describe('가짜 수습사원 저장소', () => {
   })
 
   it('[되돌리기]하면 그 일은 한 단계 내려가고 되돌림으로 남는다', () => {
-    const d = _read().done[0]
+    const d = _read().done.find((x) => x.kind === 'vent')!
     undoAutoDone(d.id)
     const s = _read()
     expect(s.done.find((x) => x.id === d.id)!.undone).toBe(true)
@@ -219,6 +222,17 @@ describe('저장된 기록 불러오기 (localStorage)', () => {
     stored({ ..._read(), stats: { auto: 3, human: 4, undone: 1 }, inbox: [null] })
     const s = _read()
     expect(s.stats).toEqual({ auto: 0, human: 0, undone: 0 })
-    expect(s.inbox.map((p) => p.id)).toEqual(['s1', 's2'])
+    expect(s.inbox.map((p) => p.id)).toEqual(['s1'])
+  })
+})
+
+describe('신고 판정 되돌리기 (레벨 3)', () => {
+  it('AI가 혼자 판정한 신고를 되돌리면 레벨 2로 내려간다', () => {
+    _resetForTest()
+    resetApprentice()
+    const d = _peekForTest().done.find((x) => x.kind === 'report')!
+    expect(d.level).toBe(3)
+    undoAutoDone(d.id)
+    expect(_peekForTest().trainees.find((t) => t.kind === 'report')!.level).toBe(2)
   })
 })

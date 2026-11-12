@@ -321,6 +321,7 @@
 .evidence-cell + .evidence-cell { animation-delay: 0.08s; }
 .evidence-cell figcaption { display: flex; flex-direction: column; font-size: 13px; }
 .evidence-cell figcaption .muted { font-size: 11.5px; }
+.evidence-cell figcaption .tidy-student { align-self: flex-start; margin: 2px 0; font-size: 11.5px; }
 .evidence-photo {
   aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center;
   background: var(--gray); font-size: 12.5px; font-weight: 700; color: var(--navy-70); text-align: center; padding: 0;
@@ -350,6 +351,16 @@
 .adm-seg.three { grid-template-columns: repeat(3, 1fr); }
 .adm-seg.three .adm-seg-glow { width: calc((100% - 8px) / 3); }
 .adm-seg.three button { padding: 0 16px; }
+.adm-seg.four { grid-template-columns: repeat(4, 1fr); }
+.adm-seg.four .adm-seg-glow { width: calc((100% - 8px) / 4); }
+.adm-seg.four button { padding: 0 12px; }
+@media (max-width: 480px) { .adm-seg.four { align-self: stretch; } .adm-seg.four button { padding: 0 4px; font-size: 13px; } }
+.daily-dates { align-items: center; }
+.daily-pick input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 13px; color: var(--navy); background: var(--white); }
+.daily-partial { margin-left: 8px; vertical-align: middle; font-size: 12px; }
+.daily-ai { max-width: 720px; margin-top: 0; }
+.daily-lines { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14.5px; line-height: 1.55; color: var(--navy); }
+.daily-at { margin: 10px 0 0; }
 .adm-seg button {
   position: relative; min-height: 40px; padding: 0 22px; border: 0; background: none; cursor: pointer;
   font-size: 14px; font-weight: 800; color: var(--navy-70); transition: color 0.25s;
@@ -435,6 +446,14 @@
 /* 정리 확인 줄: 오른쪽 카메라 그림, 누르면 줄 아래로 사진 */
 .tidy-row { flex-wrap: wrap; align-items: flex-start; }
 .tidy-row .icon-act { flex: none; margin: -4px -4px 0 0; }
+.warn-row { flex-wrap: wrap; align-items: flex-start; }
+.warn-row.withdrawn .pen-who, .warn-row.withdrawn .pen-what .muted { opacity: 0.55; }
+.warn-withdraw { flex: none; padding: 4px 12px; font-size: 13px; min-height: 0; }
+.warn-withdraw-form { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.warn-withdraw-form textarea { width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; }
+.warn-withdraw-form .err { color: var(--red, #c0392b); }
+.warn-withdraw-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.warn-withdraw-btns button { width: auto; flex: none; min-height: 40px; padding: 0 18px; font-size: 14px; }
 .tidy-photos .evidence-grid { max-width: 560px; }
 /* 방 카메라 AI 판단 상자: 파랑→하늘→보라 빛 테두리, 반짝이는 "비교하는 중", 한 글자씩 써지는 판단 */
 .tidy-ai {

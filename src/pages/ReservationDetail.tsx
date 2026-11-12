@@ -84,6 +84,9 @@ export default function ReservationDetail() {
         </div>
         <dl className="detail-facts">
           {r.status === 'BOOKED' && (<><dt>입실 마감</dt><dd>{seoulClock(deadlineOf(r))}</dd></>)}
+          {/* core #134 전에는 칸이 없어 줄을 안 보인다 */}
+          {r.checkedInAt && (<><dt>입실</dt><dd>{seoulClock(new Date(r.checkedInAt))}</dd></>)}
+          {r.checkedOutAt && (<><dt>퇴실</dt><dd>{seoulClock(new Date(r.checkedOutAt))}</dd></>)}
           <dt>만든 사람</dt><dd>{r.owner ? '나 (대표자)' : `${host?.name ?? '대표자'} (대표자)`}</dd>
         </dl>
         <div className="detail-people">

@@ -5,12 +5,14 @@ import { ENV_RULES } from '../config/adminRooms'
  * AI 수습사원 규칙 (11/8 최종안, 11/9 회의에서 기준 확정 예정).
  * - 일 종류마다 따로 채점한다. 10번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려간다
  * - 레벨 1: 처리안만 올림(사람이 [맞아요]) · 레벨 2: 먼저 하고 아침에 보고 · 레벨 3: 혼자 처리(기록·되돌리기는 남음)
- * - 벌(경고·정지)이 걸린 일은 레벨 1 고정(늘 사람). 학생에게 유리한 일(노쇼 무르기)은 최대 레벨 2
+ * - 11/10 무인 운영 결정·11/12 지영: 신고 판정과 경고 철회 판단도 AI가 혼자 정한다(레벨 3). 정확도를 잰 점수로 시작하고,
+ *   잘못된 판정은 관리자 경고 철회(core #123)로 되돌린다. 학생에게 유리한 일(노쇼 무르기)은 최대 레벨 2
+ * - locked(늘 사람이 정함)는 남겨 두지만 지금 쓰는 일은 없다
  * 화면과 가짜 저장소가 같이 쓰는 순수 함수만 둔다(시각은 밖에서 받는다)
  */
 export const STREAK_TO_LEVEL_UP = 10
 
-export type TaskKind = 'vent' | 'sensor' | 'prep' | 'overtime' | 'unbooked' | 'noshow' | 'report'
+export type TaskKind = 'vent' | 'sensor' | 'prep' | 'overtime' | 'unbooked' | 'noshow' | 'report' | 'withdraw'
 
 export interface Trainee {
   kind: TaskKind
@@ -21,8 +23,10 @@ export interface Trainee {
   streak: number
   right: number
   total: number
-  /** 벌이 걸린 일: 점수와 상관없이 레벨 1 */
+  /** 늘 사람이 정하는 일: 점수와 상관없이 레벨 1 */
   locked: boolean
+  /** 카드 아래 한 줄 더(점수 출처·되돌리는 길) */
+  note?: string
 }
 
 /** AI가 올린 처리안 하나: 무엇을, 왜(근거 3줄 안) */
@@ -47,8 +51,8 @@ export const WRONG_REASONS = ['근거가 부족해요', '상황이 달라요', '
 
 /** 처음 상태(가짜 기록). 지난 며칠 채점한 것처럼 숫자를 넣어 둔다 */
 export function initialTrainees(): Trainee[] {
-  const t = (kind: TaskKind, name: string, level: 1 | 2, maxLevel: 1 | 2 | 3, streak: number, right: number, total: number, locked = false): Trainee =>
-    ({ kind, name, level, maxLevel, streak, right, total, locked })
+  const t = (kind: TaskKind, name: string, level: 1 | 2 | 3, maxLevel: 1 | 2 | 3, streak: number, right: number, total: number, note?: string): Trainee =>
+    ({ kind, name, level, maxLevel, streak, right, total, locked: false, ...(note ? { note } : {}) })
   return [
     t('vent', '미리 환기 안내', 2, 3, 6, 31, 32),
     t('sensor', '센서 고장 알림', 1, 3, 9, 14, 15),
@@ -56,7 +60,9 @@ export function initialTrainees(): Trainee[] {
     t('overtime', '시간 넘김 안내', 1, 3, 5, 11, 13),
     t('unbooked', '예약 없는 사용 기록', 1, 3, 2, 4, 5),
     t('noshow', '억울한 노쇼 무르기', 1, 2, 3, 6, 8),
-    t('report', '신고 판정 초안', 1, 1, 0, 17, 19, true),
+    // 11/12 정확도 측정(core 점수판): 신고 판정 98.9%(처음 보는 가짜 사례 30개×3번, 억울한 경고 0건), 경고 철회 판단 98.2%(사람이 쓴 글 37개×3번)
+    t('report', '신고 판정', 3, 3, 0, 89, 90, '억울한 경고 0건 · 되돌리기는 경고 철회로'),
+    t('withdraw', '경고 철회 판단', 3, 3, 0, 109, 111, '되돌리기는 경고 철회로'),
   ]
 }
 
@@ -96,7 +102,7 @@ export function actsAlone(t: Trainee): boolean {
 
 /** 인사 카드 아래 한 줄 */
 export function traineeNote(t: Trainee): string {
-  if (t.locked) return '벌이 걸린 일 · 레벨 1 고정'
+  if (t.locked) return '늘 사람이 정하는 일 · 레벨 1 고정'
   if (t.level >= t.maxLevel) return `가장 높은 단계${t.maxLevel < 3 ? ' (학생에게 유리한 일은 레벨 2까지)' : ''}`
   return `연속 맞음 ${t.streak}/${STREAK_TO_LEVEL_UP} · 레벨 ${t.level + 1}까지 ${STREAK_TO_LEVEL_UP - t.streak}번`
 }

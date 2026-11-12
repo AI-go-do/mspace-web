@@ -17,6 +17,28 @@ export interface MyPenalty {
   reportSuspendedUntil: string | null
 }
 
+/** GET /api/penalties/me/no-shows (core #128) 한 줄. 본인이 대표자인 것만, 시각은 +09:00 */
+export interface MyNoShow {
+  reservationId: number
+  roomId: number
+  roomName: string
+  startAt: string
+  endAt: string
+  /** NO_SHOW 노쇼 · AWAY_RELEASED 자리 비움 자동 퇴실(3번이 노쇼 1번) */
+  kind: 'NO_SHOW' | 'AWAY_RELEASED'
+  happenedAt: string
+  /** 정지 셈에 들어가는지. false = 무른 노쇼·지난 정지 전·기간 밖 */
+  counted: boolean
+  /** 장치 고장 등으로 무른 시각 */
+  excusedAt: string | null
+}
+
+/** 내 노쇼·자리 비움 기록 (core #128). 최근 것부터 */
+export async function getMyNoShows(member?: number | null, days = 30, signal?: AbortSignal): Promise<MyNoShow[]> {
+  const r = await api<{ items: MyNoShow[] }>(`/api/penalties/me/no-shows?days=${days}`, { member, signal })
+  return r.items
+}
+
 /** 본인 경고·정지 상태를 받는다. member는 공용 폰에서 회원이 바뀐 걸 알아채는 데 쓴다(client.ts) */
 export function getMyPenalty(member?: number | null): Promise<MyPenalty> {
   return api<MyPenalty>('/api/penalties/me', { member })

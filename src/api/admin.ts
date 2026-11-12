@@ -105,6 +105,8 @@ export function adminErrorMessage(e: unknown): string {
     case 'REPORT_ALREADY_JUDGED': return '이미 다른 관리자가 판정했어요. 목록을 새로 받을게요.'
     case 'REPORT_NOT_FOUND': return '찾을 수 없는 신고예요.'
     case 'RESERVATION_NOT_FOUND': return '찾을 수 없는 예약 번호예요.'
+    case 'WARNING_ALREADY_WITHDRAWN': return '이미 철회된 경고예요.'
+    case 'WARNING_NOT_FOUND': return '찾을 수 없는 경고예요.'
     default: return e.status === 404 && e.code === 'UNKNOWN' ? '서버에 아직 이 기능이 없어요(core 배포 확인 필요).' : e.message
   }
 }
@@ -145,6 +147,31 @@ export interface Warning {
   reportId: number
   reservationId: number | null
   createdAt: string
+  /** 철회된 시각 (core #123, AI 판단기·관리자 철회 모두). 살아 있는 경고면 null, 예전 core는 칸이 없다 */
+  withdrawnAt?: string | null
+}
+
+/** 관리자 경고 철회 이유 최대 글자 (core #123) */
+export const MAX_WITHDRAW_REASON = 200
+
+export interface WarningWithdrawn {
+  warningId: number
+  userId: number
+  withdrawnAt: string
+  /** 이 경고로 걸린 정지를 풀었으면 true */
+  suspensionLifted: boolean
+  /** 대기 중이던 학생 철회 요청을 철회로 닫았으면 true */
+  appealClosed: boolean
+}
+
+/**
+ * 관리자 경고 철회 (core #123). 정지도 풀고 학생에게 이유와 함께 알린다.
+ * 이유 1–200자 필수, 이미 철회됐으면 409 WARNING_ALREADY_WITHDRAWN
+ */
+export function withdrawWarning(warningId: number, reason: string, member?: number | null): Promise<WarningWithdrawn> {
+  return api(`/api/admin/warnings/${warningId}/withdraw`, {
+    method: 'POST', body: JSON.stringify({ reason: reason.trim() }), member,
+  })
 }
 
 /** 정지. scope: USE(예약·참여) · REPORT(신고만). reason: NO_SHOW · WARNINGS · FALSE_REPORT */
@@ -183,10 +210,24 @@ export interface TidyCheckRow extends Omit<TidyResult, 'items'> {
   /** 다시 확인에도 물건이 남아 core가 만든 어질러짐 신고 번호(대표자 경고). 11/10 전 기록은 치워야 함 자동 신고 */
   reportId: number | null
   /**
-   * (core 요청 중) 두고 간 물건을 찾으러 10분 QR로 들어온 시각. 이 뒤 젯슨이 방이 비면 바로 다시 찍어(RECHECK) 가져갔는지 본다.
+   * 입실 전 사진 (core #125): 방 카메라 입실 직전(ENTRY), 없으면 학생 입실 사진. 둘 다 없으면 null.
+   * core가 아직 안 주면 칸이 빠진다(그때는 같은 방 앞 줄의 퇴실 사진으로 대신)
+   */
+  before?: TidyPhoto | null
+  /** 이 단계 사진: 방 카메라(퇴실 직후·3시간 뒤), 퇴실 직후인데 카메라가 못 찍었으면 학생 퇴실 사진. 둘 다 없으면 null */
+  after?: TidyPhoto | null
+  /**
+   * (core #130) 두고 간 물건을 찾으러 10분 QR로 들어온 시각. 이 뒤 젯슨이 방이 비면 바로 다시 찍어(RECHECK) 가져갔는지 본다.
    * core가 아직 안 주면 빠진다
    */
   retrievedAt?: string | null
+}
+
+/** 정리 확인 줄의 사진 하나. url은 로그인 토큰이 필요해 Blob으로 받는다(AuthPhoto). source STUDENT = 카메라 대신 학생이 올린 사진 */
+export interface TidyPhoto {
+  source: 'CAMERA' | 'STUDENT' | (string & {})
+  takenAt: string | null
+  url: string
 }
 
 /** 최근 days일(1–92) 정리 확인 결과, 최근 순. 관리자만(학생 403 ADMIN_ONLY) */
@@ -333,4 +374,55 @@ export function daysBefore(date: string, n: number): string {
   const d = new Date(`${date}T12:00:00+09:00`)
   d.setUTCDate(d.getUTCDate() - n)
   return d.toISOString().slice(0, 10)
+}
+
+// ---- 하루 운영 요약 (core #122) ----
+
+/** 하루 숫자. 이름·학번 없음. 신고·경고·철회·고장은 그날(서울) 생긴 것만 */
+export interface DailyFacts {
+  /** 오늘이라 하루가 아직 안 끝났나 */
+  partial: boolean
+  total: Usage
+  rooms: Usage[]
+  /** 신고 종류 → 판정(OPEN·CONFIRMED·UNVERIFIED·FALSE) → 건수 */
+  reports: Record<string, Record<string, number>>
+  /** 그중 판정기가 정한 건수 */
+  autoJudged: number
+  /** 경고 이유(VIOLATION·FALSE_REPORT) → 건수 */
+  warnings: Record<string, number>
+  /** 그날 정해진 철회 요청 결과(WITHDRAWN·KEPT·PENDING) → 건수 */
+  appeals: Record<string, number>
+  /** 장치 고장 종류 → 건수 */
+  deviceFaults: Record<string, number>
+}
+
+/** GET /api/admin/daily-report 응답. lines = AI가 쓴 3–5줄, writer = gemini:모델 · template · template:fallback */
+export interface DailyReport {
+  date: string
+  lines: string[]
+  writer: string
+  generatedAt: string
+  facts: DailyFacts
+}
+
+/** 하루 운영 요약 (관리자만, 미래 날짜 400). date(YYYY-MM-DD, 서울)를 빼면 오늘 */
+export function getDailyReport(date: string | null, signal?: AbortSignal, member?: number | null): Promise<DailyReport> {
+  return api(`/api/admin/daily-report${date ? `?date=${encodeURIComponent(date)}` : ''}`, { signal, member })
+}
+
+/** 맵 값 합 (없으면 0) */
+export const sumOf = (m: Record<string, number> | undefined): number => Object.values(m ?? {}).reduce((a, b) => a + b, 0)
+
+/** 신고 맵(종류 → 판정 → 건수)의 전체 건수와 판정별 합 */
+export function reportTotals(m: Record<string, Record<string, number>> | undefined): { total: number; byVerdict: Record<string, number> } {
+  const byVerdict: Record<string, number> = {}
+  for (const v of Object.values(m ?? {})) for (const [k, n] of Object.entries(v)) byVerdict[k] = (byVerdict[k] ?? 0) + n
+  return { total: sumOf(byVerdict), byVerdict }
+}
+
+/** 누가 썼나 → 화면 글 */
+export function writerLabel(writer: string): string {
+  if (writer.startsWith('gemini')) return 'Gemini'
+  if (writer === 'template:fallback') return '정해진 틀 (AI 실패)'
+  return '정해진 틀'
 }

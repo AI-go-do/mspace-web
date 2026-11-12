@@ -55,6 +55,8 @@ export interface WarningRecord {
   why: string
   evidence: Evidence[]
   appeal: Appeal | null
+  /** core가 이미 철회한 경고(관리자 철회 포함, core #123). 있으면 철회 요청을 받지 않는다(409 WARNING_ALREADY_WITHDRAWN) */
+  withdrawnAt?: string | null
 }
 
 export const APPEAL_RULES = {
@@ -66,7 +68,7 @@ export const APPEAL_RULES = {
 
 /** 철회를 요청할 수 있는지: 아직 안 보냈고, 받은 지 정해진 날 안 */
 export function canAppeal(w: WarningRecord, now: Date, rules = APPEAL_RULES): boolean {
-  if (w.appeal) return false
+  if (w.appeal || w.withdrawnAt) return false
   return now.getTime() - Date.parse(w.issuedAt) < rules.days * 86_400_000
 }
 
@@ -137,6 +139,7 @@ export function appealProblem(text: string, rules = APPEAL_RULES): string | null
 
 /** 카드에 붙는 상태 글 */
 export function statusLabel(w: WarningRecord, now: Date, rules = APPEAL_RULES): { text: string; tone: 'open' | 'wait' | 'done' | 'no' | 'closed' } {
+  if (w.withdrawnAt) return { text: '철회됨', tone: 'done' }
   if (w.appeal?.status === 'SENT') return { text: 'AI가 다시 보는 중', tone: 'wait' }
   if (w.appeal?.status === 'ACCEPTED') return { text: '철회됨', tone: 'done' }
   if (w.appeal?.status === 'REJECTED') return { text: '경고 유지', tone: 'no' }

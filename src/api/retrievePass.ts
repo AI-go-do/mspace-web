@@ -17,7 +17,7 @@ export interface RetrievePass {
   expiresAt: string
 }
 
-/** POST /api/reservations/{id}/retrieve-pass. 거절: 404 RESERVATION_NOT_FOUND, 409 RESERVATION_NOT_ENDED·RETRIEVE_NOT_NEEDED·RETRIEVE_TOO_LATE */
+/** POST /api/reservations/{id}/retrieve-pass. 거절: 404 RESERVATION_NOT_FOUND, 409 RESERVATION_NOT_ENDED·RETRIEVE_NOT_NEEDED·RETRIEVE_TOO_LATE·RETRIEVE_ALREADY_USED(그 QR로 문을 열고 10분 지남, core #129) */
 export function getRetrievePass(reservationId: number, member?: number | null): Promise<RetrievePass> {
   if (reservationId === DEMO_RESERVATION) return Promise.resolve(demoPass())
   // member를 주면 다른 탭에서 다른 회원으로 바뀐 토큰으로는 보내지 않는다
