@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { adminErrorMessage, getPenalties, getReports } from '../api/admin'
+import { adminErrorMessage, getOpsActions, getPenalties, getReports, OPS_KIND_LABEL, type OpsAction } from '../api/admin'
+import { ApiError } from '../api/client'
 import { currentMemberId } from '../api/client'
 import { CATEGORIES, VERDICT_LABEL } from '../api/reports'
 import { ADMIN_ROOMS } from '../config/adminRooms'
@@ -55,6 +56,20 @@ function TraineeCard({ t, i }: { t: Trainee; i: number }) {
   )
 }
 
+/** 자동 처리 한 줄 (core #136). 학생에게 알림을 보냈으면 몇 명, 관리자용(센서 고장·예약 없는 사용)은 기록만 */
+function OpsRow({ a, i }: { a: OpsAction; i: number }) {
+  return (
+    <li style={{ '--k': i } as CSSProperties}>
+      <span className="ap-time">{when(a.detectedAt)}</span>
+      <div className="ap-log-text">
+        <b>{OPS_KIND_LABEL[a.kind] ?? a.kind}</b>
+        <span className="ap-log-room">{a.roomName} · {a.detail}</span>
+        <span className="ap-log-room">{a.notified > 0 ? `${a.notified}명에게 알림을 보냈어요` : '관리자 확인용 기록'}</span>
+      </div>
+    </li>
+  )
+}
+
 function Stat({ label, value }: { label: string; value: number }) {
   const shown = useCountUp(value)
   return <div className="ap-stat"><dt>{label}</dt><dd><span aria-hidden="true">{shown}<small>건</small></span><span className="sr-only">{value}건</span></dd></div>
@@ -91,6 +106,8 @@ export function AdminApprentice() {
   const [error, setError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   const [shown, setShown] = useState(PAGE)
+  /** 오늘 자동 처리. core #136 전(404)이면 null로 두고 칸을 숨긴다 */
+  const [ops, setOps] = useState<OpsAction[] | null>(null)
 
   useEffect(() => {
     const member = currentMemberId()
@@ -107,6 +124,9 @@ export function AdminApprentice() {
         setError(null)
       })
       .catch((e) => { if (!stale) setError(adminErrorMessage(e)) })
+    getOpsActions(null, ctrl.signal, member)
+      .then((l) => { if (!stale) setOps(l) })
+      .catch((e) => { if (!stale && e instanceof ApiError && e.status === 404) setOps(null) })
     return () => { stale = true; ctrl.abort() }
   }, [reload])
 
@@ -142,6 +162,14 @@ export function AdminApprentice() {
             <h2 id="ap-log-h">AI가 처리한 일 <span className="ap-tag">최근 {DAYS}일</span></h2>
             <p>보기만 하는 기록이에요. 잘못 간 경고만 [철회]로 되돌릴 수 있어요.</p>
           </div>
+          {ops && (
+            <div className="card ap-log-card">
+              <h3 className="ap-sub-h">오늘 센서 보고 처리한 일 <span className="ap-tag">{ops.length}건</span></h3>
+              {ops.length === 0 ? <p className="adm-small">오늘은 아직 없어요.</p> : (
+                <ul className="ap-log">{ops.map((a, i) => <OpsRow key={a.id} a={a} i={i} />)}</ul>
+              )}
+            </div>
+          )}
           {totals && (
             <dl className="ap-stats">
               <Stat label="판정한 신고" value={totals.judged} />

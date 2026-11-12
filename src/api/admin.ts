@@ -394,6 +394,8 @@ export interface DailyFacts {
   appeals: Record<string, number>
   /** 장치 고장 종류 → 건수 */
   deviceFaults: Record<string, number>
+  /** AI 자동 처리 종류(OpsActionKind) → 건수 (core #136). 예전 core는 칸이 없다 */
+  aiActions?: Record<string, number>
 }
 
 /** GET /api/admin/daily-report 응답. lines = AI가 쓴 3–5줄, writer = gemini:모델 · template · template:fallback */
@@ -425,4 +427,39 @@ export function writerLabel(writer: string): string {
   if (writer.startsWith('gemini')) return 'Gemini'
   if (writer === 'template:fallback') return '정해진 틀 (AI 실패)'
   return '정해진 틀'
+}
+
+// ---- AI 자동 처리 기록 (core #136) ----
+
+export type OpsActionKind = 'VENT_SOON' | 'ROOM_HOT' | 'SENSOR_DOWN' | 'OVERTIME' | 'UNBOOKED' | (string & {})
+
+/** 자동 처리 이름 (core #136과 같은 말) */
+export const OPS_KIND_LABEL: Record<string, string> = {
+  VENT_SOON: '미리 환기', ROOM_HOT: '예약 전 더움', SENSOR_DOWN: '센서 고장', OVERTIME: '시간 넘김', UNBOOKED: '예약 없는 사용',
+}
+
+/** AI가 센서를 보고 혼자 처리한 일 한 줄. 관리자용 2종(센서 고장·예약 없는 사용)은 예약이 없고 notified 0 */
+export interface OpsAction {
+  id: number
+  kind: OpsActionKind
+  roomId: number
+  roomName: string
+  reservationId: number | null
+  startedAt: string
+  detectedAt: string
+  /** 근거 한 줄 (예: "CO2 910ppm, 최근 5분 790→910ppm") */
+  detail: string
+  /** 알림을 보낸 사람 수 */
+  notified: number
+}
+
+/** 그날 자동 처리 기록, 최근 것부터 (관리자만). date(YYYY-MM-DD, 서울)를 빼면 오늘 */
+export function getOpsActions(date: string | null, signal?: AbortSignal, member?: number | null): Promise<OpsAction[]> {
+  return api(`/api/admin/ops-actions${date ? `?date=${encodeURIComponent(date)}` : ''}`, { signal, member })
+}
+
+/** "미리 환기 2 · 시간 넘김 1" (건수 많은 것부터, 0은 뺌) */
+export function opsSummary(m: Record<string, number> | undefined): string {
+  return Object.entries(m ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${OPS_KIND_LABEL[k] ?? k} ${n}`).join(' · ')
 }

@@ -14,10 +14,11 @@ import { demoLeftItemAlerts, isLeftItemDemoId, readLeftItemDemo } from './retrie
  * ROOM_FREE 빈방 알림: 지켜보던 방이 비었음 (core #109. 예약 번호 없음, api/roomWatches.ts)
  * LEFT_ITEM 두고 간 물건: 퇴실 직후 확인에서 물건이 남음, [찾으러 갈게요] 10분 QR (FR-DEV-105, core #112·#114. api/retrievePass.ts)
  * RESERVATION_INVITED 대표자가 나를 참여자로 넣어 예약함 (core #108, "홍*동님이 … 함께 예약했어요")
+ * VENT_SOON 곧 환기가 필요해요 · ROOM_HOT 방이 더워요 · OVERTIME 이용 시간이 지났어요 (AI 자동 처리, core #136)
  */
 export type NotificationKind = 'START_SOON' | 'END_SOON' | 'NO_SHOW_SOON' | 'AWAY_SOON'
   | 'REPORT_RESULT' | 'WARNING' | 'FORCED_CHECKOUT' | 'DEVICE_APOLOGY' | 'CO2_SOON' | 'RELAY_OFFER' | 'ROOM_FREE'
-  | 'RESERVATION_INVITED' | 'LEFT_ITEM' | (string & {})
+  | 'RESERVATION_INVITED' | 'LEFT_ITEM' | 'VENT_SOON' | 'ROOM_HOT' | 'OVERTIME' | (string & {})
 
 /** GET /api/notifications/me 한 줄 (core NotificationController, 최근 50개) */
 export interface AppNotification {
