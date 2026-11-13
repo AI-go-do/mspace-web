@@ -52,6 +52,10 @@
 .ap-rec-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ap-rec-name b { font-size: 15px; }
 .ap-rate { flex: none; display: flex; flex-direction: column; align-items: flex-end; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ap-rec.up { animation: ap-up 1.2s var(--ease-out); }
+.ap-rec.up .ap-rate { color: var(--blue); }
+@keyframes ap-up { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45); } 100% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); } }
+@media (prefers-reduced-motion: reduce) { .ap-rec.up { animation: none; } }
 .ap-rate small { font-size: 11px; font-weight: 700; color: var(--navy-70); letter-spacing: 0; }
 .ap-dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
 .ap-dots i { height: 8px; border-radius: 4px; background: var(--gray); }

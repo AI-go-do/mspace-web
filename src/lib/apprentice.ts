@@ -1,4 +1,4 @@
-import type { AdminReport, Warning } from '../api/admin'
+import type { AdminReport, AiScore, Warning } from '../api/admin'
 
 /**
  * AI 수습사원 (11/10 무인 운영, 11/12 지영 "AI가 다 알아서 처리하고 관리자는 어떻게 처리됐나만 본다,
@@ -19,27 +19,47 @@ export interface Trainee {
   total: number
   /** 카드 아래 한 줄 더(점수 출처·되돌리는 길) */
   note?: string
+  /** 실제 운영에서 채점된 처리 수(측정값 위에 더해진 것) */
+  live?: number
+  /** 결과를 기다리는 실제 처리 수 */
+  pending?: number
 }
 
-/** 인사 기록 카드 값. 신고 판정·경고 철회 판단은 11/12 정확도 측정(core 점수판) 값, 나머지는 시연용 값 */
-/** 자동 처리 카드 아래 한 줄: 실제 센서 정확도로 읽히지 않게(수연 리뷰) */
-const FAKE300 = '가짜 사례 300개로 잰 값'
-
+/**
+ * 인사 기록 카드 처음 값 = 측정값(core application.yml mspace.ai-score.base와 같게, 11/13).
+ * 화면을 열면 core GET /api/admin/ai-scores(측정값 + 실제 처리 채점)로 바뀌고, 실제로 맞힐 때마다 올라간다
+ */
 export function initialTrainees(): Trainee[] {
   const t = (kind: string, name: string, level: 1 | 2 | 3, maxLevel: 1 | 2 | 3, streak: number, right: number, total: number, note?: string): Trainee =>
     ({ kind, name, level, maxLevel, streak, right, total, ...(note ? { note } : {}) })
   return [
-    // 자동 처리 규칙 5개: 처음 보는 가짜 사례 300개로 잰 채택 판 점수(core #139 README·점수판). 실제 센서 정확도가 아니다. 레벨은 그대로(11/12 지영)
-    t('vent', '미리 환기 안내', 2, 3, 6, 268, 300, FAKE300),
-    t('sensor', '센서 고장 알림', 1, 3, 9, 298, 300, FAKE300),
-    t('prep', '다음 예약 전 더움 안내', 1, 3, 4, 267, 300, FAKE300),
-    t('overtime', '시간 넘김 안내', 1, 3, 5, 282, 300, FAKE300),
-    t('unbooked', '예약 없는 사용 기록', 1, 3, 2, 290, 300, FAKE300),
-    t('noshow', '억울한 노쇼 무르기', 1, 2, 3, 6, 8),
-    // 신고 판정 98.9%(처음 보는 가짜 사례 30개×3번, 억울한 경고 0건), 경고 철회 판단 98.2%(사람이 쓴 글 37개×3번)
+    // 자동 처리 5개 (core README "실험 기록: 자동 처리 규칙"). 미리 환기는 11판, 실습실 실제 기록 확인 기간. 레벨은 그대로(11/12 지영)
+    t('vent', '미리 환기 안내', 2, 3, 6, 96, 99),
+    t('sensor', '센서 고장 알림', 1, 3, 9, 298, 300),
+    t('prep', '다음 예약 전 더움 안내', 1, 3, 4, 267, 300),
+    t('overtime', '시간 넘김 안내', 1, 3, 5, 282, 300),
+    t('unbooked', '예약 없는 사용 기록', 1, 3, 2, 290, 300),
+    // 억울한 노쇼 무르기: 가짜 사례 21개(core NoShowExcuseEval, 11/13)
+    t('noshow', '억울한 노쇼 무르기', 1, 2, 3, 19, 21),
+    // 신고 판정 98.9%(처음 보는 가짜 사례 30개×3번, 억울한 경고 0건), 경고 철회 판단 9판 97.3%(사람이 쓴 글 37개×3번)
     t('report', '신고 판정', 3, 3, 0, 89, 90, '억울한 경고 0건 · 되돌리기는 경고 철회로'),
-    t('withdraw', '경고 철회 판단', 3, 3, 0, 109, 111, '되돌리기는 경고 철회로'),
+    t('withdraw', '경고 철회 판단', 3, 3, 0, 108, 111, '되돌리기는 경고 철회로'),
   ]
+}
+
+/** core 카드 종류 → 화면 카드 */
+export const SCORE_KIND: Record<string, string> = {
+  VENT_SOON: 'vent', SENSOR_DOWN: 'sensor', ROOM_HOT: 'prep', OVERTIME: 'overtime', UNBOOKED: 'unbooked',
+  NO_SHOW_EXCUSE: 'noshow', REPORT_JUDGE: 'report', APPEAL_REVIEW: 'withdraw',
+}
+
+/** core 점수로 카드 맞힘·전체를 바꾸고, 실제로 채점된 처리 수를 붙인다. core에 없는 카드는 그대로 */
+export function withScores(trainees: Trainee[], items: AiScore[]): Trainee[] {
+  const byKind = new Map(items.map((i) => [SCORE_KIND[i.kind], i]))
+  return trainees.map((t) => {
+    const s = byKind.get(t.kind)
+    return s ? { ...t, right: s.right, total: s.total, live: s.live.total, pending: s.live.pending } : t
+  })
 }
 
 /** 인사 카드 아래 한 줄 */

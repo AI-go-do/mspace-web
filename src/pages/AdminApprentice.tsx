@@ -1,10 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react'
-import { adminErrorMessage, getOpsActions, getPenalties, getReports, OPS_KIND_LABEL, type OpsAction } from '../api/admin'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { adminErrorMessage, getAiScores, getOpsActions, getPenalties, getReports, OPS_KIND_LABEL, type OpsAction } from '../api/admin'
 import { ApiError } from '../api/client'
 import { currentMemberId } from '../api/client'
 import { CATEGORIES, VERDICT_LABEL } from '../api/reports'
 import { ADMIN_ROOMS } from '../config/adminRooms'
-import { aiRecords, initialTrainees, rateOf, recordTotals, STREAK_TO_LEVEL_UP, traineeNote, type AiRecord, type Trainee } from '../lib/apprentice'
+import { aiRecords, initialTrainees, rateOf, recordTotals, STREAK_TO_LEVEL_UP, traineeNote, withScores, type AiRecord, type Trainee } from '../lib/apprentice'
 import { POLL_MS } from '../lib/poll'
 import { onReportsChanged } from '../lib/reportsBus'
 import { seoulClock, seoulDate } from '../lib/time'
@@ -32,26 +32,48 @@ const LEVELS = [
   { level: 3, title: '혼자 해요', text: '기록은 남고 되돌릴 수 있어요' },
 ]
 const TRAINEES = initialTrainees()
+/** 카드 점수를 다시 받는 간격. 맞힐 때마다 바로 올라가 보이게 짧게 */
+const SCORE_MS = 5_000
 
-/** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워진다 */
+/** 일 종류 하나의 인사 기록 카드. 연속 맞힘 칸이 차례로 채워진다. 실제로 맞히면 맞힘·퍼센트가 세어 올라간다 */
 function TraineeCard({ t, i }: { t: Trainee; i: number }) {
   const filled = t.level >= t.maxLevel ? STREAK_TO_LEVEL_UP : t.streak
-  const rate = rateOf(t)
+  const right = useCountUp(t.right) ?? t.right
+  const total = useCountUp(t.total) ?? t.total
+  const rate = rateOf({ right, total })
+  // 맞힘이 늘면 잠깐 빛나게 (처음 그릴 때는 안 함)
+  const last = useRef(t.right)
+  const [up, setUp] = useState(false)
+  useEffect(() => {
+    if (t.right > last.current) {
+      setUp(true)
+      const off = setTimeout(() => setUp(false), 1200)
+      last.current = t.right
+      return () => clearTimeout(off)
+    }
+    setUp(false)   // 오르다 1.2초 안에 내려가면 타이머가 취소돼 빛이 남아 있으니 끈다
+    last.current = t.right
+  }, [t.right])
   return (
-    <li className="card ap-rec" style={{ '--k': i } as CSSProperties}>
+    <li className={`card ap-rec${up ? ' up' : ''}`} style={{ '--k': i } as CSSProperties}>
       <div className="ap-rec-top">
         <span className={`ap-lv-big l${t.level}`} aria-hidden="true">{t.level}</span>
         <div className="ap-rec-name">
           <b>{t.name}</b>
           <span className="adm-small">레벨 {t.level} · 최고 {t.maxLevel}</span>
         </div>
-        <span className="ap-rate">{rate === null ? '—' : `${rate}%`}<small>맞힘 {t.right}/{t.total}</small></span>
+        <span className="ap-rate" aria-label={`맞힘 ${t.right}/${t.total}`}>
+          {rate === null ? '—' : `${rate}%`}<small>맞힘 {right}/{total}</small>
+        </span>
       </div>
       <div className="ap-dots" role="img" aria-label={`연속 ${filled}/${STREAK_TO_LEVEL_UP}`}>
         {Array.from({ length: STREAK_TO_LEVEL_UP }, (_, k) => <i key={k} className={k < filled ? 'on' : ''} style={{ '--d': k } as CSSProperties} />)}
       </div>
       <small className="adm-small">{traineeNote(t)}</small>
       {t.note && <small className="ap-rec-note">{t.note}</small>}
+      {(t.live ?? 0) + (t.pending ?? 0) > 0 && (
+        <small className="ap-rec-note">실제 처리 {t.live ?? 0}건 채점{t.pending ? ` · 결과 기다림 ${t.pending}건` : ''}</small>
+      )}
     </li>
   )
 }
@@ -110,6 +132,29 @@ export function AdminApprentice() {
   const [ops, setOps] = useState<OpsAction[] | null>(null)
   /** 자동 처리 목록만 못 받았을 때(404 말고). 신고 쪽 error와 따로 둔다 */
   const [opsError, setOpsError] = useState<string | null>(null)
+  /** 카드 점수: 측정값에서 시작해 core 점수(측정값 + 실제 처리)로 바뀐다. core #149 전(404)이면 측정값 그대로 */
+  const [trainees, setTrainees] = useState<Trainee[]>(TRAINEES)
+
+  useEffect(() => {
+    const member = currentMemberId()
+    if (member === null) return
+    let ctrl: AbortController | null = null
+    let gone = false
+    const load = () => {
+      // 앞 요청이 아직이면 이번 차례는 건너뛴다 (다음 차례가 앞 요청을 끊으면 느린 서버에선 점수가 안 바뀜)
+      if (document.visibilityState !== 'visible' || ctrl) return
+      const mine = new AbortController()
+      ctrl = mine
+      const timeout = setTimeout(() => mine.abort(), SCORE_MS * 2)   // 멈춘 요청이 다음 차례를 계속 막지 않게
+      getAiScores(mine.signal, member)
+        .then((r) => { if (!gone) setTrainees(withScores(TRAINEES, r.items)) })
+        .catch(() => { /* 못 받으면 지난 점수 그대로 (404면 측정값) */ })
+        .finally(() => { clearTimeout(timeout); if (ctrl === mine) ctrl = null })
+    }
+    load()
+    const t = setInterval(load, SCORE_MS)
+    return () => { gone = true; clearInterval(t); ctrl?.abort() }
+  }, [])
 
   useEffect(() => {
     const member = currentMemberId()
@@ -161,7 +206,7 @@ export function AdminApprentice() {
             <h2 id="ap-rec-h">인사 기록 카드</h2>
             <p>{STREAK_TO_LEVEL_UP}번 연속 맞으면 한 단계 올라가고, 틀리거나 되돌리면 바로 내려가요.</p>
           </div>
-          <ul className="ap-recs">{TRAINEES.map((t, i) => <TraineeCard key={t.kind} t={t} i={i} />)}</ul>
+          <ul className="ap-recs">{trainees.map((t, i) => <TraineeCard key={t.kind} t={t} i={i} />)}</ul>
         </section>
         <section className="ap-sec" aria-labelledby="ap-log-h">
           <div className="adm-sec-h">
