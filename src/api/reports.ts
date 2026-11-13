@@ -60,12 +60,21 @@ export const MESSY_RULE = '어질러짐은 입실하고 5분 안에, 입실 사�
  * 보내기 전에 화면에서 막을 것. 없으면 null.
  * 어질러짐의 "지금 쓰는 방만"은 화면이 아는 방이 오래됐을 수 있어 막지 않고 core가 판단한다(403 REPORT_MESSY_OWN_ROOM_ONLY)
  */
-export function reportProblem(r: { roomId: number | null; category: ReportCategory | null; content: string; noiseConfirmed: boolean }): string | null {
+export function reportProblem(r: { roomId: number | null; category: ReportCategory | null; content: string; noiseConfirmed: boolean; ownRoom?: number | null }): string | null {
   if (r.roomId === null) return '신고할 방을 골라 주세요'
   if (r.category === null) return '무엇이 문제인지 골라 주세요'
+  if (r.category === 'NOISE' && r.ownRoom != null && r.roomId === r.ownRoom) return '소음은 옆 방만 신고할 수 있어요. 소리가 나는 방을 골라 주세요'
   if (r.content.trim().length > MAX_REPORT_CONTENT) return `메모는 ${MAX_REPORT_CONTENT}자 이내로 적어 주세요`
   if (r.category === 'NOISE' && !r.noiseConfirmed) return '"정말 소란인가요?"를 체크해 주세요'
   return null
+}
+
+/**
+ * 내 방의 옆 방. core V8 room_adjacency(1–2, 2–3, 3–4, 4–5, docs Q-05)와 같다.
+ * 소음은 옆 방만 신고한다(core 400 REPORT_NOISE_NEIGHBOR_ONLY, 11/13): 내 방은 우리 팀만 쓴다
+ */
+export function isNeighborRoom(own: number, room: number): boolean {
+  return Math.abs(own - room) === 1
 }
 
 /** 입실 사진을 올리러 다녀와도 고른 종류·메모가 남게 (같은 예약일 때만 되살림) */
@@ -114,6 +123,7 @@ export function reportErrorMessage(e: unknown): string {
     case 'REPORT_NOT_ALLOWED': return '지금 그 방이나 옆 방을 사용 중일 때만 신고할 수 있어요.'
     case 'REPORT_SUSPENDED': return '허위 신고 경고가 쌓여 지금은 신고할 수 없어요. 정지가 끝나면 다시 할 수 있어요.'
     case 'REPORT_NOISE_NOT_CONFIRMED': return '소음 신고는 "정말 소란인가요?"를 체크해야 보낼 수 있어요.'
+    case 'REPORT_NOISE_NEIGHBOR_ONLY': return '소음은 옆 방만 신고할 수 있어요. 소리가 나는 방을 골라 주세요.'
     // 어질러짐 조건 (core #96)
     case 'REPORT_MESSY_OWN_ROOM_ONLY': return '어질러짐은 지금 쓰는 방만 신고할 수 있어요. 옆 방은 다른 종류로 신고해 주세요.'
     case 'REPORT_MESSY_TOO_LATE': return '어질러짐은 입실하고 바로(5분 안)만 신고할 수 있어요. 연장한 예약은 앞 팀이 같은 팀이라 신고할 수 없어요.'

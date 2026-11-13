@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { currentMemberId } from '../api/client'
 import {
-  CATEGORIES, clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
+  CATEGORIES, clearReportDraft, isNeighborRoom, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
   type ReportCategory, type SubmittedReport,
 } from '../api/reports'
 import PhotoUpload from '../components/PhotoUpload'
@@ -53,7 +53,10 @@ export default function Report() {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<SubmittedReport | null>(null)
 
-  const problem = reportProblem({ roomId, category, content, noiseConfirmed })
+  // 사용 중 카드에서 들어오면 주소의 방이 내 방이다. 소음은 옆 방만 눌리게 한다(모르면 core에 맡김, 400 REPORT_NOISE_NEIGHBOR_ONLY)
+  const ownRoom = reservationId !== null ? queryRoomId : null
+  const noiseBlocked = (n: number) => category === 'NOISE' && ownRoom !== null && !isNeighborRoom(ownRoom, n)
+  const problem = reportProblem({ roomId, category, content, noiseConfirmed, ownRoom })
 
   // 입실 사진을 올리러 다녀와도 5분 안에 바로 보낼 수 있게 초안을 남긴다 (보내면 지움)
   useEffect(() => {
@@ -115,7 +118,7 @@ export default function Report() {
           <legend>어느 방인가요?</legend>
           <div className="report-rooms">
             {ROOMS.map((n) => (
-              <button key={n} type="button" className="report-room" aria-pressed={roomId === n} disabled={sending}
+              <button key={n} type="button" className="report-room" aria-pressed={roomId === n} disabled={sending || noiseBlocked(n)}
                 aria-label={`창작실 ${n}`} onClick={() => setRoomId(n)}>
                 <b aria-hidden="true">{n}</b><span aria-hidden="true">창작실</span>
               </button>
@@ -128,7 +131,12 @@ export default function Report() {
           <div className="report-kinds">
             {CATEGORIES.map((c) => (
               <button key={c.value} type="button" className="report-kind" aria-pressed={category === c.value} disabled={sending}
-                onClick={() => { setCategory(c.value); if (c.value !== 'NOISE') setNoiseConfirmed(false) }}>
+                onClick={() => {
+                  setCategory(c.value)
+                  if (c.value !== 'NOISE') setNoiseConfirmed(false)
+                  // 내 방이 미리 골라져 있으면 소음일 때 풀어서 옆 방을 직접 고르게 한다
+                  else if (ownRoom !== null && roomId !== null && !isNeighborRoom(ownRoom, roomId)) setRoomId(null)
+                }}>
                 <span className="report-kind-icon" aria-hidden="true">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{KIND_ICON[c.value]}</svg>
                 </span>

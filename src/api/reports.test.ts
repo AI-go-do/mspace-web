@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from './client'
-import { clearReportDraft, loadReportDraft, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, saveReportDraft } from './reports'
+import { clearReportDraft, isNeighborRoom, loadReportDraft, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, saveReportDraft } from './reports'
 
 const base = { roomId: 2, category: 'BROKEN' as const, content: '', noiseConfirmed: false }
 
@@ -15,6 +15,20 @@ describe('신고 보내기 전 확인 (FR-RPT-101)', () => {
   it('소음은 "정말 소란인가요?" 확인이 있어야 한다', () => {
     expect(reportProblem({ ...base, category: 'NOISE' })).toContain('소란')
     expect(reportProblem({ ...base, category: 'NOISE', noiseConfirmed: true })).toBeNull()
+  })
+  it('소음은 내 방이면 막고 옆 방이면 보낸다 (11/13)', () => {
+    const noise = { ...base, category: 'NOISE' as const, noiseConfirmed: true, ownRoom: 2 }
+    expect(reportProblem(noise)).toContain('옆 방')
+    expect(reportProblem({ ...noise, roomId: 3 })).toBeNull()
+    expect(reportProblem({ ...noise, ownRoom: null })).toBeNull()
+    expect(reportProblem({ ...base, ownRoom: 2 })).toBeNull()
+  })
+  it('옆 방은 번호가 하나 차이 (core V8 1–2 … 4–5)', () => {
+    expect(isNeighborRoom(2, 1)).toBe(true)
+    expect(isNeighborRoom(2, 3)).toBe(true)
+    expect(isNeighborRoom(2, 2)).toBe(false)
+    expect(isNeighborRoom(2, 4)).toBe(false)
+    expect(isNeighborRoom(5, 4)).toBe(true)
   })
   it('어질러짐은 화면에서 방을 막지 않고 core에 맡긴다 (core #96)', () => {
     expect(reportProblem({ ...base, category: 'MESSY' })).toBeNull()
@@ -33,6 +47,9 @@ describe('신고 오류 문구', () => {
     expect(reportErrorMessage(new ApiError(403, 'REPORT_MESSY_OWN_ROOM_ONLY', 'x'))).toContain('지금 쓰는 방')
     expect(reportErrorMessage(new ApiError(409, 'REPORT_MESSY_TOO_LATE', 'x'))).toContain('5분')
     expect(reportErrorMessage(new ApiError(409, 'REPORT_CHECKIN_PHOTO_REQUIRED', 'x'))).toContain('입실 사진')
+  })
+  it('내 방 소음 거절(core 400)은 옆 방 안내', () => {
+    expect(reportErrorMessage(new ApiError(400, 'REPORT_NOISE_NEIGHBOR_ONLY', 'x'))).toContain('옆 방')
   })
   it('모르는 code는 서버 문구', () => {
     expect(reportErrorMessage(new ApiError(400, 'INVALID_REQUEST', '서버 문구'))).toBe('서버 문구')
