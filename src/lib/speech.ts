@@ -91,6 +91,7 @@ export function joinHeard(parts: string[]): string {
 /**
  * 한 번 말하고 끝나는 듣기. 멈추는 함수를 돌려준다. 음성 인식이 없거나 시작하지 못하면 null.
  * 잠깐 쉬어도 끊지 않고, SILENCE_MS 동안 새 말이 없거나 멈춤 버튼을 누르면 그때까지 들린 말을 한 번 보낸다.
+ * 멈춤 버튼은 브라우저를 기다리지 않고 그 자리에서 끝낸다(onEnd가 바로 불린다).
  * 브라우저가 쉼에서 스스로 끝내면(모바일 크롬·사파리) 다시 켜서 이어 듣는다.
  */
 export function listenOnce(
@@ -119,7 +120,7 @@ export function listenOnce(
   let stopWait: ReturnType<typeof setTimeout> | undefined
   /** 지금까지 들린 말 전체. 판마다 들린 말은 서로 다른 말이라 겹침을 지우지 않고 그대로 잇는다 */
   const heard = () => [committed, current].filter(Boolean).join(' ')
-  /** 지금까지 들린 말로 끝낸다(조용해짐·최대 길이·멈춤 버튼) */
+  /** 지금까지 들린 말로 끝낸다(조용해짐·최대 길이). 멈춤 버튼은 아래 stopByUser */
   const finish = () => {
     if (stopping) return
     stopping = true
@@ -193,8 +194,21 @@ export function listenOnce(
     h.onEnd()
     return null
   }
-  // 멈춤 버튼: 지금까지 들린 말로 끝낸다(stop은 onend 전에 마지막 결과를 준다)
-  return finish
+  // 멈춤 버튼: 브라우저의 onend를 기다리지 않고 바로 끝내, 입력 칸에 보이는 말(지금까지 들린 말)을 보낸다.
+  // 모바일(안드로이드 크롬·아이폰 사파리)은 stop() 뒤 onend가 늦거나 오지 않고, 다시 켜는 중에는 stop()을 무시하기도 해서
+  // onend를 기다리면 눌러도 그대로 듣는 것처럼 보였다(11/13 영준). 그래서 abort()로 끊고 화면 상태를 먼저 끝낸다
+  const stopByUser = () => {
+    if (ended) return
+    ended = true
+    clearTimeout(silence)
+    clearTimeout(limit)
+    clearTimeout(stopWait)
+    try { r.abort() } catch { /* 이미 끝남 */ }
+    const text = heard()
+    if (!failed && text) h.onFinal(text)
+    h.onEnd()
+  }
+  return stopByUser
 }
 
 /** 음성 인식 오류 코드 → 학생에게 보여 줄 한 줄 */
