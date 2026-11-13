@@ -230,7 +230,7 @@ export function AdminApprentice() {
           {totals && (
             <dl className="ap-stats">
               <Stat label="판정한 신고" value={totals.judged} />
-              <Stat label="경고가 간 신고" value={totals.warned} />
+              <Stat label="AI가 준 경고" value={totals.warned} />
               <Stat label="철회한 경고" value={totals.withdrawn} />
             </dl>
           )}
