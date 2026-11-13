@@ -51,6 +51,7 @@ function TraineeCard({ t, i }: { t: Trainee; i: number }) {
       last.current = t.right
       return () => clearTimeout(off)
     }
+    setUp(false)   // 오르다 1.2초 안에 내려가면 타이머가 취소돼 빛이 남아 있으니 끈다
     last.current = t.right
   }, [t.right])
   return (
@@ -140,12 +141,15 @@ export function AdminApprentice() {
     let ctrl: AbortController | null = null
     let gone = false
     const load = () => {
-      if (document.visibilityState !== 'visible') return
-      ctrl?.abort()
-      ctrl = new AbortController()
-      getAiScores(ctrl.signal, member)
+      // 앞 요청이 아직이면 이번 차례는 건너뛴다 (다음 차례가 앞 요청을 끊으면 느린 서버에선 점수가 안 바뀜)
+      if (document.visibilityState !== 'visible' || ctrl) return
+      const mine = new AbortController()
+      ctrl = mine
+      const timeout = setTimeout(() => mine.abort(), SCORE_MS * 2)   // 멈춘 요청이 다음 차례를 계속 막지 않게
+      getAiScores(mine.signal, member)
         .then((r) => { if (!gone) setTrainees(withScores(TRAINEES, r.items)) })
         .catch(() => { /* 못 받으면 지난 점수 그대로 (404면 측정값) */ })
+        .finally(() => { clearTimeout(timeout); if (ctrl === mine) ctrl = null })
     }
     load()
     const t = setInterval(load, SCORE_MS)
