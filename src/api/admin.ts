@@ -96,6 +96,14 @@ export function getPhotoBlob(url: string, signal?: AbortSignal, member?: number 
 /** 강제 퇴실 사유 최대 글자 수 (core ForceCheckoutService) */
 export const MAX_FORCE_REASON = 200
 
+/**
+ * 관리자 테스트용 입실 확인 (11/13 지영: QR 대신 버튼). QR 입실과 같은 처리라 예약이 사용 중(IN_USE)이 된다.
+ * 꺼져 있으면 403 ADMIN_CHECK_IN_OFF, 이르거나 마감이 지났거나 끝난 예약이면 409 RESERVATION_NOT_CHECKABLE
+ */
+export function adminCheckIn(reservationId: number, member?: number | null): Promise<{ id: number; roomId: number; status: string; result: string }> {
+  return api(`/api/admin/reservations/${reservationId}/check-in`, { method: 'POST', member })
+}
+
 /** 관리자 강제 퇴실 (core #73). 사용 중이 아니면 409 RESERVATION_NOT_IN_USE, 없는 예약 404 */
 export function forceCheckout(reservationId: number, reason: string, member?: number | null): Promise<{ id: number; status: string }> {
   const r = reason.trim()
@@ -109,6 +117,7 @@ export function adminErrorMessage(e: unknown): string {
   if (!(e instanceof ApiError)) return '연결이 끊겼어요. 잠시 후 다시 시도해 주세요.'
   switch (e.code) {
     case 'ADMIN_ONLY': return '관리자만 할 수 있어요.'
+    case 'ADMIN_CHECK_IN_OFF': return '이 서버에서는 테스트용 입실 확인이 꺼져 있어요.'
     case 'REPORT_NOT_JUDGEABLE': return '소음 신고는 판정 대상이 아니에요.'
     case 'REPORT_ALREADY_JUDGED': return '이미 다른 관리자가 판정했어요. 목록을 새로 받을게요.'
     case 'REPORT_NOT_FOUND': return '찾을 수 없는 신고예요.'

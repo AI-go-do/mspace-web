@@ -79,3 +79,12 @@
 @media (prefers-reduced-motion: reduce) {
   .rd, .rd *, .rd::backdrop { animation: none !important; transition: none !important; }
 }
+
+/* 테스트용 입실 확인 (11/13 지영) */
+.rd-testin { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 14px 0 6px; padding: 12px; border: 1.5px dashed var(--navy-30, #c9d1e0); border-radius: 12px; }
+.rd-testin .rd-hint { margin: 0; }
+.rd-testin-err { font-size: 13px; color: #b42318; }
+.rd-door-open { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 14px 0 6px; padding: 18px 12px; border-radius: 14px; background: #e6f6ec; color: #136c3a; text-align: center; }
+.rd-door-open b { font-size: 26px; }
+.rd-door-icon { font-size: 34px; }
+.rd-door-open span:last-child { font-size: 13px; }

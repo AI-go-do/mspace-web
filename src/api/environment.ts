@@ -54,7 +54,8 @@ export interface RoomEnvironment {
    * 지금 걸린 예약(people = 예약 인원). 끝난 뒤에도 재실이면 그대로 두어 "시간 넘김"을 알 수 있게 한다.
    * 방 안 사람 수(카메라)는 Q-17 결정 전이라 받지 않는다
    */
-  current?: { reservationId: number; startAt: string; endAt: string; people: number } | null
+  /** checkedIn: 입실했으면 true, 입실 전이면 false (core 관리자 입실 확인 PR). 예전 core는 안 줘서 없어도 된다 */
+  current?: { reservationId: number; startAt: string; endAt: string; people: number; checkedIn?: boolean } | null
   /** 다음 예약 (people = 예약 인원) */
   next?: { startAt: string; people: number } | null
   /**
@@ -90,6 +91,7 @@ const isCurrent = (v: unknown) => {
   if (v === undefined || v === null) return true
   const c = v as Record<string, unknown>
   return typeof v === 'object' && isNum(c.reservationId) && isDate(c.startAt) && isDate(c.endAt) && isNum(c.people)
+    && (c.checkedIn === undefined || typeof c.checkedIn === 'boolean')
 }
 const isDoor = (v: unknown) => {
   if (v === undefined || v === null) return true

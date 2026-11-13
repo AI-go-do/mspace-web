@@ -41,7 +41,7 @@ export interface RoomView {
   /** history 각 분의 시각 */
   times: string[]
   /** 지금 걸린 예약 (방 상세 창의 강제 퇴실·예약 끝 표시용) */
-  current: { reservationId: number; startAt: string; endAt: string; people: number } | null
+  current: { reservationId: number; startAt: string; endAt: string; people: number; checkedIn?: boolean } | null
   presence: RoomEnvironment['presence']
   lastSignalAt: string | null
   /** 그래프용 앞으로 CO2 (1분 간격). 그릴 수 없으면 빈 배열 */
