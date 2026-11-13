@@ -337,6 +337,20 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('다시 켠 판이 결과를 준 뒤 aborted로 끝나도 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내 예약', final: true }])
+    r.onend!() // 다시 켬
+    r.say([{ t: '취소', final: false }])
+    r.onerror!({ error: 'aborted' })
+    r.onend!()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
   it('다시 켠 판이 결과를 준 뒤에 온 not-allowed는 진짜 오류로 안내하고 보내지 않는다', () => {
     const h = handlers()
     listenOnce(h, FakeRecognition)
