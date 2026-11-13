@@ -10,6 +10,7 @@ import './Alerts.css'
 import { IconButton } from '../components/IconAction'
 import { QRCodeSVG } from 'qrcode.react'
 import { getRetrievePass, LEFT_ITEM_KIND, minutesLeft, type RetrievePass } from '../api/retrievePass'
+import { getPhotoBlob, tidyPhotoUrl } from '../api/admin'
 
 const REFRESH_MS = 30_000
 /** 이 화면에서 읽음으로 바꾼 알림을 서버 값보다 앞세우는 시간. 지나면 서버가 준 읽음 상태를 따른다 */
@@ -196,7 +197,7 @@ export default function Alerts() {
                 {n.kind === 'AWAY_SOON' && n.reservationId != null
                   ? <AwayActions reservationId={n.reservationId} checkoutTo={act?.to} onUse={() => readOne(n.id)} />
                   : n.kind === LEFT_ITEM_KIND && n.reservationId != null
-                    ? <RetrieveAction reservationId={n.reservationId} member={ownerRef.current} now={now} onUse={() => readOne(n.id)} />
+                    ? <><LeftItemPhoto reservationId={n.reservationId} /><RetrieveAction reservationId={n.reservationId} member={ownerRef.current} now={now} onUse={() => readOne(n.id)} /></>
                     : act && <Link to={act.to} className="alert-link" onClick={() => readOne(n.id)}>{act.label}</Link>}
               </li>
             )
@@ -269,6 +270,48 @@ function AwayActions({ reservationId, checkoutTo, onUse }: { reservationId: numb
       {state.kind === 'error' && <p className="alert-note err" role="alert">{state.message}</p>}
       {checkoutTo && <Link to={checkoutTo} className="btn-line alert-btn" onClick={onUse}>퇴실할게요</Link>}
     </div>
+  )
+}
+
+/**
+ * 두고 간 물건 알림에 붙이는 퇴실 뒤 방 카메라 사진 (11/13 지영 "알림이랑 같이 퇴실 후 사진도").
+ * core #115 GET /api/reservations/{id}/tidy-photos/FIRST: 그 예약 대표자·참여자만 볼 수 있다. Bearer가 필요해 Blob으로 받는다.
+ * 사진이 없으면(404, 카메라가 못 올림·30일 지나 지움) 칸을 아예 안 보인다. 못 받았을 때만 짧게 알린다
+ */
+function LeftItemPhoto({ reservationId }: { reservationId: number }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [state, setState] = useState<'loading' | 'ok' | 'none' | 'failed'>('loading')
+
+  useEffect(() => {
+    const member = currentMemberId()
+    if (member === null) return
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 30_000)
+    let objectUrl: string | null = null
+    let stale = false
+    setState('loading')
+    getPhotoBlob(tidyPhotoUrl(reservationId, 'FIRST'), ctrl.signal, member)
+      .then((b) => { if (stale) return; objectUrl = URL.createObjectURL(b); setSrc(objectUrl); setState('ok') })
+      .catch((e) => { if (!stale) setState(e instanceof ApiError && e.status === 404 ? 'none' : 'failed') })
+      .finally(() => clearTimeout(timer))
+    return () => {
+      stale = true
+      clearTimeout(timer)
+      ctrl.abort()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      setSrc(null)
+    }
+  }, [reservationId])
+
+  if (state === 'none') return null
+  if (state === 'failed') return <p className="alert-note">퇴실 뒤 방 사진을 못 받았어요.</p>
+  return (
+    <figure className="left-photo">
+      {src
+        ? <a href={src} target="_blank" rel="noreferrer"><img src={src} alt="퇴실 뒤 방 카메라가 찍은 방 사진" /></a>
+        : <span className="left-photo-loading" aria-label="사진 불러오는 중" />}
+      <figcaption>퇴실 뒤 방 카메라 사진 · 눌러서 크게 보기</figcaption>
+    </figure>
   )
 }
 

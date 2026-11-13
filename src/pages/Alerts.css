@@ -51,3 +51,10 @@
 .retrieve-qr svg { display: block; }
 .retrieve-left { text-align: center; }
 .retrieve-left b { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+/* 두고 간 물건 알림의 퇴실 뒤 방 카메라 사진 (11/13) */
+.left-photo { margin: 2px 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.left-photo a { display: block; border-radius: 14px; overflow: hidden; }
+.left-photo img { display: block; width: 100%; max-height: 240px; object-fit: cover; }
+.left-photo-loading { display: block; height: 160px; border-radius: 14px; background: color-mix(in srgb, var(--sky) 25%, var(--white)); }
+.left-photo figcaption { font-size: 12px; color: var(--navy-70, #5b6475); }
