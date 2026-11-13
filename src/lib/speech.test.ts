@@ -215,8 +215,15 @@ describe('한 번 듣고 보내기', () => {
     r.say([{ t: '내일 오후', final: false }])
     vi.advanceTimersByTime(1000)
     r.say([{ t: '내일 오후 두 시', final: false }])
-    vi.advanceTimersByTime(NO_RESULT_MS)
+    // 쉬지 않고 이어 말해 듣기가 NO_RESULT_MS를 넘겨도 켜져 있어야 한다
+    for (let elapsed = 1000; elapsed < NO_RESULT_MS; elapsed += 1000) {
+      vi.advanceTimersByTime(1000)
+      r.say([{ t: '내일 오후 두 시', final: false }])
+    }
+    vi.advanceTimersByTime(1000)
     expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onEnd).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(SILENCE_MS)
     expect(h.onFinal).toHaveBeenCalledWith('내일 오후 두 시')
   })
 
