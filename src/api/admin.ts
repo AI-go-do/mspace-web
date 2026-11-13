@@ -25,6 +25,14 @@ export function getReports(verdict: ReportVerdict | null, signal?: AbortSignal, 
 }
 
 /** 판정. OPEN인 신고에 한 번만. 소음은 409 REPORT_NOT_JUDGEABLE, 이미 판정했으면 409 REPORT_ALREADY_JUDGED */
+/**
+ * "판정 기다림" 탭에 둘 신고. 소음은 증명할 수 없어 판정하지 않아(core 409 REPORT_NOT_JUDGEABLE) 대기로 영원히 남으니
+ * 이 탭에서는 빼고 "전체"에만 보인다 (11/13 지영). 할 일 숫자(AdminTodo)도 소음을 세지 않는다
+ */
+export function awaitingJudgement<T extends Pick<AdminReport, 'category' | 'verdict'>>(list: T[]): T[] {
+  return list.filter((r) => r.verdict === 'OPEN' && r.category !== 'NOISE')
+}
+
 export function judgeReport(id: number, verdict: Exclude<ReportVerdict, 'OPEN'>, member?: number | null): Promise<AdminReport> {
   return api(`/api/reports/${id}/judge`, { method: 'POST', body: JSON.stringify({ verdict }), member })
 }

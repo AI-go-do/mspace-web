@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { ApiError, currentMemberId } from '../api/client'
 import {
-  adminErrorMessage, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeConfirm, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
+  adminErrorMessage, awaitingJudgement, forceCheckout, getEvidence, getPhotoBlob, getReports, judgeConfirm, judgeReport, JUDGE_OPTIONS, MAX_FORCE_REASON,
   stillInRoom, tidyPhotoUrl, tidySummary, type AdminReport, type Evidence, type EvidencePhoto,
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
@@ -22,7 +22,7 @@ export function Skeleton({ rows = 3 }: { rows?: number }) {
   )
 }
 
-/** 신고 목록 + 판정 (FR-RPT-103). 기본은 판정 기다림(OPEN)만, "전체"로 판정한 것까지 */
+/** 신고 목록 + 판정 (FR-RPT-103). 기본은 판정 기다림(OPEN, 소음 빼고)만, "전체"로 판정한 것·소음까지 */
 export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (reservationId: number) => void; onJudged?: () => void }) {
   const [filter, setFilter] = useState<ReportVerdict | null>('OPEN')
   const [list, setList] = useState<AdminReport[] | null>(null)
@@ -38,7 +38,7 @@ export function ReportList({ onForceCheckout, onJudged }: { onForceCheckout: (re
     active.current = ctrl
     const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
     getReports(filter, ctrl.signal, memberId)
-      .then((l) => { if (active.current === ctrl) { setList(l); setError(null) } })
+      .then((l) => { if (active.current === ctrl) { setList(filter === 'OPEN' ? awaitingJudgement(l) : l); setError(null) } })
       .catch((e) => { if (active.current === ctrl) setError(adminErrorMessage(e)) })
       .finally(() => { clearTimeout(timer); if (active.current === ctrl) active.current = null })
   }, [filter])

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearTokens, saveTokens } from '../auth/tokens'
-import { adminErrorMessage, getTidyChecks, itemPercents, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
+import { adminErrorMessage, awaitingJudgement, getTidyChecks, itemPercents, judgeConfirm, JUDGE_OPTIONS, seenItemsLabel, seenItemsSummary, stillInRoom, tidyCounts, tidySummary } from './admin'
 import { ApiError } from './client'
 
 const photo = { kind: 'CHECK_OUT' as const, exists: false, url: '', uploadedAt: null }
@@ -136,5 +136,17 @@ describe('opsSummary (core #140·#142 자동 처리)', () => {
     const { opsSummary } = await import('./admin')
     expect(opsSummary({ OVERTIME: 1, VENT_SOON: 3, ROOM_HOT: 0, NEW_KIND: 2 })).toBe('미리 환기 3 · NEW_KIND 2 · 시간 넘김 1')
     expect(opsSummary(undefined)).toBe('')
+  })
+})
+
+describe('판정 기다림 탭 (11/13)', () => {
+  it('판정하지 않는 소음과 이미 판정한 신고는 빼고 판정할 대기 신고만 남긴다', () => {
+    const list = [
+      { id: 1, category: 'NOISE' as const, verdict: 'OPEN' as const },
+      { id: 2, category: 'MESSY' as const, verdict: 'OPEN' as const },
+      { id: 3, category: 'BROKEN' as const, verdict: 'UNVERIFIED' as const },
+      { id: 4, category: 'WINDOW_OPEN' as const, verdict: 'OPEN' as const },
+    ]
+    expect(awaitingJudgement(list).map((r) => r.id)).toEqual([2, 4])
   })
 })
