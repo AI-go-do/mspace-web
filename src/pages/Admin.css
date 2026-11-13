@@ -456,6 +456,9 @@
 .warn-withdraw-btns { display: flex; justify-content: flex-end; gap: 8px; }
 .warn-withdraw-btns button { width: auto; flex: none; min-height: 40px; padding: 0 18px; font-size: 14px; }
 .tidy-photos .evidence-grid { max-width: 560px; }
+/* 재입장 뒤 사진까지 세 칸(입실 전·퇴실 뒤·재입장 뒤). 가운데 ↔는 두 칸일 때만 */
+.tidy-photos .evidence-grid.three { grid-template-columns: repeat(3, 1fr); max-width: 820px; }
+.evidence-grid.three::after { display: none; }
 /* 방 카메라 AI 판단 상자: 파랑→하늘→보라 빛 테두리, 반짝이는 "비교하는 중", 한 글자씩 써지는 판단 */
 .tidy-ai {
   --ai-a: var(--blue); --ai-b: var(--sky); --ai-c: #8f7bff;
