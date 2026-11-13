@@ -25,6 +25,9 @@ describe('판정 버튼과 오류 문구 (FR-RPT-103)', () => {
   it('관리자가 아니면 관리자만이라고 알린다', () => {
     expect(adminErrorMessage(new ApiError(403, 'ADMIN_ONLY', 'x'))).toBe('관리자만 할 수 있어요.')
   })
+  it('테스트용 입실 확인이 꺼진 서버면 꺼져 있다고 알린다', () => {
+    expect(adminErrorMessage(new ApiError(403, 'ADMIN_CHECK_IN_OFF', 'x'))).toContain('꺼져')
+  })
   it('core에 아직 없는 API(코드 없는 404)는 배포 확인 안내', () => {
     expect(adminErrorMessage(new ApiError(404, 'UNKNOWN', 'x'))).toContain('core')
   })

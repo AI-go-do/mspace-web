@@ -8,6 +8,7 @@ import { RoomChart, type MetricKey } from './AdminRoomChart'
 import './AdminRoomDetail.css'
 import { ClimatePanel } from '../components/Climate'
 import { currentMemberId } from '../api/client'
+import { adminCheckIn, adminErrorMessage } from '../api/admin'
 import { APPLIANCE_SOURCE, useAppliances } from '../api/appliances'
 import { Judge } from '../components/OdiSteps'
 
@@ -153,6 +154,9 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
               <dt>마지막 신호</dt>
               <dd>{ago(view.lastSignalAt, now)}</dd>
             </dl>
+            {view.current && view.current.reservationId !== 0 && !sample && (
+              <TestCheckIn key={view.current.reservationId} reservationId={view.current.reservationId} checkedIn={view.current.checkedIn} />
+            )}
             <details className="rd-manual">
               <summary>비상시 직접 처리</summary>
             <div className="rd-actions">
@@ -177,5 +181,41 @@ export function RoomDetail({ view, now, blocked, reports = 0, sample = false, on
         </div>
       </div>
     </dialog>
+  )
+}
+
+/**
+ * 테스트용 입실 확인 (11/13 지영: QR 찍는 대신 관리자가 눌러 입실). core가 QR 입실과 같은 처리를 해서
+ * 예약이 사용 중으로 바뀌고, 그 뒤 퇴실·자동 퇴실도 QR로 들어간 것과 같다. 문 앞 LED는 켜지 않고 화면에만 "문 열림"을 띄운다.
+ * 입실 전(checkedIn === false)일 때만 버튼이 보인다. 예전 core라 checkedIn이 없으면 숨긴다
+ */
+function TestCheckIn({ reservationId, checkedIn }: { reservationId: number; checkedIn?: boolean }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'opened'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  if (state === 'opened') {
+    return (
+      <div className="rd-door-open" role="status">
+        <span className="rd-door-icon" aria-hidden="true">🔓</span>
+        <b>문 열림</b>
+        <span>예약 #{reservationId} 입실 처리했어요 · 사용 중으로 바뀌었어요</span>
+      </div>
+    )
+  }
+  if (checkedIn !== false) return null
+  const press = () => {
+    setState('busy')
+    setError(null)
+    adminCheckIn(reservationId, currentMemberId())
+      .then(() => setState('opened'))
+      .catch((e: unknown) => { setError(adminErrorMessage(e)); setState('idle') })
+  }
+  return (
+    <div className="rd-testin">
+      <button type="button" className="adm-btn" disabled={state === 'busy'} onClick={press}>
+        {state === 'busy' ? '입실 처리 중…' : '입실 확인'}
+      </button>
+      <span className="rd-hint">테스트용 · QR 대신 눌러요. 누르면 예약 #{reservationId}이 입실 처리되고 문이 열려요.</span>
+      {error && <span className="rd-testin-err" role="alert">{error}</span>}
+    </div>
   )
 }

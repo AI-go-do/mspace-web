@@ -30,6 +30,14 @@ describe('core 조도 모양', () => {
     expect(flat.rooms[0].pir?.detected).toBe(true)
   })
 
+  it('지금 예약의 checkedIn(입실 여부)은 없어도 되고, 있으면 참·거짓이어야 한다', () => {
+    const cur = { reservationId: 7, startAt: iso(t0), endAt: iso(t0 + 60 * MIN), people: 3 }
+    const withIt = (c: object) => ({ now: iso(t0), rooms: [{ ...room(), current: c }] })
+    expect(isRoomsEnvironment(withIt(cur))).toBe(true)
+    expect(isRoomsEnvironment(withIt({ ...cur, checkedIn: false }))).toBe(true)
+    expect(isRoomsEnvironment(withIt({ ...cur, checkedIn: 'no' }))).toBe(false)
+  })
+
   it('light 묶음에 raw가 없으면 모양이 다르다고 본다', () => {
     const raw = { now: iso(t0), rooms: [{ ...room(), light: { at: iso(t0) } }] }
     expect(isRoomsEnvironment(raw)).toBe(false)
