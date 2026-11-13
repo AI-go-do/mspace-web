@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { currentMemberId } from '../api/client'
 import {
-  CATEGORIES, clearReportDraft, isNeighborRoom, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, submitReport,
+  clearReportDraft, isNeighborRoom, loadReportDraft, MAX_REPORT_CONTENT, MESSY_RULE, reportErrorMessage, reportProblem, saveReportDraft, STUDENT_CATEGORIES, submitReport,
   type ReportCategory, type SubmittedReport,
 } from '../api/reports'
 import PhotoUpload from '../components/PhotoUpload'
@@ -129,7 +129,7 @@ export default function Report() {
         <fieldset className="card report-sec">
           <legend>무엇이 문제인가요?</legend>
           <div className="report-kinds">
-            {CATEGORIES.map((c) => (
+            {STUDENT_CATEGORIES.map((c) => (
               <button key={c.value} type="button" className="report-kind" aria-pressed={category === c.value} disabled={sending}
                 onClick={() => {
                   setCategory(c.value)

@@ -14,6 +14,12 @@ export const CATEGORIES: { value: ReportCategory; label: string; hint: string }[
   { value: 'NOISE', label: '소음', hint: '옆 방이 계속 시끄러워요' },
 ]
 
+/**
+ * 학생 신고 화면에 보이는 종류. 소음은 판정·알림 없이 저장만 돼서 화면에서 뺐다 (11/13 지영).
+ * core는 그대로 받고, 예전 소음 기록은 관리자 화면에 이름(CATEGORIES)으로 보인다
+ */
+export const STUDENT_CATEGORIES = CATEGORIES.filter((c) => c.value !== 'NOISE')
+
 /** 판정 이름 */
 export const VERDICT_LABEL: Record<ReportVerdict, string> = {
   OPEN: '확인 기다림',
@@ -99,7 +105,7 @@ export function loadReportDraft(reservationId: number | null, store: DraftStore 
   try {
     const d = JSON.parse(store.getItem(DRAFT_KEY) ?? 'null') as ReportDraft | null
     if (!d || d.reservationId !== reservationId) return null
-    const category = CATEGORIES.some((c) => c.value === d.category) ? d.category : null
+    const category = STUDENT_CATEGORIES.some((c) => c.value === d.category) ? d.category : null
     return { reservationId, roomId: typeof d.roomId === 'number' ? d.roomId : null, category, content: typeof d.content === 'string' ? d.content : '' }
   } catch {
     return null
