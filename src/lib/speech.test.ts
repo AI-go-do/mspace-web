@@ -153,15 +153,15 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onFinal).toHaveBeenCalledWith(Array.from({ length: MAX_RESTARTS + 1 }, (_, i) => `말${i}`).join(' '))
   })
 
-  it('멈춘 뒤 브라우저가 onend를 안 주면 잠시 뒤 듣기만 끝내고, 덜 된 말은 보내지 않는다', () => {
+  it('조용해져 멈춘 뒤 브라우저가 onend를 안 주면 잠시 뒤 듣기만 끝내고, 덜 된 말은 보내지 않는다', () => {
     vi.useFakeTimers()
     const h = handlers()
-    const stop = listenOnce(h, FakeRecognition)!
+    listenOnce(h, FakeRecognition)!
     const r = FakeRecognition.last!
     r.stop = () => { /* onend를 주지 않는 브라우저 */ }
     r.abort = () => { /* 이것도 아무 일 없음 */ }
     r.say([{ t: '지금 빈', final: false }])
-    stop()
+    vi.advanceTimersByTime(SILENCE_MS)
     expect(h.onEnd).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1500)
     expect(h.onEnd).toHaveBeenCalledTimes(1)
@@ -223,6 +223,50 @@ describe('한 번 듣고 보내기', () => {
     FakeRecognition.last!.say([{ t: '지금 빈 방', final: true }])
     stop()
     expect(h.onFinal).toHaveBeenCalledWith('지금 빈 방')
+  })
+
+  it('모바일: 브라우저가 stop·abort 뒤 onend를 안 줘도 멈춤 버튼은 바로 끝내고 보이는 말을 보낸다(11/13)', () => {
+    const h = handlers()
+    const stop = listenOnce(h, FakeRecognition)!
+    const r = FakeRecognition.last!
+    r.stop = () => { /* onend를 주지 않는 브라우저 */ }
+    r.abort = () => { /* 이것도 아무 일 없음 */ }
+    r.say([{ t: '지금 빈 방', final: false }])
+    stop()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).toHaveBeenCalledWith('지금 빈 방')
+    // 늦게 오는 결과·onend·두 번 누름은 무시한다
+    r.say([{ t: '지금 빈 방 있어', final: true }])
+    r.onend!()
+    stop()
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('모바일: 브라우저가 스스로 끝내 다시 켜는 중에 눌러도 멈춘다(다시 켜지 않음)', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    const stop = listenOnce(h, FakeRecognition)!
+    const r = FakeRecognition.last!
+    r.say([{ t: '수업 끝나고', final: true }])
+    r.onend!() // 다시 켬
+    r.stop = () => { /* 켜는 중이라 무시 */ }
+    stop()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).toHaveBeenCalledWith('수업 끝나고')
+    r.onend!()
+    vi.advanceTimersByTime(SILENCE_MS * 2)
+    expect(r.starts).toBe(2)
+    expect(h.onFinal).toHaveBeenCalledTimes(1)
+  })
+
+  it('아무 말도 하기 전에 멈추면 보내지 않고 끝낸다', () => {
+    const h = handlers()
+    const stop = listenOnce(h, FakeRecognition)!
+    stop()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
   it('음성 인식이 없는 브라우저면 null', () => {
