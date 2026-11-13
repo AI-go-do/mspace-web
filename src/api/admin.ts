@@ -458,6 +458,21 @@ export function getOpsActions(date: string | null, signal?: AbortSignal, member?
   return api(`/api/admin/ops-actions${date ? `?date=${encodeURIComponent(date)}` : ''}`, { signal, member })
 }
 
+/** AI 수습사원 카드 점수 한 줄 (core #149). right/total = 측정값(base) + 실제 처리 채점(live) */
+export interface AiScore {
+  kind: string
+  right: number
+  total: number
+  base: { right: number; total: number }
+  /** pending = 결과를 아직 볼 수 없는 실제 처리 수 */
+  live: { right: number; total: number; pending: number }
+}
+
+/** 카드 점수. core #149 전이면 404 → 화면은 측정값 그대로 */
+export function getAiScores(signal?: AbortSignal, member?: number | null): Promise<{ at: string; items: AiScore[] }> {
+  return api('/api/admin/ai-scores', { signal, member })
+}
+
 /** "미리 환기 2 · 시간 넘김 1" (건수 많은 것부터, 0은 뺌) */
 export function opsSummary(m: Record<string, number> | undefined): string {
   return Object.entries(m ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
