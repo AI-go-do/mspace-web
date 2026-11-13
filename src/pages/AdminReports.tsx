@@ -5,7 +5,7 @@ import {
   stillInRoom, tidyPhotoUrl, tidySummary, type AdminReport, type Evidence, type EvidencePhoto,
 } from '../api/admin'
 import { agoLabel } from '../api/notifications'
-import { CATEGORIES, VERDICT_LABEL, type ReportVerdict } from '../api/reports'
+import { CATEGORIES, reportBadge, type ReportVerdict } from '../api/reports'
 import { onReportsChanged, reportsChanged } from '../lib/reportsBus'
 import { seoulClock } from '../lib/time'
 
@@ -143,7 +143,7 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
   }
 
   return (
-    <li className={`card rep v-${r.verdict.toLowerCase()} ${stamp ? 'leaving' : ''}`} style={{ '--k': i } as CSSProperties}>
+    <li className={`card rep v-${reportBadge(r).key} ${stamp ? 'leaving' : ''}`} style={{ '--k': i } as CSSProperties}>
       <button type="button" className="rep-top" aria-expanded={open} onClick={onToggle}>
         <span className="adm-room" aria-hidden="true">{r.roomId}</span>
         <span className="rep-text">
@@ -153,7 +153,7 @@ function ReportCard({ r, i, open, onToggle, onJudged, onReload, onForceCheckout 
             {agoLabel(r.createdAt)} · #{r.id}
           </span>
         </span>
-        <span className={`verdict v-${r.verdict.toLowerCase()}`}>{VERDICT_LABEL[r.verdict]}</span>
+        <span className={`verdict v-${reportBadge(r).key}`}>{reportBadge(r).label}</span>
         <span className="rep-chev" aria-hidden="true" />
       </button>
       {r.content && <p className="rep-body">{r.content}</p>}

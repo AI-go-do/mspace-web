@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from './client'
-import { clearReportDraft, isNeighborRoom, loadReportDraft, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, saveReportDraft } from './reports'
+import { clearReportDraft, isNeighborRoom, loadReportDraft, reportBadge, MAX_REPORT_CONTENT, reportErrorMessage, reportProblem, saveReportDraft } from './reports'
 
 const base = { roomId: 2, category: 'BROKEN' as const, content: '', noiseConfirmed: false }
 
@@ -76,5 +76,13 @@ describe('신고 초안 (입실 사진 올리러 다녀와도 남게)', () => {
     expect(loadReportDraft(7, store)).toBeNull()
     store.setItem('mspace.reportDraft.v1', JSON.stringify({ reservationId: 7, roomId: 2, category: 'FIRE', content: 1 }))
     expect(loadReportDraft(7, store)).toEqual({ reservationId: 7, roomId: 2, category: null, content: '' })
+  })
+})
+
+describe('관리자 신고 배지 (11/13)', () => {
+  it('판정하지 않는 소음은 확인 기다림이 아니라 판정 안 함', () => {
+    expect(reportBadge({ category: 'NOISE', verdict: 'OPEN' })).toEqual({ key: 'not-judged', label: '판정 안 함' })
+    expect(reportBadge({ category: 'MESSY', verdict: 'OPEN' })).toEqual({ key: 'open', label: '확인 기다림' })
+    expect(reportBadge({ category: 'BROKEN', verdict: 'UNVERIFIED' })).toEqual({ key: 'unverified', label: '확인 불가' })
   })
 })

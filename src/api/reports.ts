@@ -22,6 +22,15 @@ export const VERDICT_LABEL: Record<ReportVerdict, string> = {
   FALSE: '허위',
 }
 
+/**
+ * 관리자 신고 카드 배지. 소음은 판정하지 않아 OPEN으로 남지만 "확인 기다림"이 아니라 "판정 안 함"으로 보인다 (11/13 지영).
+ * key는 CSS 이름(v-…)
+ */
+export function reportBadge(r: { category: ReportCategory; verdict: ReportVerdict }): { key: string; label: string } {
+  if (r.category === 'NOISE' && r.verdict === 'OPEN') return { key: 'not-judged', label: '판정 안 함' }
+  return { key: r.verdict.toLowerCase(), label: VERDICT_LABEL[r.verdict] }
+}
+
 /** 메모 최대 글자 수 (core SubmitReportService) */
 export const MAX_REPORT_CONTENT = 500
 
