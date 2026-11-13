@@ -165,8 +165,9 @@ export function listenOnce(
     // 다시 켠 뒤 조용해서 난 no-speech는 실패가 아니다(앞에서 들린 말을 보낸다)
     if (e.error === 'no-speech' && heard()) return
     // 쉼에서 우리가 다시 켠 판이 권한 오류로 막혔다: 아이폰 사파리는 버튼을 누르지 않은 start()를 not-allowed로 막는다.
-    // 학생은 이미 허용했으니 권한 안내를 띄우지 않고, 다시 켜기만 그만두고 지금까지 들린 말로 끝낸다(11/13 영준)
-    if (restarts > 0 && (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'aborted')) {
+    // 학생은 이미 허용했으니 권한 안내를 띄우지 않고, 다시 켜기만 그만두고 지금까지 들린 말로 끝낸다(11/13 영준).
+    // aborted는 브라우저 화면에서 취소한 것일 수 있어 여기 넣지 않는다(그대로 보내지 않음)
+    if (restarts > 0 && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
       noRestart = true
       return
     }

@@ -284,6 +284,19 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('다시 켠 판이 aborted로 끝나면(브라우저에서 취소) 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내 예약 취소', final: true }])
+    r.onend!() // 다시 켬
+    r.onerror!({ error: 'aborted' })
+    r.onend!()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
   it('처음 누른 판의 not-allowed는 진짜 권한 문제라 안내하고 보내지 않는다', () => {
     const h = handlers()
     listenOnce(h, FakeRecognition)
