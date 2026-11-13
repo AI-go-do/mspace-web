@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { canListen, canSpeak, joinHeard, listenOnce, MAX_RESTARTS, SILENCE_MS, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
+import { canListen, canSpeak, joinHeard, listenOnce, MAX_RESTARTS, NO_RESULT_MS, SILENCE_MS, listenSession, recognitionCtor, speak, speechErrorLine, toSpeech, type Recognition, type RecognitionEvent } from './speech'
 
 /** 테스트용 가짜 음성 인식. 만든 것을 last에 둔다 */
 class FakeRecognition implements Recognition {
@@ -187,6 +187,46 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onFinal).toHaveBeenCalledWith('음 그러니까')
   })
 
+  it('폰: 켜진 뒤 글도 오류도 안 오면 정해진 시간 뒤 듣기를 끝내고 알린다(11/13 "듣고 있어요"만 뜸)', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.stop = () => { /* 아무 일 없음 */ }
+    r.abort = () => { /* 아무 일 없음 */ }
+    vi.advanceTimersByTime(NO_RESULT_MS - 1)
+    expect(h.onEnd).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(h.onError).toHaveBeenCalledWith(speechErrorLine('no-result'))
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+    expect(h.onFinal).not.toHaveBeenCalled()
+    // 늦게 온 결과·onend는 무시한다
+    r.say([{ t: '내일', final: true }])
+    r.onend!()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('말이 들리기 시작했으면 정해진 시간이 지나도 끊지 않는다', () => {
+    vi.useFakeTimers()
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내일 오후', final: false }])
+    vi.advanceTimersByTime(1000)
+    r.say([{ t: '내일 오후 두 시', final: false }])
+    // 쉬지 않고 이어 말해 듣기가 NO_RESULT_MS를 넘겨도 켜져 있어야 한다
+    for (let elapsed = 1000; elapsed < NO_RESULT_MS; elapsed += 1000) {
+      vi.advanceTimersByTime(1000)
+      r.say([{ t: '내일 오후 두 시', final: false }])
+    }
+    vi.advanceTimersByTime(1000)
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onEnd).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(SILENCE_MS)
+    expect(h.onFinal).toHaveBeenCalledWith('내일 오후 두 시')
+  })
+
   it('아무 말도 안 하면 보내지 않고 안내만 한다', () => {
     const h = handlers()
     listenOnce(h, FakeRecognition)
@@ -275,6 +315,7 @@ describe('한 번 듣고 보내기', () => {
 
   it('마이크 권한이 막혔으면 바꾸는 곳을 알려 준다', () => {
     expect(speechErrorLine('not-allowed')).toContain('권한')
+    expect(speechErrorLine('service-not-allowed')).toContain('받아쓰기')
     expect(speechErrorLine('뭔지 모름')).toContain('글로 적어')
   })
 })

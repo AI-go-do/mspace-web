@@ -117,11 +117,14 @@ export default function Assistant() {
   function toggleMic() {
     if (listening) {
       stopListen.current?.()
+      // 듣기를 끊은 뒤(누른 순간)에 소리 길을 열어 둔다. 답이 오면 읽어 주기가 되게(아이폰)
+      primeSpeech()
       return
     }
     stopSpeaking()
     setSpeakingId(null)
-    primeSpeech()
+    // 마이크를 켜는 순간 소리 내기(primeSpeech)를 하지 않는다. 폰에서는 소리 내기가 마이크를 잡아
+    // 듣기가 켜져도 글이 안 오는 일이 있었다(11/13 재웅, 확인 필요: 기기마다 다름)
     setVoiceNote('')
     // 들은 말은 듣기를 시작한 회원 것만 보낸다(그사이 다른 탭에서 다른 학생이 로그인하면 버린다).
     // 회원을 아직 모르면(로그인 확인 실패 등) 듣지 않는다
