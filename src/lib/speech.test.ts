@@ -337,6 +337,19 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('다시 켠 판이 결과를 준 뒤에 온 not-allowed는 진짜 오류로 안내하고 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내일', final: true }])
+    r.onend!() // 다시 켬
+    r.say([{ t: '오후 2시', final: false }])
+    r.onerror!({ error: 'not-allowed' })
+    r.onend!()
+    expect(h.onError).toHaveBeenCalledWith(speechErrorLine('not-allowed'))
+    expect(h.onFinal).not.toHaveBeenCalled()
+  })
+
   it('처음 누른 판의 not-allowed는 진짜 권한 문제라 안내하고 보내지 않는다', () => {
     const h = handlers()
     listenOnce(h, FakeRecognition)

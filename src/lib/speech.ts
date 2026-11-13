@@ -122,6 +122,8 @@ export function listenOnce(
   let failed = false
   /** 다시 켜기가 막힌 브라우저(아이폰 사파리): 더 켜지 않고 들린 말로 끝낸다 */
   let noRestart = false
+  /** 다시 켠 판이 아직 결과를 하나도 안 줬다(이때 온 권한 오류만 '다시 켜기가 막힘'으로 본다) */
+  let restartPending = false
   let stopping = false
   let ended = false
   let silence: ReturnType<typeof setTimeout> | undefined
@@ -158,6 +160,7 @@ export function listenOnce(
   }, opts.noResultMs ?? NO_RESULT_MS)
   r.onresult = (e) => {
     if (ended) return
+    restartPending = false
     const finals: string[] = []
     let interim = ''
     // 이번 판의 결과 전체로 다시 만든다(resultIndex부터 이어 붙이면 브라우저마다 겹치거나 빠진다)
@@ -181,7 +184,7 @@ export function listenOnce(
     // 쉼에서 우리가 다시 켠 판이 권한 오류로 막혔다: 아이폰 사파리는 버튼을 누르지 않은 start()를 not-allowed로 막는다.
     // 학생은 이미 허용했으니 권한 안내를 띄우지 않고, 다시 켜기만 그만두고 지금까지 들린 말로 끝낸다(11/13 영준).
     // aborted는 브라우저 화면에서 취소한 것일 수 있어 여기 넣지 않는다(그대로 보내지 않음)
-    if (restarts > 0 && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
+    if (restartPending && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
       noRestart = true
       return
     }
@@ -196,6 +199,7 @@ export function listenOnce(
       committed = heard()
       current = ''
       restarts += 1
+      restartPending = true
       try {
         r.start()
         return
