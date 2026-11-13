@@ -93,12 +93,12 @@ export function aiRecords(reports: AdminReport[], warnings: Warning[], limit = 3
     .map((report) => ({ report, warnings: byReport.get(report.id) ?? [] }))
 }
 
-/** 위 숫자: 처리한 신고 · AI가 준 경고(경고가 간 신고) · 철회된 경고 */
+/** 위 숫자: 처리한 신고 · AI가 준 경고(경고 수) · 철회된 경고 */
 export function recordTotals(records: AiRecord[]): { judged: number; warned: number; withdrawn: number } {
   const ws = records.flatMap((r) => r.warnings)
   return {
     judged: records.length,
-    warned: records.filter((r) => r.warnings.length > 0).length,
+    warned: ws.length,
     withdrawn: ws.filter((w) => !!w.withdrawnAt).length,
   }
 }

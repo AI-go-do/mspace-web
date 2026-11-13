@@ -156,7 +156,7 @@ export default function Admin() {
               onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })}
               onBlockRoom={(id, inspection) => go('rooms', { block: String(id), ...(inspection ? { why: 'inspection' } : {}) })} />
           )}
-          {tab === 'todo' && <AdminTodo counts={counts} onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
+          {tab === 'todo' && <AdminTodo onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
           {tab === 'ai' && <AdminApprentice />}
           {tab === 'rooms' && (
             <div className="adm-rooms">

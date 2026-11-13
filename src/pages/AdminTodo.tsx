@@ -98,8 +98,7 @@ function JudgeLog() {
   )
 }
 
-/** counts는 예전에 접힌 줄 글씨에 쓰던 것. 11/13 신고 판정 상자를 늘 펼쳐서 지금은 안 쓴다 */
-export function AdminTodo({ onForceCheckout, onOpenRooms }: { counts?: TodoCounts; onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
+export function AdminTodo({ onForceCheckout, onOpenRooms }: { onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
   return (
     <section className="todo" aria-label="오디 판정">
       <JudgeLog />
