@@ -53,6 +53,7 @@ export function demoLeftItemAlerts(): AppNotification[] {
     id: DEMO_ID, reservationId: DEMO_RESERVATION, kind: LEFT_ITEM_KIND, read: demoRead,
     createdAt: new Date(demoAt).toISOString(),
     title: '두고 간 물건이 있어요',
-    body: '창작실 3에 물건 1개(가방)가 남아 있어요. 퇴실 3시간 안에 [찾으러 갈게요]로 들어가 가져갈 수 있어요.',
+    // 11차 회의(11/13): 학생에게는 물건 이름 없이 "두고 가셨어요"만 (카메라 이름은 틀릴 수 있다. core 알림 문구와 같게)
+    body: '창작실 3에 물건을 두고 가신 것 같아요. 퇴실 3시간 안에 [찾으러 갈게요]로 들어가 가져갈 수 있어요.',
   }]
 }
