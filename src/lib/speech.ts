@@ -72,6 +72,12 @@ export const MAX_LISTEN_MS = 30_000
 export const MAX_RESTARTS = 6
 /** 멈춘 뒤 onend를 기다리는 최대 시간 */
 const STOP_WAIT_MS = 1500
+/**
+ * 듣기를 켠 뒤 이만큼 지나도 글이 하나도 안 오면 끝내고 알린다.
+ * 폰에서 브라우저가 오류도 결과도 주지 않아 "듣고 있어요"만 계속 떠 있던 일(11/13 재웅)이 있어서,
+ * 기다리게 두지 않고 다시 누르거나 글로 적게 한다
+ */
+export const NO_RESULT_MS = 8000
 
 /**
  * 들린 조각을 한 문장으로 잇는다. 안드로이드 크롬은 이어 듣기에서 앞 조각을 다음 조각에 또 넣어 주기도 해서
@@ -97,7 +103,7 @@ export function joinHeard(parts: string[]): string {
 export function listenOnce(
   h: ListenHandlers,
   ctor: RecognitionCtor | null = recognitionCtor(),
-  opts: { silenceMs?: number; maxMs?: number } = {},
+  opts: { silenceMs?: number; maxMs?: number; noResultMs?: number } = {},
 ): (() => void) | null {
   if (!ctor) return null
   const silenceMs = opts.silenceMs ?? SILENCE_MS
@@ -138,10 +144,18 @@ export function listenOnce(
     ended = true
     clearTimeout(silence)
     clearTimeout(limit)
+    clearTimeout(noResult)
     try { r.abort() } catch { /* 이미 끝남 */ }
     h.onEnd()
   }
   const limit = setTimeout(finish, maxMs)
+  // 글이 하나도 안 온 채로 NO_RESULT_MS가 지나면 듣기를 끝내고 알린다(오류도 결과도 안 주는 폰 브라우저)
+  const noResult = setTimeout(() => {
+    if (ended || stopping || heard()) return
+    failed = true
+    h.onError(speechErrorLine('no-result'))
+    giveUp()
+  }, opts.noResultMs ?? NO_RESULT_MS)
   r.onresult = (e) => {
     if (ended) return
     const finals: string[] = []
@@ -191,6 +205,7 @@ export function listenOnce(
     clearTimeout(silence)
     clearTimeout(limit)
     clearTimeout(stopWait)
+    clearTimeout(noResult)
     const text = heard()
     if (!failed && text) h.onFinal(text)
     h.onEnd()
@@ -199,6 +214,7 @@ export function listenOnce(
     r.start()
   } catch {
     clearTimeout(limit)
+    clearTimeout(noResult)
     h.onError(speechErrorLine('start-failed'))
     h.onEnd()
     return null
@@ -212,6 +228,7 @@ export function listenOnce(
     clearTimeout(silence)
     clearTimeout(limit)
     clearTimeout(stopWait)
+    clearTimeout(noResult)
     try { r.abort() } catch { /* 이미 끝남 */ }
     const text = heard()
     if (!failed && text) h.onFinal(text)
@@ -226,12 +243,14 @@ export function speechErrorLine(code: string): string {
     case 'not-allowed':
       return '마이크가 막혀 있어요. 주소창 자물쇠에서 마이크를 허용하거나, 휴대폰 설정에서 이 브라우저의 마이크 권한을 켜 주세요. 카카오톡 안에서 열었으면 크롬·사파리로 열어 주세요.'
     case 'service-not-allowed':
-      // 권한은 있어도 음성 인식 서비스를 못 쓰는 경우(아이폰 받아쓰기 꺼짐, 앱 안 브라우저)
-      return '이 브라우저에서는 음성 인식을 쓸 수 없어요. 아이폰은 설정 > 일반 > 키보드에서 받아쓰기를 켜고, 카카오톡 안에서 열었으면 크롬·사파리로 열어 주세요.'
+      // 권한은 있어도 음성 인식 서비스를 못 쓰는 경우. 아이폰 사파리는 기기 받아쓰기가 꺼져 있으면 이 오류를 준다(확인 필요: iOS 버전마다 다름). 앱 안 브라우저도
+      return '이 브라우저에서는 음성 인식을 쓸 수 없어요. 아이폰이면 설정 > 일반 > 키보드 > 받아쓰기를 켜 주세요. 카카오톡 안에서 열었으면 크롬·사파리로 열어 주세요.'
     case 'no-speech':
       return '말소리가 들리지 않았어요. 마이크를 누르고 다시 말해 주세요.'
     case 'audio-capture':
       return '마이크를 찾지 못했어요. 마이크가 연결돼 있는지 확인해 주세요.'
+    case 'no-result':
+      return '말이 글로 바뀌지 않았어요. 마이크를 다시 누르거나 글로 적어 주세요.'
     case 'network':
       return '음성 인식은 인터넷이 필요해요. 연결을 확인하거나 글로 적어 주세요.'
     default:

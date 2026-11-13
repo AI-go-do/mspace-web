@@ -236,8 +236,6 @@
 .adm .jl-item.t-off b { color: var(--alert); }
 .adm .jl-sure { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; color: var(--navy); padding-top: 2px; }
 .adm .jl-manual { margin-top: 18px; border-top: 1px solid var(--c-line); padding-top: 12px; display: block; }
-.adm .jl-manual > summary { cursor: pointer; font-size: 13px; color: var(--navy-70); min-height: 36px; display: flex; align-items: center; }
-.adm .jl-manual[open] > summary { margin-bottom: 8px; }
 .adm .jl-manual .todo-col { margin-top: 16px; }
 /* 시연 빨리 감기 + 이 화면을 연 뒤 오디가 처리한 일 */
 .adm .ctl-fast { min-height: 32px; padding: 4px 12px; border: 1px solid var(--c-line); border-radius: 6px; background: var(--white); font: inherit; font-size: 12.5px; color: var(--navy); cursor: pointer; }

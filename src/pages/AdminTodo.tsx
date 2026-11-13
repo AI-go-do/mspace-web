@@ -61,7 +61,7 @@ export function useTodoCounts(): TodoCounts {
 
 /**
  * 오디가 판정·처리한 기록 (10차 회의·11/10 재웅: 관리자는 보기만, 판단은 AI).
- * core에 AI 판정이 아직 없어 시연 값(?demo=1)에서만 예시를 보여 준다. 확신도·근거를 같이 남겨 발표의 "AI 판단 신뢰도" 표와 이어진다
+ * 실제 기록은 AI 칸(AdminApprentice)에 있다(11/13 지영). 여기는 시연 값(?demo=1)에서만 예시를 보여 준다. 확신도·근거를 같이 남겨 발표의 "AI 판단 신뢰도" 표와 이어진다
  */
 type Judgement = { at: string; room: string; what: string; verdict: string; sure: number; why: string; tone: 'warn' | 'ok' | 'off' }
 const SAMPLE_JUDGEMENTS: Judgement[] = [
@@ -76,8 +76,8 @@ function JudgeLog() {
   if (!demoOn()) {
     return (
       <div className="adm-empty">
-        <b>오디 판정 기록이 아직 없어요</b>
-        <span>core에 AI 판정이 붙으면 신고·경고·철회 판정이 여기 쌓여요. 주소에 ?demo=1을 붙이면 예시를 볼 수 있어요.</span>
+        <b>AI가 판정한 기록은 AI 칸에서 볼 수 있어요</b>
+        <span>주소에 ?demo=1을 붙이면 예시를 볼 수 있어요.</span>
       </div>
     )
   }
@@ -98,21 +98,18 @@ function JudgeLog() {
   )
 }
 
-/** counts는 Admin이 가진 것을 받는다(같은 신고 수를 두 번 읽지 않게) */
-export function AdminTodo({ counts, onForceCheckout, onOpenRooms }: { counts: TodoCounts; onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
+export function AdminTodo({ onForceCheckout, onOpenRooms }: { onForceCheckout: (reservationId: number) => void; onOpenRooms: () => void }) {
   return (
-    <section className="todo" aria-label="오디 판단 기록">
+    <section className="todo" aria-label="오디 판정">
       <JudgeLog />
       {demoOn() && <p className="adm-foot">시연 값이에요. 확신도가 기준보다 낮으면 경고하지 않거나 철회해요(Q-24 제안). 기준 숫자는 팀 규칙 전 임시 값이에요.</p>}
-      <details className="jl-manual">
-        <summary>비상시 직접 판정 · 판정 기다리는 신고 {counts.reportsKnown ? counts.reports : '?'}건</summary>
-        <p className="adm-foot">core에 AI 판정이 붙기 전까지 쓰는 임시 칸이에요. 붙으면 없앨 거예요.</p>
+      <div className="jl-manual">
         <RestProposals onOpenRooms={onOpenRooms} />
         <section className="todo-col" aria-labelledby="todo-rep-h">
           <h2 id="todo-rep-h" className="todo-h">신고 판정</h2>
           <ReportList onForceCheckout={onForceCheckout} />
         </section>
-      </details>
+      </div>
     </section>
   )
 }

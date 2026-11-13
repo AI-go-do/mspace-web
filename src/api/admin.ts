@@ -439,11 +439,11 @@ export function writerLabel(writer: string): string {
 
 // ---- AI 자동 처리 기록 (core #140) ----
 
-export type OpsActionKind = 'VENT_SOON' | 'ROOM_HOT' | 'SENSOR_DOWN' | 'OVERTIME' | 'UNBOOKED' | (string & {})
+export type OpsActionKind = 'VENT_SOON' | 'ROOM_HOT' | 'SENSOR_DOWN' | 'OVERTIME' | 'UNBOOKED' | 'LIGHT_LEFT_ON' | (string & {})
 
-/** 자동 처리 이름 (core #140과 같은 말) */
+/** 자동 처리 이름 (core #140과 같은 말. LIGHT_LEFT_ON 불 켜짐은 11/13 추가) */
 export const OPS_KIND_LABEL: Record<string, string> = {
-  VENT_SOON: '미리 환기', ROOM_HOT: '예약 전 더움', SENSOR_DOWN: '센서 고장', OVERTIME: '시간 넘김', UNBOOKED: '예약 없는 사용',
+  VENT_SOON: '미리 환기', ROOM_HOT: '예약 전 더움', SENSOR_DOWN: '센서 고장', OVERTIME: '시간 넘김', UNBOOKED: '예약 없는 사용', LIGHT_LEFT_ON: '불 켜짐',
 }
 
 /** AI가 센서를 보고 혼자 처리한 일 한 줄. 관리자용 2종(센서 고장·예약 없는 사용)은 예약이 없고 notified 0 */

@@ -116,20 +116,30 @@ describe('찾으러 들어온 뒤 다시 확인', () => {
 })
 
 describe('재입장 뒤 사진', () => {
-  it('찾으러 들어와 다시 찍었으면 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다', () => {
-    const [before, after] = tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: true })
-    expect(before?.url).toBe('/api/reservations/7/tidy-photos/ENTRY')
-    expect(after).toMatchObject({ url: '/api/reservations/7/tidy-photos/RECHECK', label: '재입장 뒤' })
+  it('찾으러 들어와 다시 찍었으면 퇴실 뒤는 그대로 두고 재입장 뒤 칸을 셋째로 붙인다 (11/13 지영)', () => {
+    const shots = tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: true })
+    expect(shots.map((x) => x?.label)).toEqual(['입실 전', '퇴실 뒤', '재입장 뒤'])
+    expect(shots[1]?.url).toBe('/api/reservations/7/tidy-photos/FIRST')
+    expect(shots[2]?.url).toBe('/api/reservations/7/tidy-photos/RECHECK')
   })
 
-  it('core가 사진 칸을 주면 재입장 뒤 자리는 다시 확인 줄의 사진', () => {
+  it('core가 사진 칸을 주면 퇴실 뒤는 이 줄 사진, 재입장 뒤는 다시 확인 줄의 사진', () => {
+    const first = { source: 'CAMERA', takenAt: '2026-11-12T13:01:21+09:00', url: '/api/reservations/7/tidy-photos/FIRST' }
     const recheck = { after: { source: 'CAMERA', takenAt: '2026-11-12T13:12:00+09:00', url: '/api/reservations/7/tidy-photos/RECHECK' } }
-    const [, after] = tidyPair({ reservationId: 7, phase: 'FIRST', before: null, after: null }, { reentered: true, rechecked: true }, recheck)
-    expect(after).toMatchObject({ url: '/api/reservations/7/tidy-photos/RECHECK', label: '재입장 뒤', student: false })
+    const shots = tidyPair({ reservationId: 7, phase: 'FIRST', before: null, after: first }, { reentered: true, rechecked: true }, recheck)
+    expect(shots).toHaveLength(3)
+    expect(shots[1]).toMatchObject({ url: first.url, label: '퇴실 뒤' })
+    expect(shots[2]).toMatchObject({ url: '/api/reservations/7/tidy-photos/RECHECK', label: '재입장 뒤', student: false })
+  })
+
+  it('다시 확인 줄을 아직 못 받았으면 재입장 뒤 칸은 빈칸', () => {
+    expect(tidyPair({ reservationId: 7, phase: 'FIRST', before: null, after: null }, { reentered: true, rechecked: true })[2]).toBeNull()
   })
 
   it('들어왔지만 아직 안 찍었으면 퇴실 뒤 사진 그대로', () => {
-    expect(tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: false })[1]).toMatchObject({ url: '/api/reservations/7/tidy-photos/FIRST', label: '퇴실 뒤' })
+    const shots = tidyPair({ reservationId: 7, phase: 'FIRST' }, { reentered: true, rechecked: false })
+    expect(shots).toHaveLength(2)
+    expect(shots[1]).toMatchObject({ url: '/api/reservations/7/tidy-photos/FIRST', label: '퇴실 뒤' })
   })
 
   it('다시 확인 줄도 재입장이면 3시간 뒤라고 하지 않는다', () => {
@@ -138,11 +148,11 @@ describe('재입장 뒤 사진', () => {
     expect(r.verdict).toBe('가져갔어요')
   })
 
-  it('사진이 재입장 뒤로 바뀌면 첫 판단은 퇴실 직후 사진 기준이라고 밝히고, 가져갔으면 주의 색을 끈다', () => {
+  it('재입장 뒤 칸이 붙어도 퇴실 뒤 사진이 보이니 기준 글은 없고, 가져갔으면 주의 색을 끈다', () => {
     const taken = tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, true, true)
-    expect(taken).toEqual({ basis: '퇴실 직후 사진 기준', warn: false })
+    expect(taken).toEqual({ basis: null, warn: false })
     const still = tidyBoxState({ phase: 'FIRST' }, { result: 'LEFT_ITEMS', leftItems: [] }, true, true)
-    expect(still).toEqual({ basis: '퇴실 직후 사진 기준', warn: true })
+    expect(still).toEqual({ basis: null, warn: true })
     expect(tidyBoxState({ phase: 'FIRST' }, null, true, true)).toEqual({ basis: null, warn: true })
     expect(tidyBoxState({ phase: 'FIRST' }, { result: 'CLEAN', leftItems: [] }, false, true)).toEqual({ basis: null, warn: true })
   })
