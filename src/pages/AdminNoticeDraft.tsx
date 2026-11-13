@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { createBlock, previewReservations, useRoomBlocks } from '../api/roomBlocks'
 import { ADMIN_ROOMS } from '../config/adminRooms'
 import { timeRange } from '../lib/format'
-import { NOTICE_EXAMPLES, parseNotice, splitBySpans, type DraftRow, type NoticeDraft } from '../lib/noticeParse'
+import { noticeExamples, parseNotice, splitBySpans, type DraftRow, type NoticeDraft } from '../lib/noticeParse'
 import { conflictsOf, reasonLabel, reasonStatus } from '../lib/roomBlocks'
 import { dayLabel } from '../lib/slots'
 import { seoulClock, seoulDate } from '../lib/time'
@@ -84,7 +84,7 @@ export function NoticeDraftCard({ onEdit }: { onEdit: (row: DraftRow, draft: Not
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); read() } }} />
       <div className="nd-examples" role="group" aria-label="예시 공지">
         <span className="muted">예시</span>
-        {NOTICE_EXAMPLES.map((ex, i) => (
+        {noticeExamples(new Date()).map((ex, i) => (
           <button key={ex} type="button" className="nd-ex" onClick={() => { setText(ex); read(ex) }}>예시 {i + 1}</button>
         ))}
       </div>

@@ -1,11 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { NOTICE_EXAMPLES, parseNotice, splitBySpans } from './noticeParse'
+import { noticeExamples, parseNotice, splitBySpans } from './noticeParse'
 
 // 2026-11-08(일) 22:00 서울
 const now = new Date('2026-11-08T22:00:00+09:00')
+const NOTICE_EXAMPLES = noticeExamples(now)
 const kst = (s: string) => new Date(`${s}+09:00`).toISOString()
 
 describe('공지 한 줄 → 막기안', () => {
+  it('예시 날짜는 오늘에서 세서 지난 날이 되지 않는다 (발표일 11/20에 눌러도 앞날)', () => {
+    const demo = new Date('2026-11-20T10:00:00+09:00')
+    const ex = noticeExamples(demo)
+    expect(ex[0]).toContain('11월 24일(화)')
+    expect(ex[2]).toMatch(/^11\/28~11\/29 /)
+    for (const text of ex) {
+      const d = parseNotice(text, demo)
+      expect(d.problem).toBeNull()
+      for (const r of d.rows) expect(new Date(r.startAt).getTime()).toBeGreaterThan(demo.getTime())
+    }
+  })
+
   it('날짜·오전 시각 범위·방·사유를 읽는다', () => {
     const d = parseNotice(NOTICE_EXAMPLES[0], now)
     expect(d.problem).toBeNull()

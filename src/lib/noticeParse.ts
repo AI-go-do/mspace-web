@@ -333,9 +333,19 @@ export function splitBySpans(text: string, spans: Span[]): { text: string; kind:
   return out
 }
 
-/** 붙여 넣기 예시 (화면의 예시 칩) */
-export const NOTICE_EXAMPLES = [
-  '[교학팀] 11월 12일(목) 오전 9시~12시 5번 방 에어컨 점검으로 사용할 수 없습니다.',
-  '다음 주 화요일 2시부터 5시까지 1·2번 방 학과 특강 대관 예정',
-  '11/16~11/17 M-space 전체 바닥 공사로 이용 불가',
-]
+/**
+ * 붙여 넣기 예시 (화면의 예시 칩). 날짜는 오늘(서울)에서 센다.
+ * 예전에는 11/12·11/16처럼 날짜를 박아 둬서, 그 날이 지나면 예시 1·3을 눌렀을 때
+ * "이미 지난 기간은 막을 수 없어요"가 떴다(11/13 리허설, 발표일 11/20엔 둘 다 지난 날짜)
+ */
+export function noticeExamples(now: Date): string[] {
+  const today = ymd(seoulDate(now))
+  const a = addDays(today, 4)
+  const b = addDays(today, 8)
+  const c = addDays(today, 9)
+  return [
+    `[교학팀] ${a.m}월 ${a.d}일(${WEEKDAYS[weekday(a)]}) 오전 9시~12시 5번 방 에어컨 점검으로 사용할 수 없습니다.`,
+    '다음 주 화요일 2시부터 5시까지 1·2번 방 학과 특강 대관 예정',
+    `${b.m}/${b.d}~${c.m}/${c.d} M-space 전체 바닥 공사로 이용 불가`,
+  ]
+}
