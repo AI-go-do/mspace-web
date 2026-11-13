@@ -23,7 +23,7 @@ const SECTIONS = [
     icon: <><circle cx="12" cy="12" r="3" /><path d="M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8M8.5 8.5a4.9 4.9 0 0 0 0 7M15.5 8.5a4.9 4.9 0 0 1 0 7" /></>,
   },
   {
-    id: 'todo', label: '오디 판단', title: '오디 판단 기록', sub: '오디가 판정한 기록',
+    id: 'todo', label: '오디 판정', title: '오디 판정', sub: 'AI가 판정 못 한 신고는 여기서 눌러요',
     icon: <><path d="M4 12.5 9 17.5 20 6.5" /></>,
   },
   {
@@ -156,7 +156,7 @@ export default function Admin() {
               onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })}
               onBlockRoom={(id, inspection) => go('rooms', { block: String(id), ...(inspection ? { why: 'inspection' } : {}) })} />
           )}
-          {tab === 'todo' && <AdminTodo counts={counts} onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
+          {tab === 'todo' && <AdminTodo onForceCheckout={(id) => go('rooms', { sub: 'checkout', reservation: String(id) })} onOpenRooms={() => go('rooms')} />}
           {tab === 'ai' && <AdminApprentice />}
           {tab === 'rooms' && (
             <div className="adm-rooms">
