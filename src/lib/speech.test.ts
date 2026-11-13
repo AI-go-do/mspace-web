@@ -309,6 +309,77 @@ describe('한 번 듣고 보내기', () => {
     expect(h.onEnd).toHaveBeenCalledTimes(1)
   })
 
+  it('아이폰: 쉼에서 다시 켠 판이 not-allowed로 막히면 권한 안내 없이 들린 말을 보낸다(11/13)', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내일 오후 2시 빈 방', final: true }])
+    r.onend!() // 다시 켬(버튼 누름 없이)
+    expect(r.starts).toBe(2)
+    r.onerror!({ error: 'not-allowed' })
+    r.onend!()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(r.starts).toBe(2) // 또 켜지 않는다
+    expect(h.onFinal).toHaveBeenCalledWith('내일 오후 2시 빈 방')
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('다시 켠 판이 aborted로 끝나면(브라우저에서 취소) 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내 예약 취소', final: true }])
+    r.onend!() // 다시 켬
+    r.onerror!({ error: 'aborted' })
+    r.onend!()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('다시 켠 판이 결과를 준 뒤 aborted로 끝나도 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내 예약', final: true }])
+    r.onend!() // 다시 켬
+    r.say([{ t: '취소', final: false }])
+    r.onerror!({ error: 'aborted' })
+    r.onend!()
+    expect(h.onError).not.toHaveBeenCalled()
+    expect(h.onFinal).not.toHaveBeenCalled()
+    expect(h.onEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('다시 켠 판이 결과를 준 뒤에 온 not-allowed는 진짜 오류로 안내하고 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.say([{ t: '내일', final: true }])
+    r.onend!() // 다시 켬
+    r.say([{ t: '오후 2시', final: false }])
+    r.onerror!({ error: 'not-allowed' })
+    r.onend!()
+    expect(h.onError).toHaveBeenCalledWith(speechErrorLine('not-allowed'))
+    expect(h.onFinal).not.toHaveBeenCalled()
+  })
+
+  it('처음 누른 판의 not-allowed는 진짜 권한 문제라 안내하고 보내지 않는다', () => {
+    const h = handlers()
+    listenOnce(h, FakeRecognition)
+    const r = FakeRecognition.last!
+    r.onerror!({ error: 'not-allowed' })
+    r.onend!()
+    expect(h.onError).toHaveBeenCalledWith(speechErrorLine('not-allowed'))
+    expect(h.onFinal).not.toHaveBeenCalled()
+  })
+
+  it('권한 거부와 음성 인식 서비스 없음은 다른 안내를 보여 준다', () => {
+    expect(speechErrorLine('not-allowed')).toContain('마이크')
+    expect(speechErrorLine('service-not-allowed')).toContain('받아쓰기')
+    expect(speechErrorLine('service-not-allowed')).not.toBe(speechErrorLine('not-allowed'))
+  })
+
   it('음성 인식이 없는 브라우저면 null', () => {
     expect(listenOnce(handlers(), null)).toBeNull()
   })

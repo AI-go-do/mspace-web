@@ -120,6 +120,10 @@ export function listenOnce(
   let lastHeard = 0
   let restarts = 0
   let failed = false
+  /** 다시 켜기가 막힌 브라우저(아이폰 사파리): 더 켜지 않고 들린 말로 끝낸다 */
+  let noRestart = false
+  /** 다시 켠 판이 아직 결과를 하나도 안 줬다(이때 온 권한 오류만 '다시 켜기가 막힘'으로 본다) */
+  let restartPending = false
   let stopping = false
   let ended = false
   let silence: ReturnType<typeof setTimeout> | undefined
@@ -156,6 +160,7 @@ export function listenOnce(
   }, opts.noResultMs ?? NO_RESULT_MS)
   r.onresult = (e) => {
     if (ended) return
+    restartPending = false
     const finals: string[] = []
     let interim = ''
     // 이번 판의 결과 전체로 다시 만든다(resultIndex부터 이어 붙이면 브라우저마다 겹치거나 빠진다)
@@ -176,6 +181,13 @@ export function listenOnce(
     if (ended) return
     // 다시 켠 뒤 조용해서 난 no-speech는 실패가 아니다(앞에서 들린 말을 보낸다)
     if (e.error === 'no-speech' && heard()) return
+    // 쉼에서 우리가 다시 켠 판이 권한 오류로 막혔다: 아이폰 사파리는 버튼을 누르지 않은 start()를 not-allowed로 막는다.
+    // 학생은 이미 허용했으니 권한 안내를 띄우지 않고, 다시 켜기만 그만두고 지금까지 들린 말로 끝낸다(11/13 영준).
+    // aborted는 브라우저 화면에서 취소한 것일 수 있어 여기 넣지 않는다(그대로 보내지 않음)
+    if (restartPending && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
+      noRestart = true
+      return
+    }
     // 사용자가 멈춘 것(aborted)은 오류로 알리지 않는다
     if (e.error !== 'aborted') h.onError(speechErrorLine(e.error))
     failed = true
@@ -183,10 +195,11 @@ export function listenOnce(
   r.onend = () => {
     if (ended) return
     // 브라우저가 짧은 쉼에서 스스로 끝냈다: 이어서 다시 듣는다
-    if (!stopping && !failed && heard() && Date.now() - lastHeard < silenceMs && restarts < MAX_RESTARTS) {
+    if (!stopping && !failed && !noRestart && heard() && Date.now() - lastHeard < silenceMs && restarts < MAX_RESTARTS) {
       committed = heard()
       current = ''
       restarts += 1
+      restartPending = true
       try {
         r.start()
         return
@@ -232,10 +245,10 @@ export function listenOnce(
 export function speechErrorLine(code: string): string {
   switch (code) {
     case 'not-allowed':
-      return '마이크 권한을 허용해 주세요. 주소창 왼쪽 자물쇠에서 바꿀 수 있어요.'
+      return '마이크가 막혀 있어요. 주소창 자물쇠에서 마이크를 허용하거나, 휴대폰 설정에서 이 브라우저의 마이크 권한을 켜 주세요. 카카오톡 안에서 열었으면 크롬·사파리로 열어 주세요.'
     case 'service-not-allowed':
-      // 아이폰 사파리는 기기 받아쓰기가 꺼져 있으면 이 오류를 준다(확인 필요: iOS 버전마다 다름)
-      return '음성 인식을 쓸 수 없어요. 마이크 권한과, 아이폰이면 설정 > 일반 > 키보드 > 받아쓰기를 켜 주세요.'
+      // 권한은 있어도 음성 인식 서비스를 못 쓰는 경우. 아이폰 사파리는 기기 받아쓰기가 꺼져 있으면 이 오류를 준다(확인 필요: iOS 버전마다 다름). 앱 안 브라우저도
+      return '이 브라우저에서는 음성 인식을 쓸 수 없어요. 아이폰이면 설정 > 일반 > 키보드 > 받아쓰기를 켜 주세요. 카카오톡 안에서 열었으면 크롬·사파리로 열어 주세요.'
     case 'no-speech':
       return '말소리가 들리지 않았어요. 마이크를 누르고 다시 말해 주세요.'
     case 'audio-capture':
