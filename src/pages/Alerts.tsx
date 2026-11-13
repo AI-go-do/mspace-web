@@ -291,7 +291,14 @@ function LeftItemPhoto({ reservationId }: { reservationId: number }) {
     let stale = false
     setState('loading')
     getPhotoBlob(tidyPhotoUrl(reservationId, 'FIRST'), ctrl.signal, member)
-      .then((b) => { if (stale) return; objectUrl = URL.createObjectURL(b); setSrc(objectUrl); setState('ok') })
+      .then((b) => {
+        if (stale) return
+        // 크게 보기 링크가 blob 주소를 새 창으로 열어서, 사진 형식(core는 jpeg·png)만 받아요
+        if (!/^image\/(jpeg|png|webp)$/.test(b.type)) { setState('failed'); return }
+        objectUrl = URL.createObjectURL(b)
+        setSrc(objectUrl)
+        setState('ok')
+      })
       .catch((e) => { if (!stale) setState(e instanceof ApiError && e.status === 404 ? 'none' : 'failed') })
       .finally(() => clearTimeout(timer))
     return () => {
