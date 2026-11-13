@@ -53,6 +53,6 @@ export function demoLeftItemAlerts(): AppNotification[] {
     id: DEMO_ID, reservationId: DEMO_RESERVATION, kind: LEFT_ITEM_KIND, read: demoRead,
     createdAt: new Date(demoAt).toISOString(),
     title: '두고 간 물건이 있어요',
-    body: '창작실 3에 물건 1개(가방)가 남아 있어요. 퇴실 3시간 안에 가져가지 않으면 대표자에게 경고가 남아요.',
+    body: '창작실 3에 물건 1개(가방)가 남아 있어요. 퇴실 3시간 안에 [찾으러 갈게요]로 들어가 가져갈 수 있어요.',
   }]
 }
