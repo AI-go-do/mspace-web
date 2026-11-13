@@ -206,18 +206,19 @@ function shotOf(p: TidyPhoto | null | undefined, label: string): Shot | null {
  * 펼친 줄의 비교 사진 두 장 (11/12 지영 "웹캠이 입실·퇴실 사진, 못 찍었으면 학생 퇴실 사진으로 대신, 둘 다 없으면 사진이 없어요").
  * - core #125가 before·after를 주면 그대로(카메라 → 없으면 학생 사진 → 둘 다 없으면 빈칸)
  * - 예전 core(칸 없음): 같은 예약의 카메라 사진. 퇴실 직후 줄은 입실 직전(ENTRY) ↔ 퇴실 직후, 다시 확인 줄은 퇴실 직후 ↔ 3시간 뒤
+ * - 찾으러 다시 들어와 다시 찍었으면 퇴실 뒤 칸은 그대로 두고 재입장 뒤 칸을 하나 더 붙인다(11/13 지영: 입실 전·퇴실 뒤·재입장 뒤 세 칸)
  */
 export function tidyPair(
   r: Pick<TidyCheckRow, 'reservationId' | 'phase' | 'before' | 'after'>,
   re: Reentry = NO_REENTRY,
   recheck: Pick<TidyCheckRow, 'after'> | null = null,
-): [Shot | null, Shot | null] {
+): (Shot | null)[] {
   const again = re.reentered ? '재입장 뒤' : '3시간 뒤'
-  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅·팀) 퇴실 뒤 자리를 재입장 뒤 사진으로 바꾼다. 다시 확인 줄은 이 줄에 합친다(mergedIntoFirst)
-  const swap = r.phase === 'FIRST' && re.reentered && re.rechecked
+  // 찾으러 다시 들어와 다시 찍었으면(11/12 재웅·팀) 재입장 뒤 칸을 셋째로 붙인다. 다시 확인 줄은 이 줄에 합친다(mergedIntoFirst)
+  const third = r.phase === 'FIRST' && re.reentered && re.rechecked
   if (r.before !== undefined || r.after !== undefined) {
-    const after = swap && recheck?.after !== undefined ? shotOf(recheck.after, again) : shotOf(r.after, afterLabel(r, re))
-    return [shotOf(r.before, beforeLabel(r)), after]
+    const pair = [shotOf(r.before, beforeLabel(r)), shotOf(r.after, afterLabel(r, re))]
+    return third ? [...pair, recheck?.after !== undefined ? shotOf(recheck.after, again) : null] : pair
   }
   if (r.phase === 'RECHECK') {
     return [
@@ -227,9 +228,8 @@ export function tidyPair(
   }
   return [
     { url: tidyPhotoUrl(r.reservationId, 'ENTRY'), label: '입실 전', when: '' },
-    swap
-      ? { url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: again, when: '' }
-      : { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 뒤', when: '' },
+    { url: tidyPhotoUrl(r.reservationId, 'FIRST'), label: '퇴실 뒤', when: '' },
+    ...(third ? [{ url: tidyPhotoUrl(r.reservationId, 'RECHECK'), label: again, when: '' }] : []),
   ]
 }
 
@@ -383,14 +383,15 @@ export function tidySteps(row: TidyCheckRow, recheck: TidyCheckRow | null, actio
  * recheck: 같은 예약의 3시간 뒤 다시 확인 줄(있으면)
  */
 /**
- * 퇴실 직후 줄의 사진 자리가 재입장 뒤 사진으로 바뀌었을 때(tidyPair), 판단 상자가 보이는 사진과 어긋나지 않게 맞춘다.
- * - basis: 첫 판단(확신도)은 화면에 없는 퇴실 직후 사진으로 한 것이라고 밝힌다
+ * 재입장 뒤 사진 칸이 붙었을 때(tidyPair), 판단 상자가 보이는 사진과 어긋나지 않게 맞춘다.
+ * - basis: 퇴실 뒤 사진이 함께 보이니 이제 따로 밝히지 않는다(null)
  * - warn: 가져간 게 확인되면 상자를 주의 색으로 칠하지 않는다
  */
 export function tidyBoxState(row: Pick<TidyCheckRow, 'phase'>, recheck: Pick<TidyCheckRow, 'result' | 'leftItems'> | null, reentered: boolean, warn: boolean): { basis: string | null; warn: boolean } {
   const swapped = row.phase === 'FIRST' && reentered && recheck !== null
   if (!swapped) return { basis: null, warn }
-  return { basis: '퇴실 직후 사진 기준', warn: warn && !tidyTaken(recheck) }
+  // 퇴실 뒤 사진이 그대로 보이니(세 칸, 11/13) 기준 사진을 따로 밝히지 않는다
+  return { basis: null, warn: warn && !tidyTaken(recheck) }
 }
 
 function TidyJudgement({ row, recheck, score, reentered }: { row: TidyCheckRow; recheck: TidyCheckRow | null; score: ModelScoreView; reentered: boolean }) {
@@ -521,9 +522,9 @@ export function AdminTidyChecks() {
                       onClick={() => toggle(key)}
                     />
                     {pair && (
-                      <div className="tidy-photos"><div className="evidence-grid">
+                      <div className="tidy-photos"><div className={`evidence-grid${pair.length > 2 ? ' three' : ''}`}>
                         {pair.map((shot, i) => {
-                          const label = shot?.label ?? (i === 0 ? beforeLabel(r) : afterLabel(r, re))
+                          const label = shot?.label ?? (i === 0 ? beforeLabel(r) : i === 1 ? afterLabel(r, re) : '재입장 뒤')
                           return (
                             <figure key={i} className={`evidence-cell${shot?.student ? ' student' : ''}`}>
                               <AuthPhoto url={shot?.url ?? null} empty="사진을 못 받았어요" alt={`${r.roomName} ${label} 사진`} />
