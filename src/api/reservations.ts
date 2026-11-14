@@ -92,6 +92,8 @@ export interface MyReservation {
   checkedInAt?: string | null
   /** 실제 퇴실 시각 (core #134). 퇴실 버튼·시간 끝나 자동·자리 비움 모두. 아직 안 나갔으면 null */
   checkedOutAt?: string | null
+  /** 연장으로 생긴 예약인지 (core fix/me-continued). 연장은 1회라 true면 연장 버튼을 숨긴다. 예전 core에는 없다 */
+  continued?: boolean
 }
 
 /**
