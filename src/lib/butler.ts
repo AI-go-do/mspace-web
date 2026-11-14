@@ -72,7 +72,7 @@ export interface ButlerInput {
 /** 지금 먼저 말할 한 가지. 없으면 null(카드를 숨긴다) */
 export function butlerSuggestion({ mine, rooms, schedule, watched = [] }: ButlerInput, now: Date): Suggestion | null {
   const t = now.getTime()
-  const extend = mine.find((r) => r.owner && r.status === 'IN_USE' && canContinueAt(r.endAt, t))
+  const extend = mine.find((r) => r.owner && r.status === 'IN_USE' && !r.continued && canContinueAt(r.endAt, t))
   if (extend) return { kind: 'extend', r: extend }
 
   const checkin = mine.find((r) => {

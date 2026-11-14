@@ -74,6 +74,8 @@ describe('butlerSuggestion 우선순위', () => {
     expect(butlerSuggestion({ mine: [r], rooms, schedule }, at('15:52'))).toMatchObject({ kind: 'extend', r })
     // 참여자는 연장할 수 없다
     expect(butlerSuggestion({ mine: [mine({ status: 'IN_USE', owner: false })], rooms, schedule: undefined }, at('15:52'))).toBeNull()
+    // 이미 연장한 예약은 더 연장할 수 없다(1회)
+    expect(butlerSuggestion({ mine: [mine({ status: 'IN_USE', continued: true })], rooms, schedule: undefined }, at('15:52'))).toBeNull()
   })
   it('입실 시간(시작 10분 전 ~ 마감)이면 QR 꺼내기', () => {
     const r = mine({})

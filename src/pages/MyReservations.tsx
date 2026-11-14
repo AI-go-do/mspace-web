@@ -274,18 +274,21 @@ export function InUseCard({ r, onChanged, notice, onExtended }: {
         <>
           <Link to={`/me/${r.id}/checkout`} className="inuse-btn">다 썼어요, 퇴실하기</Link>
           <div className="inuse-row">
-            <button type="button" className="inuse-btn2" disabled={!canContinue || sending} aria-expanded={picking}
-              onClick={() => { setNote(null); setPicking((v) => !v) }}>
-              {/* 아직 못 하면 문장 대신 버튼에 언제부터인지만(11/10 재웅 "글자 많다") */}
-              {!canContinue && end > now.getTime() ? `연장 ${seoulClock(new Date(end - 10 * 60_000))}부터` : '연장하기'}
-            </button>
+            {/* 연장은 1회라, 연장으로 생긴 예약에는 버튼을 두지 않는다(누르면 RESERVATION_EXTENSION_LIMIT만 나와서) */}
+            {!r.continued && (
+              <button type="button" className="inuse-btn2" disabled={!canContinue || sending} aria-expanded={picking}
+                onClick={() => { setNote(null); setPicking((v) => !v) }}>
+                {/* 아직 못 하면 문장 대신 버튼에 언제부터인지만(11/10 재웅 "글자 많다") */}
+                {!canContinue && end > now.getTime() ? `연장 ${seoulClock(new Date(end - 10 * 60_000))}부터` : '연장하기'}
+              </button>
+            )}
             {still.state.kind !== 'done' && (
               <button type="button" className="inuse-btn2" disabled={still.state.kind === 'sending'} onClick={() => void still.press()}>
                 {still.state.kind === 'sending' ? '알리는 중…' : '아직 있어요'}
               </button>
             )}
           </div>
-          {picking && canContinue && (
+          {picking && canContinue && !r.continued && (
             <div className="inuse-steps" role="group" aria-label="얼마나 더 쓸까요">
               {CONTINUE_STEPS.map((m) => (
                 <button key={m} type="button" className="inuse-step" disabled={sending} onClick={() => void extend(m)}>
